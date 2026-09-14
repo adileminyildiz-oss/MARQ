@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=658;
+var LAST_VER=659;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40756,6 +40756,82 @@ function testLienSignature() {
    +'.cfc-empty{font-size:12px;opacity:.55;padding:2px 0}.cfc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
    +'.cfc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.cfc-opts label{display:inline-flex;align-items:center;gap:6px}.cfc-opts input[type=number]{width:56px;padding:3px 6px}.cfc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.cfc-gw.on{color:#2fae5f;opacity:1}'
    +'.cfc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.cfc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.cfc-jl span{opacity:.55;min-width:130px}.cfc-jl.ko b{color:#e0a458}.cfc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Clients : mise en ordre du fichier (v659)
+   ----------------------------------------------------------------------------
+   En tête du module Clients, un panneau « Mise en ordre » réunit : les FICHES
+   INCOMPLÈTES (champs manquants, demande d'informations par e-mail ou par le
+   formulaire en ligne du dossier), les DOUBLONS exacts (même e-mail, même
+   dénomination ou même nom), les RATTACHEMENTS proposés entre un particulier
+   et la société qu'il dirige (accepter / refuser), et la SYNCHRONISATION des
+   fiches vers leurs dossiers de traitement. Journal des actions.
+   100 % additif : greffe sur pageClients ; cliMergeCandidates, cliAcceptMerge,
+   cliDeclineMerge, cliDosSync et infosDemander existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__cliChaine) return; window.__cliChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.cliChaine=p.cliChaine||{}; var c=p.cliChaine; if(!Array.isArray(c.journal)) c.journal=[]; if(!c.ignores) c.ignores={}; return c; }
+  function clients(){ return Array.isArray(DB.clients)?DB.clients:[]; }
+  function byId(id){ return clients().filter(function(x){return x.id===id;})[0]||null; }
+  function nz(s){ return (''+(s==null?'':s)).trim(); }
+  function norm(s){ s=nz(s).toLowerCase(); try{ s=s.normalize('NFD').replace(/[̀-ͯ]/g,''); }catch(e){} return s.replace(/\b(sas|sasu|sarl|eurl|sci|sa|snc|ei|eirl)\b/g,'').replace(/[^a-z0-9]/g,''); }
+  function isPart(c){ return !!(c&&c.clientType==='particulier'); }
+  function nom(c){ if(!c) return ''; var pn=nz((c.prenom||'')+' '+(c.nom||'')); return isPart(c)?(pn||'(particulier)'):(nz(c.denomination)||pn||'(sans nom)'); }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function dossiersDe(c){ try{ return (DB.dossiers||[]).filter(function(d){ return !d.archived&&(d.clientIds||[]).indexOf(c.id)>=0; }); }catch(e){ return []; } }
+  function log(step,ok,detail,qui,mode){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',qui:qui||'',mode:mode||''}); if(c.journal.length>200) c.journal.length=200; }
+  var CH_ENT=[['denomination','Dénomination'],['forme','Forme juridique'],['siren','SIREN'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['president','Dirigeant'],['email','E-mail'],['tel','Téléphone']];
+  var CH_PART=[['prenom','Prénom'],['nom','Nom'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['email','E-mail'],['tel','Téléphone']];
+  function manques(c){ var L=isPart(c)?CH_PART:CH_ENT; return L.filter(function(p){ return !nz(c[p[0]]); }).map(function(p){ return p[1]; }); }
+
+  window.cliChaineBilan=function(){ var c=cfg(); var L=clients();
+    var inc=L.map(function(x){ return {c:x,m:manques(x)}; }).filter(function(o){ return o.m.length; }).sort(function(a,b){ return b.m.length-a.m.length; });
+    var seenMail={}, seenNom={}, dups=[], pairKey={};
+    L.forEach(function(x){ var em=nz(x.email).toLowerCase(); var nn=norm(nom(x)); if(em){ if(seenMail[em]&&seenMail[em].id!==x.id) dups.push({a:seenMail[em],b:x,how:'même e-mail : '+em}); else seenMail[em]=x; } if(nn&&nn.length>=3){ if(seenNom[nn]&&seenNom[nn].id!==x.id) dups.push({a:seenNom[nn],b:x,how:isPart(x)?'même nom':'même dénomination'}); else seenNom[nn]=x; } });
+    dups=dups.filter(function(d){ var k=[d.a.id,d.b.id].sort().join('|'); if(pairKey[k]||c.ignores[k]) return false; pairKey[k]=1; return true; });
+    var rat=[]; try{ rat=(typeof cliMergeCandidates==='function')?cliMergeCandidates():[]; }catch(e){}
+    var sync=L.filter(function(x){ return dossiersDe(x).length; });
+    return {inc:inc,dups:dups,rat:rat,sync:sync,total:L.length,gw:gw(),cfg:c}; };
+
+  window.cliDemanderInfos=function(id,silent){ var c=byId(id); if(!c) return false; var m=manques(c); var to=nz(c.email);
+    if(!to){ log('Demande d\'informations',false,'aucune adresse e-mail',nom(c)); if(!silent) toast('Aucune adresse e-mail : renseignez-la d\'abord sur la fiche.',4000,'warn'); return false; }
+    if(!m.length){ if(!silent) toast('Fiche complète : rien à demander.'); return false; }
+    var sujet='Informations à compléter — '+nom(c)+' — AEM CONSEIL';
+    var corps='Bonjour,\n\nAfin de compléter votre dossier client, nous vous remercions de nous communiquer les informations suivantes :\n\n'+m.map(function(x){ return '   • '+x; }).join('\n')+'\n\nUn simple retour à ce message suffit.\n\nNous vous en remercions par avance.\n\nBien cordialement,\nAEM CONSEIL';
+    var mode='messagerie'; if(gw()&&typeof demSendViaScript==='function'){ mode='passerelle'; try{ demSendViaScript(to,sujet,corps,null,{silent:true}); }catch(e){ mode='messagerie'; } }
+    if(mode==='messagerie'){ try{ window.open('mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(sujet)+'&body='+encodeURIComponent(corps)); }catch(e){} }
+    c.infosDemandeLe=Date.now(); c.infosDemandees=m.slice(); log('Demande d\'informations',true,m.join(', ')+' → '+to,nom(c),mode); try{save();}catch(e){}
+    if(!silent){ toast('Demande '+(mode==='passerelle'?'envoyée à ':'préparée pour ')+to+' ('+m.length+' information(s)).',4000,'success'); try{render();}catch(e){} } return true; };
+  window.cliChaineSync=function(silent){ var b=cliChaineBilan(); var n=0; b.sync.forEach(function(c){ try{ if(typeof cliDosSync==='function'){ cliDosSync(c); n++; } }catch(e){ log('Synchronisation',false,e.message||'',nom(c)); } }); log('Synchronisation vers les dossiers',true,n+' fiche(s) reportée(s) dans leurs dossiers'); try{save();}catch(e){} if(!silent){ toast(n?(n+' fiche(s) synchronisée(s) avec leurs dossiers.'):'Aucun client rattaché à un dossier.',4000,'success'); try{render();}catch(e){} } return n; };
+  window.cliChaineIgnorer=function(a,b){ var c=cfg(); c.ignores[[a,b].sort().join('|')]=1; log('Doublon ignoré',true,'',(byId(a)?nom(byId(a)):'')+' / '+(byId(b)?nom(byId(b)):'')); try{save();}catch(e){} try{render();}catch(e){} };
+  window.cliChaineRattacher=function(pid,sid,ok){ var p=byId(pid), s=byId(sid); try{ if(ok) cliAcceptMerge(pid,sid); else cliDeclineMerge(pid,sid); }catch(e){} log(ok?'Rattachement accepté':'Rattachement refusé',true,'',(p?nom(p):'')+' → '+(s?nom(s):'')); try{save();}catch(e){} try{render();}catch(e){} };
+  window.cliChaineExecuter=function(){ var b=cliChaineBilan(); var n=0; b.inc.forEach(function(o){ if(nz(o.c.email)&&!o.c.infosDemandeLe){ if(cliDemanderInfos(o.c.id,true)) n++; } }); var s=cliChaineSync(true); toast('Mise en ordre : '+n+' demande(s) d\'informations, '+s+' fiche(s) synchronisée(s).',5000,'success'); try{render();}catch(e){} };
+  window.cliChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.cliChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+
+  function sec(t,list,fn,empty){ return '<div class="clc-sec"><div class="clc-h">'+t+' <span>'+list.length+'</span></div>'+(list.length?list.map(fn).join(''):'<div class="clc-empty">'+(empty||'Rien à signaler.')+'</div>')+'</div>'; }
+  window.cliChaineCard=function(){ var b=cliChaineBilan(); var c=b.cfg; if(!b.total) return '';
+    var head='<div class="card-h"><h2>🧹 Mise en ordre du fichier</h2><span class="clc-sum">'+b.total+' client(s) · '+b.inc.length+' incomplet(s) · '+b.dups.length+' doublon(s) · '+b.rat.length+' rattachement(s)</span><div class="clc-hb"><button class="btn btn-sm btn-pri" onclick="cliChaineExecuter()">Tout exécuter</button><button class="btn btn-sm btn-ghost" onclick="cliChaineToggle()">'+(c.reduit?'Afficher':'Réduire')+'</button></div></div>';
+    if(c.reduit) return '<div class="card clc-card">'+head+'</div>';
+    var s1=sec('Fiches incomplètes',b.inc.slice(0,15),function(o){ var x=o.c; var ds=dossiersDe(x); return '<div class="clc-row"><span class="clc-cli"><b><a href="#" onclick="cliSel(\''+E(x.id)+'\');return false">'+E(nom(x))+'</a></b>'+(x.infosDemandeLe?(' <i>demande envoyée le '+E(new Date(x.infosDemandeLe).toLocaleDateString('fr-FR'))+'</i>'):'')+'<small>'+E(o.m.join(' · '))+'</small></span><span class="clc-act">'+(nz(x.email)?('<button class="btn btn-sm" onclick="cliDemanderInfos(\''+E(x.id)+'\')">Demander par e-mail</button>'):'<em>sans e-mail</em>')+(ds.length&&typeof infosDemander==='function'?('<button class="btn btn-sm btn-ghost" onclick="infosDemander(\''+E(ds[0].id)+'\')">Formulaire en ligne</button>'):'')+'</span></div>'; },'Toutes les fiches sont complètes.');
+    var s2=sec('Doublons à vérifier',b.dups,function(d){ return '<div class="clc-row"><span class="clc-cli"><b><a href="#" onclick="cliSel(\''+E(d.a.id)+'\');return false">'+E(nom(d.a))+'</a></b> et <b><a href="#" onclick="cliSel(\''+E(d.b.id)+'\');return false">'+E(nom(d.b))+'</a></b><small>'+E(d.how)+'</small></span><span class="clc-act"><button class="btn btn-sm btn-ghost" onclick="cliChaineIgnorer(\''+E(d.a.id)+'\',\''+E(d.b.id)+'\')">Ce ne sont pas des doublons</button></span></div>'; },'Aucun doublon détecté.');
+    var s3=sec('Rattachements proposés (particulier ↔ société)',b.rat,function(r){ return '<div class="clc-row"><span class="clc-cli"><b>'+E(r.nom)+'</b> → '+E(r.soc)+'<small>'+E(r.role||r.how)+(r.info?(' · '+E(r.info)):'')+'</small></span><span class="clc-act"><button class="btn btn-sm" onclick="cliChaineRattacher(\''+E(r.pid)+'\',\''+E(r.sid)+'\',true)">Rattacher</button><button class="btn btn-sm btn-ghost" onclick="cliChaineRattacher(\''+E(r.pid)+'\',\''+E(r.sid)+'\',false)">Refuser</button></span></div>'; },'Aucun rattachement à proposer.');
+    var s4='<div class="clc-sec"><div class="clc-h">Synchronisation vers les dossiers <span>'+b.sync.length+'</span></div>'+(b.sync.length?('<div class="clc-row"><span class="clc-cli">'+b.sync.length+' client(s) rattaché(s) à un dossier de traitement : les informations de la fiche (identité, siège, dirigeant, activité) sont reportées dans les dossiers.</span><span class="clc-act"><button class="btn btn-sm" onclick="cliChaineSync()">Synchroniser</button></span></div>'):'<div class="clc-empty">Aucun client rattaché à un dossier.</div>')+'</div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="clc-journal"><div class="clc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="cliChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="clc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card clc-card">'+head+'<div class="card-b"><div class="clc-grid">'+s1+s2+s3+s4+'</div>'+(b.gw?'':'<div class="clc-gw">Passerelle non configurée : les demandes s\'ouvrent dans votre messagerie.</div>')+jr+'</div></div>'; };
+  try{ var _pc=window.pageClients; if(typeof _pc==='function'&&!_pc.__clc){ window.pageClients=function(){ var h=_pc.apply(this,arguments); try{ if(typeof h==='string') h=cliChaineCard()+h; }catch(e){} return h; }; window.pageClients.__clc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='cli-chaine-css'; st.textContent=
+    '.clc-card{margin:0 0 14px}.clc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.clc-card .card-h h2{margin:0;font-size:15px}.clc-sum{font-size:12px;opacity:.65}.clc-hb{margin-left:auto;display:flex;gap:6px}'
+   +'.clc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.clc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.clc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.clc-h span{opacity:.6}.clc-h .btn{margin-left:auto}'
+   +'.clc-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.clc-row:first-of-type{border-top:0}.clc-cli{flex:1;min-width:0}.clc-cli a{color:inherit;text-decoration:none}.clc-cli a:hover{text-decoration:underline}.clc-cli small{display:block;font-size:11px;opacity:.6}.clc-cli i{font-style:normal;font-size:11px;opacity:.6}.clc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.clc-act em{font-style:normal;font-size:11px;color:#e0a458}'
+   +'.clc-empty{font-size:12px;opacity:.55;padding:2px 0}.clc-gw{font-size:11.5px;opacity:.6;margin-top:10px}'
+   +'.clc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.clc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.clc-jl span{opacity:.55;min-width:130px}.clc-jl.ko b{color:#e0a458}.clc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
