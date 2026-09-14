@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=662;
+var LAST_VER=663;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41151,6 +41151,97 @@ function testLienSignature() {
    +'.tvc-empty{font-size:12px;opacity:.55;padding:2px 0}.tvc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
    +'.tvc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.tvc-opts label{display:inline-flex;align-items:center;gap:6px}.tvc-opts select{padding:3px 6px}.tvc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.tvc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.tvc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.tvc-jl span{opacity:.55;min-width:130px}.tvc-jl.ko b{color:#e0a458}.tvc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Justificatifs du cabinet : clôture mensuelle (v663)
+   ----------------------------------------------------------------------------
+   En tête du module Justificatifs du cabinet, un panneau « Chaîne d'exécution »
+   réunit, mois par mois : la RÉCUPÉRATION des paiements du cabinet déjà
+   comptabilisés dans Factures prestataires (écritures générées / transmises)
+   qui n'ont pas encore de justificatif ici (créés automatiquement, justificatif
+   à joindre), les pièces À COMPLÉTER (prestataire, montant, date, fichier),
+   le RELEVÉ mensuel (export CSV + impression pour l'expert-comptable) et la
+   CLÔTURE du mois (total figé, réouverture possible). Chaque action est
+   consignée dans un journal. 100 % additif : greffe sur le rendu de la page ;
+   DB.facturesPrestataires et les handlers existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__jcChaine) return; window.__jcChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function store(){ DB.facturesPrestataires=DB.facturesPrestataires||[]; return DB.facturesPrestataires; }
+  function cfg(){ var p=P(); p.jcChaine=p.jcChaine||{}; var c=p.jcChaine; if(c.autoRec==null) c.autoRec=true; if(!Array.isArray(c.journal)) c.journal=[]; c.clotures=c.clotures||{}; return c; }
+  function r2(x){ return Math.round((+x||0)*100)/100; }
+  function pm(e){ var m=parseFloat((''+(e.montant==null?'':e.montant)).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,'')); return isNaN(m)?0:m; }
+  function money(n){ n=r2(n); try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function nrm(s){ return (''+(s||'')).toUpperCase().normalize('NFD').replace(/[^A-Z0-9]/g,''); }
+  function dateOK(d){ d=''+(d||''); return /^\d{4}-\d{2}-\d{2}$/.test(d)&&!isNaN(new Date(d+'T00:00:00').getTime()); }
+  function frD(d){ return dateOK(d)?(d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)):''; }
+  var ML=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  function moisLbl(ym){ var m=(''+ym).match(/^(\d{4})-(\d{2})$/); return m?(ML[+m[2]-1]+' '+m[1]):ym; }
+  function nowYM(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  function ymOf(e){ return dateOK(e.date)?e.date.slice(0,7):''; }
+  function uid2(){ try{ if(typeof uid==='function') return uid('fp'); }catch(e){} return 'fp'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+  function log(step,ok,detail,mode){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function mois(){ if(!window.__jcMois) window.__jcMois=nowYM(); return window.__jcMois; }
+
+  /* ---------- bilan ---------- */
+  function manques(e){ var m=[]; if(!(''+(e.fournisseur||'')).trim()) m.push('prestataire'); if(!(pm(e)>0)) m.push('montant'); if(!dateOK(e.date)) m.push('date'); if(!e.fichierData) m.push('justificatif à joindre'); return m; }
+  function presta(){ var p=P(); return (p.factPresta&&Array.isArray(p.factPresta.list))?p.factPresta.list:[]; }
+  function candidats(){ var L=store(); var srcs={}; L.forEach(function(e){ if(e.src) srcs[e.src]=1; }); var out=[]; presta().forEach(function(f){ if(!(f.statut==='ecriture'||f.statut==='transmise')) return; var s='presta:'+f.id; if(srcs[s]) return; var ttc=r2(parseFloat((''+(f.ttc||'')).replace(',','.'))||0); if(!(ttc>0)) return; var fn=nrm(f.fournisseur); var dup=L.some(function(e){ return fn&&nrm(e.fournisseur)===fn&&Math.abs(pm(e)-ttc)<0.005; }); if(dup) return; out.push({f:f,ttc:ttc,lib:(f.fournisseur||'(prestataire ?)')+(f.numero?(' · '+f.numero):'')+' · '+frD((''+(f.dateFact||'')).slice(0,10))}); }); return out; }
+  window.jcChaineBilan=function(){ var L=store(), c=cfg(), ym=mois(); var inc=[]; L.forEach(function(e){ var m=manques(e); if(m.length) inc.push({e:e,m:m}); });
+    var byM={}; L.forEach(function(e){ var k=ymOf(e)||'sans date'; byM[k]=byM[k]||{ym:k,n:0,total:0,inc:0}; byM[k].n++; byM[k].total=r2(byM[k].total+pm(e)); if(manques(e).length) byM[k].inc++; });
+    var keys=Object.keys(byM).filter(function(k){return k!=='sans date';}).sort().reverse(); if(keys.indexOf(ym)<0) keys.unshift(ym); keys.sort().reverse();
+    var moisL=keys.slice(0,8).map(function(k){ var x=byM[k]||{ym:k,n:0,total:0,inc:0}; x.clot=c.clotures[k]||null; return x; }); if(byM['sans date']) moisL.push(Object.assign(byM['sans date'],{clot:null}));
+    var cur=byM[ym]||{ym:ym,n:0,total:0,inc:0}; var incM=inc.filter(function(x){return ymOf(x.e)===ym;});
+    return {inc:inc,incMois:incM,cand:candidats(),mois:moisL,ym:ym,cur:cur,clot:c.clotures[ym]||null,sansFichier:L.filter(function(e){return !e.fichierData;}).length,total:L.length,cfg:c}; };
+
+  /* ---------- actions ---------- */
+  window.jcRapprocher=function(silent){ var C=candidats(); if(!C.length){ if(!silent&&typeof toast==='function') toast('Aucun paiement à récupérer : tous les paiements comptabilisés ont un justificatif ici.'); return 0; } var tot=0; C.forEach(function(x){ var f=x.f; tot+=x.ttc; store().unshift({id:uid2(),src:'presta:'+f.id,fournisseur:f.fournisseur||'',objet:'Facture '+(f.numero||'')+(f.sujet?(' — '+f.sujet):''),montant:x.ttc.toFixed(2),date:(''+(f.dateFact||'')).slice(0,10),fichierNom:f.fichierNom||'',fichierData:'',recuMail:!!f.mailId,ts:Date.now()}); }); log('Récupération',true,C.length+' paiement(s) repris depuis Factures prestataires · '+money(tot)+' · justificatifs à joindre',silent?'automatique':'manuel'); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast(C.length+' paiement(s) récupéré(s) — joignez les justificatifs.'); } return C.length; };
+  window.jcVoir=function(id){ try{ var e=store().filter(function(x){return x.id===id;})[0]; if(!e) return; window.__fpQ=e.fournisseur||e.objet||''; render(); var q=(''+window.__fpQ).toLowerCase(); document.querySelectorAll('.fp-t tbody tr').forEach(function(tr){ var ins=tr.querySelectorAll('input'); var hay=(((ins[0]&&ins[0].value)||'')+' '+((ins[1]&&ins[1].value)||'')).toLowerCase(); tr.style.display=(!q||hay.indexOf(q)>=0)?'':'none'; }); var t=document.querySelector('.fp-t'); if(t&&t.scrollIntoView) t.scrollIntoView({block:'center'}); }catch(e){} };
+  function duMois(ym){ return store().filter(function(e){ return ymOf(e)===ym; }).sort(function(a,b){ return (''+a.date).localeCompare(''+b.date); }); }
+  window.jcExportCSV=function(ym){ ym=ym||mois(); var L=duMois(ym); if(!L.length){ if(typeof toast==='function') toast('Aucun justificatif pour '+moisLbl(ym)+'.'); return 0; } var esc2=function(s){ s=''+(s==null?'':s); return /[";\n]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s; }; var lines=['Date;Prestataire;Objet;Montant;Justificatif;Origine']; var tot=0; L.forEach(function(e){ tot+=pm(e); lines.push([frD(e.date),e.fournisseur||'',e.objet||'',pm(e).toFixed(2).replace('.',','),e.fichierData?(e.fichierNom||'joint'):'à joindre',e.recuMail?'e-mail':(e.src?'Factures prestataires':'dépôt')].map(esc2).join(';')); }); lines.push(['','','Total',tot.toFixed(2).replace('.',','),'',''].join(';'));
+    try{ var b=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='justificatifs-cabinet-'+ym+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){ try{URL.revokeObjectURL(a.href);}catch(e){} a.remove(); },600); }catch(e){} log('Relevé CSV',true,moisLbl(ym)+' · '+L.length+' pièce(s) · '+money(tot),'manuel'); try{render();}catch(e){} return L.length; };
+  window.jcImprimer=function(ym){ ym=ym||mois(); var L=duMois(ym); if(!L.length){ if(typeof toast==='function') toast('Aucun justificatif pour '+moisLbl(ym)+'.'); return false; } var tot=0; var rows=L.map(function(e){ tot+=pm(e); return '<tr><td>'+E(frD(e.date))+'</td><td>'+E(e.fournisseur||'')+'</td><td>'+E(e.objet||'')+'</td><td style="text-align:right">'+E(money(pm(e)))+'</td><td>'+(e.fichierData?E(e.fichierNom||'joint'):'<i>à joindre</i>')+'</td></tr>'; }).join('');
+    var html='<html><head><meta charset="utf-8"><title>Justificatifs du cabinet — '+E(moisLbl(ym))+'</title><style>body{font-family:Georgia,serif;color:#111;padding:24px}h1{font-size:20px;margin:0 0 4px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:14px}th,td{border-bottom:1px solid #bbb;padding:5px 6px;text-align:left}tfoot td{font-weight:bold}</style></head><body><h1>Relevé des justificatifs du cabinet — '+E(moisLbl(ym))+'</h1><div style="font-size:12px;color:#444">AEM CONSEIL — édité le '+E(frD(new Date().toISOString().slice(0,10)))+' · '+L.length+' pièce(s)</div><table><thead><tr><th>Date</th><th>Prestataire</th><th>Objet</th><th style="text-align:right">Montant</th><th>Justificatif</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="3">Total</td><td style="text-align:right">'+E(money(tot))+'</td><td></td></tr></tfoot></table></body></html>';
+    try{ var w=window.open(); if(w){ w.document.write(html); w.document.close(); w.print(); } }catch(e){} log('Relevé imprimé',true,moisLbl(ym)+' · '+L.length+' pièce(s) · '+money(tot),'manuel'); try{render();}catch(e){} return true; };
+  window.jcCloturer=function(ym){ ym=ym||mois(); var L=duMois(ym); var tot=0; L.forEach(function(e){ tot+=pm(e); }); var inc=L.filter(function(e){ return manques(e).length; }).length; var go=function(){ cfg().clotures[ym]={ts:Date.now(),n:L.length,total:r2(tot),inc:inc}; log('Mois clôturé',true,moisLbl(ym)+' · '+L.length+' pièce(s) · '+money(tot)+(inc?(' · '+inc+' incomplète(s)'):''),'manuel'); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast(moisLbl(ym)+' clôturé : '+L.length+' justificatif(s), '+money(tot)+'.'); };
+    if(inc&&typeof uiConfirm==='function'){ uiConfirm(inc+' justificatif(s) de '+moisLbl(ym)+' sont incomplets (montant, date ou fichier). Clôturer quand même ?',go,{okLabel:'Clôturer'}); return true; } go(); return true; };
+  window.jcRouvrir=function(ym){ ym=ym||mois(); delete cfg().clotures[ym]; log('Mois rouvert',true,moisLbl(ym),'manuel'); try{save();}catch(e){} try{render();}catch(e){} };
+  window.jcExecuter=function(){ var n=jcRapprocher(true); var b=jcChaineBilan(); var m='Chaîne exécutée : '+n+' paiement(s) récupéré(s) · '+moisLbl(b.ym)+' : '+b.cur.n+' pièce(s), '+money(b.cur.total)+(b.inc.length?(' · '+b.inc.length+' pièce(s) à compléter'):' · tout est complet')+(b.clot?' · mois déjà clôturé':'')+'.'; log('Tout exécuter',true,m,'manuel'); try{render();}catch(e){} if(typeof toast==='function') toast(m,7000); return {n:n,bilan:b}; };
+  window.jcSet=function(k,v){ if(k==='mois'&&/^\d{4}-\d{2}$/.test(v)) window.__jcMois=v; if(k==='autoRec'){ cfg().autoRec=!!v; try{save();}catch(e){} } try{render();}catch(e){} };
+  window.jcToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.jcJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  function auto(){ try{ if(!cfg().autoRec) return; var n=jcRapprocher(true); if(n){ try{render();}catch(e){} if(typeof toast==='function') toast('Justificatifs du cabinet : '+n+' paiement(s) récupéré(s) automatiquement — justificatifs à joindre.',6000); } }catch(e){} }
+  setTimeout(auto,11000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="jcc-sec"><div class="jcc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="jcc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  window.jcChaineCard=function(){ var b=jcChaineBilan(), c=b.cfg;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — clôture mensuelle des justificatifs</h2><div class="jcc-hb"><label class="jcc-mois">Mois <input type="month" value="'+E(b.ym)+'" onchange="jcSet(\'mois\',this.value)"></label><button class="btn btn-sm btn-ghost" onclick="jcToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="jcExecuter()">Tout exécuter</button></div></div>';
+    if(c.reduit) return '<div class="card jcc-card">'+head+'</div>';
+    var kpi='<div class="jcc-kpis"><div class="jcc-k"><b>'+b.cur.n+'</b><span>pièce(s) en '+E(moisLbl(b.ym))+'</span></div><div class="jcc-k"><b>'+E(money(b.cur.total))+'</b><span>total du mois</span></div><div class="jcc-k'+(b.cand.length?' warn':'')+'"><b>'+b.cand.length+'</b><span>paiement(s) à récupérer</span></div><div class="jcc-k'+(b.inc.length?' warn':'')+'"><b>'+b.inc.length+'</b><span>à compléter · '+b.sansFichier+' sans fichier</span></div><div class="jcc-k'+(b.clot?' ok':'')+'"><b>'+(b.clot?'clôturé':'ouvert')+'</b><span>'+(b.clot?('le '+E(new Date(b.clot.ts).toLocaleDateString('fr-FR'))+' · '+E(money(b.clot.total))):'mois en cours de constitution')+'</span></div></div>';
+    var s1=sec('Paiements comptabilisés sans justificatif ici (Factures prestataires)',b.cand.slice(0,12),function(x){ return '<div class="jcc-row"><span class="jcc-cli"><b>'+E(x.lib)+'</b></span><span class="jcc-amt">'+E(money(x.ttc))+'</span><span class="jcc-act"></span></div>'; },'Tous les paiements comptabilisés ont un justificatif.')+(b.cand.length?('<div class="jcc-lot"><button class="btn btn-sm btn-pri" onclick="jcRapprocher()">Récupérer les '+b.cand.length+' paiement(s)</button></div>'):'');
+    var s2=sec('Pièces à compléter',b.inc.slice(0,15),function(it){ var e=it.e; return '<div class="jcc-row ko"><span class="jcc-cli"><b>'+E(e.fournisseur||'(prestataire ?)')+'</b>'+(e.objet?(' · '+E(e.objet)):'')+(dateOK(e.date)?(' · '+frD(e.date)):'')+' <em>'+E(it.m.join(', '))+'</em></span><span class="jcc-amt">'+(pm(e)?E(money(pm(e))):'—')+'</span><span class="jcc-act"><button class="btn btn-sm" onclick="jcVoir(\''+E(e.id)+'\')">Compléter</button></span></div>'; },'Toutes les pièces sont complètes et justifiées.');
+    var s3=sec('Relevés mensuels',b.mois,function(m){ var ym=m.ym, isD=(ym==='sans date'); return '<div class="jcc-row'+(m.inc?' ko':'')+'"><span class="jcc-cli"><b>'+E(isD?'Sans date':moisLbl(ym))+'</b> · '+m.n+' pièce(s)'+(m.inc?(' <em>'+m.inc+' incomplète(s)</em>'):'')+(m.clot?(' <span class="jcc-t ok">clôturé le '+E(new Date(m.clot.ts).toLocaleDateString('fr-FR'))+'</span>'):'')+'</span><span class="jcc-amt">'+E(money(m.total))+'</span><span class="jcc-act">'+(isD?'':('<button class="btn btn-sm btn-ghost" onclick="jcExportCSV(\''+ym+'\')" title="Relevé CSV">CSV</button><button class="btn btn-sm btn-ghost" onclick="jcImprimer(\''+ym+'\')" title="Relevé imprimable">Imprimer</button>'+(m.clot?('<button class="btn btn-sm btn-ghost" onclick="jcRouvrir(\''+ym+'\')">Rouvrir</button>'):('<button class="btn btn-sm" onclick="jcCloturer(\''+ym+'\')"'+(m.n?'':' disabled')+'>Clôturer</button>'))))+'</span></div>'; },'Aucune pièce.');
+    var opts='<div class="jcc-opts"><label><input type="checkbox" '+(c.autoRec?'checked':'')+' onchange="jcSet(\'autoRec\',this.checked)"> Récupérer automatiquement les paiements comptabilisés (Factures prestataires)</label><span class="jcc-note">Le relevé du mois (CSV / imprimé) accompagne les justificatifs remis à l\'expert-comptable.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="jcc-journal"><div class="jcc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="jcJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="jcc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card jcc-card">'+head+'<div class="card-b">'+kpi+'<div class="jcc-grid">'+s1+s2+s3+'</div>'+opts+jr+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='prestataires')) return; var w=document.querySelector('#view .fp-wrap'); if(!w||w.querySelector('.jcc-card')) return; var hero=w.querySelector('.fp-hero'); var tmp=document.createElement('div'); tmp.innerHTML=jcChaineCard(); var card=tmp.firstElementChild; if(hero&&hero.parentNode===w) hero.insertAdjacentElement('afterend',card); else w.insertAdjacentElement('afterbegin',card); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__jcc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__jcc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='jc-chaine-css'; st.textContent=
+    '.jcc-card{margin:0}.jcc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.jcc-card .card-h h2{margin:0;font-size:15px}.jcc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.jcc-mois{display:inline-flex;align-items:center;gap:6px;font-size:12px}.jcc-mois input{padding:3px 6px}'
+   +'.jcc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.jcc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.jcc-k b{display:block;font-size:17px}.jcc-k span{font-size:11px;opacity:.65}.jcc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.jcc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.jcc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.jcc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.jcc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.jcc-h span{opacity:.6}.jcc-h .btn{margin-left:auto}'
+   +'.jcc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.jcc-row:first-of-type{border-top:0}.jcc-cli em{font-style:normal;font-size:11px;color:#e0a458}.jcc-amt{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.8;white-space:nowrap}.jcc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.jcc-t{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.8}.jcc-t.ok{color:#2fae5f;border-color:rgba(47,174,95,.5);opacity:1}'
+   +'.jcc-empty{font-size:12px;opacity:.55;padding:2px 0}.jcc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
+   +'.jcc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.jcc-opts label{display:inline-flex;align-items:center;gap:6px}.jcc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.jcc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.jcc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.jcc-jl span{opacity:.55;min-width:130px}.jcc-jl.ko b{color:#e0a458}.jcc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
