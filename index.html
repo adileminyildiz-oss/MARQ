@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=645;
+var LAST_VER=646;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -39584,7 +39584,7 @@ function testLienSignature() {
 </script>
 <script>
 /* ============================================================================
-   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644)
+   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644, v646)
    - Lien sécurisé par dossier (numéro + jeton) : le cabinet choisit les
      informations à demander (clés du Formulaire), ajoute un message, et envoie
      le lien au client (mail préparé, copie du lien).
@@ -39801,6 +39801,10 @@ function testLienSignature() {
     '.if-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#3f7d54;border:1px solid rgba(63,125,84,.5);border-radius:6px;padding:1px 5px;margin-left:6px}.if-warn{color:#c0392b;font-weight:700}'
   ].join('\n'); document.head.appendChild(css);
 
+  /* v646 — une demande issue du questionnaire public est typée « Questionnaire rempli » (et non « Pièces jointes »)
+     même si elle porte des pièces ; l'analyse IA n'avale plus le rappel quand une analyse est déjà en cours. */
+  try{ if(typeof window.demType==='function'&&!window.demType.__infos){ var _dt=window.demType; window.demType=function(d){ try{ if(d&&d.intake&&d.intake.societe) return 'questionnaire'; }catch(x){} return _dt.apply(this,arguments); }; window.demType.__infos=1; } }catch(x){}
+  try{ if(typeof window.demAnalyse==='function'&&!window.demAnalyse.__infos){ var _dan=window.demAnalyse; window.demAnalyse=function(id,cb){ try{ var d=(DB.demandes||[]).find(function(x){ return x.id===id; }); if(d&&d.__iaBusy&&typeof cb==='function'){ var n=0; (function wait(){ if(!d.__iaBusy||n++>40) return cb(d.iaAnalyse||null); setTimeout(wait,150); })(); return; } }catch(x){} return _dan.apply(this,arguments); }; window.demAnalyse.__infos=1; } }catch(x){}
   window.__infosFormDebugExtra={qKeys:qKeys,ALIAS:ALIAS,rattacherPieces:rattacherPieces,creerDemandeLibre:creerDemandeLibre};
   window.__infosFormDebug={MAP:MAP,SECTIONS:SECTIONS,manquants:manquants,trouverEntite:trouverEntite,typeDe:typeDe,numeroDe:numeroDe};
 })();
