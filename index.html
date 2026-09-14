@@ -663,11 +663,12 @@ function migrateCleanDemoDossiers(){
 }
 function load(){
   var fromLS=false;
-  try{const r=localStorage.getItem(KEY);if(r){DB=JSON.parse(r);fromLS=true;}else{DB=seed();window.__lastFreshSeed=true;}}catch(e){DB=seed();fromLS=false;window.__lastFreshSeed=true;}
+  try{const r=localStorage.getItem(KEY);if(r){var _p=JSON.parse(r);if(_p&&typeof _p==='object'){DB=_p;fromLS=true;}else{/* v653 : base stockée « null » (écrasée avant connexion) → resemée puis récupérée depuis les sauvegardes */DB=seed();window.__lastFreshSeed=true;window.__lastNullDB=true;}}else{DB=seed();window.__lastFreshSeed=true;}}catch(e){DB=seed();fromLS=false;window.__lastFreshSeed=true;}
   if(fromLS){try{migrateCleanDemoDossiers();}catch(e){}}
 }
 let saveT=null;
 function save(){
+  if(!DB||typeof DB!=='object'){ return; } /* v653 : base non chargée (avant connexion) → ne jamais écraser le stockage par « null » */
   var _json=null; try{_json=JSON.stringify(DB);}catch(e){_json=null;}
   var lsOk=false;
   if(_json!=null){ try{localStorage.setItem(KEY,_json);lsOk=true;}catch(e){ try{localStorage.removeItem(KEY);}catch(_){} } }
@@ -3336,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=652;
+var LAST_VER=653;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -7329,7 +7330,7 @@ body.dark .fv-view-scroll{border-color:#ccc!important}
     });
   }
 
-  window.LBackup={snapshotNow:snapshotNow,restore:restore,download:download,setEnabled:setEnabled,isEnabled:enabled,paint:paint,lastTs:lastTs,list:all,_snapshot:snapshot};
+  window.LBackup={snapshotNow:snapshotNow,restore:restore,download:download,setEnabled:setEnabled,isEnabled:enabled,paint:paint,lastTs:lastTs,list:all,get:getOne,_snapshot:snapshot};
 
   /* Hook sur save() : instantané débattu après chaque modification */
   function hookSave(){ if(typeof window.save!=='function'){setTimeout(hookSave,200);return;} if(window.save.__lb)return;
@@ -21980,7 +21981,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   function idbGet(){ return openIDB().then(function(db){ return new Promise(function(res,rej){ try{ var tx=db.transaction(STORE,'readonly'); var rq=tx.objectStore(STORE).get(KID); rq.onsuccess=function(){res(rq.result);}; rq.onerror=function(){rej(rq.error);}; }catch(e){ rej(e); } }); }); }
 
   var pend=null, tmr=0;
-  window.idbSaveDB=function(json){ if(window.__idbBooting)return; pend=json; if(tmr)return; tmr=setTimeout(function(){ tmr=0; var j=pend; pend=null; if(j==null)return;
+  window.idbSaveDB=function(json){ if(window.__idbBooting)return; pend=json; if(tmr)return; tmr=setTimeout(function(){ tmr=0; var j=pend; pend=null; if(j==null||j==='null')return;
     idbPut({data:j,ts:Date.now()}).catch(function(){}); },600); };
 
   function endBoot(){ if(!window.__idbBooting)return; window.__idbBooting=false; try{ if(typeof window.save==='function' && window.DB) window.idbSaveDB(JSON.stringify(window.DB)); }catch(e){} }
@@ -40073,6 +40074,62 @@ function testLienSignature() {
    +'.render-net-s{margin:8px 0 0;max-height:120px;overflow:auto;font-size:11px;opacity:.75;white-space:pre-wrap}'
    +'.render-net-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}';
     document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Récupération automatique d'une base effacée (v653)
+   ----------------------------------------------------------------------------
+   Cause corrigée : fermer l'onglet AVANT de se connecter déclenchait un
+   enregistrement alors que la base n'était pas encore chargée → le stockage
+   local recevait « null » et, à la connexion suivante, tous les modules
+   échouaient (« Cannot read properties of null »). save() refuse désormais
+   d'écrire une base vide ; et si le stockage contient déjà « null », la base
+   est resemée puis RESTAURÉE depuis la sauvegarde horodatée la plus récente
+   (Paramètres → Sauvegardes) ou le miroir IndexedDB.
+   ============================================================================ */
+(function(){
+  if(window.__nullDbRecover) return; window.__nullDbRecover=1;
+  function fr(ts){ try{ return new Date(ts).toLocaleString('fr-FR'); }catch(e){ return ''; } }
+  function apply(parsed,label){
+    try{ if(typeof window.__applyDB==='function') window.__applyDB(parsed); }catch(e){ return false; }
+    window.__lastFreshSeed=false; window.__lastNullDB=false;
+    try{ if(typeof migrateCleanDemoDossiers==='function') migrateCleanDemoDossiers(); }catch(e){}
+    try{ save(); }catch(e){}
+    try{ render(); }catch(e){}
+    try{ if(typeof toast==='function') toast('Base restaurée automatiquement depuis '+label+'.',8000,'success'); }catch(e){}
+    try{ console.warn('[Mar’q] Base restaurée automatiquement depuis '+label); }catch(e){}
+    return true;
+  }
+  function fromSnapshots(){
+    var LB=window.LBackup; if(!LB||typeof LB.list!=='function'||typeof LB.get!=='function') return Promise.resolve(false);
+    return LB.list().then(function(list){
+      list=(list||[]).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+      var i=0;
+      function next(){
+        if(i>=list.length) return false;
+        var r=list[i++];
+        return LB.get(r.ts).then(function(rec){
+          var parsed=null; try{ parsed=rec&&rec.data?JSON.parse(rec.data):null; }catch(e){ parsed=null; }
+          if(parsed&&typeof parsed==='object'&&(parsed.dossiers||parsed.clients||parsed.demandes)) return apply(parsed,'la sauvegarde du '+fr(r.ts));
+          return next();
+        });
+      }
+      return next();
+    }).catch(function(){ return false; });
+  }
+  function recover(){
+    if(!window.__lastNullDB) return;
+    /* le miroir IndexedDB (démarrage) a peut-être déjà restauré : on lui laisse 1,5 s */
+    setTimeout(function(){
+      if(!window.__lastNullDB||!window.__lastFreshSeed){ window.__lastNullDB=false; return; }
+      fromSnapshots().then(function(ok){
+        if(!ok){ window.__lastNullDB=false; try{ if(typeof toast==='function') toast('Aucune sauvegarde exploitable : base réinitialisée. Importez une sauvegarde depuis Paramètres si besoin.',9000,'warn'); }catch(e){} }
+      });
+    },1500);
+  }
+  try{ var _lb=window.lastBoot; if(typeof _lb==='function'&&!_lb.__rec){ window.lastBoot=function(){ var r=_lb.apply(this,arguments); try{ recover(); }catch(e){} return r; }; window.lastBoot.__rec=1; } }catch(e){}
+  window.__nullDbRecoverNow=function(){ window.__lastNullDB=true; window.__lastFreshSeed=true; return fromSnapshots(); };
 })();
 </script>
 </body>
