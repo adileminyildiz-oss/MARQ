@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=651;
+var LAST_VER=652;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40034,5 +40034,46 @@ function testLienSignature() {
 })();
 </script>
 
+<script>
+/* ============================================================================
+   Mar'q — Filet de rendu : une page qui échoue n'est plus muette (v652)
+   ----------------------------------------------------------------------------
+   Quand un module lève une erreur pendant son affichage, le clic paraissait
+   « sans effet » : l'erreur était avalée et la vue restait sur la page
+   précédente. Désormais l'erreur est affichée dans la zone de contenu avec le
+   nom du module et le message technique, la navigation reste possible et
+   l'erreur est consignée dans la console.
+   ============================================================================ */
+(function(){
+  if(window.__renderNet) return; window.__renderNet=1;
+  function esc2(s){ return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function lbl(id){ try{ var P=(typeof PAGES!=='undefined')?PAGES:[]; var x=P.filter(function(q){return q&&q.id===id;})[0]; return (x&&x.lbl)||id||'?'; }catch(e){ return id||'?'; } }
+  function banner(err){
+    var id=''; try{ id=(typeof state!=='undefined'&&state.page)||''; }catch(e){}
+    var msg=(err&&(err.message||err))+''; var st=(err&&err.stack)?(''+err.stack).split('\n').slice(0,4).join('\n'):'';
+    try{ console.error('[Mar’q] Erreur d’affichage du module « '+lbl(id)+' » :', err); }catch(e){}
+    try{ var V=document.getElementById('view'); if(!V) return;
+      var b=document.createElement('div'); b.className='render-net';
+      b.innerHTML='<b>Le module « '+esc2(lbl(id))+' » n’a pas pu s’afficher.</b>'
+        +'<div class="render-net-m">'+esc2(msg)+'</div>'
+        +(st?'<pre class="render-net-s">'+esc2(st)+'</pre>':'')
+        +'<div class="render-net-a"><button class="btn btn-sm" onclick="try{render()}catch(e){}">Réessayer</button>'
+        +'<button class="btn btn-sm btn-ghost" onclick="try{go(\'cockpit\')}catch(e){}">Tableau de bord</button>'
+        +'<button class="btn btn-sm btn-ghost" onclick="location.reload()">Recharger l’application</button></div>';
+      V.insertBefore(b,V.firstChild);
+    }catch(e){}
+    try{ if(typeof toast==='function') toast('Erreur d’affichage : '+lbl(id)+' — '+msg.slice(0,120),6000,'error'); }catch(e){}
+  }
+  try{ var _r=window.render; if(typeof _r==='function'&&!_r.__net){
+    window.render=function(){ try{ return _r.apply(this,arguments); }catch(err){ banner(err); } };
+    window.render.__net=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='render-net-css'; st.textContent=
+    '.render-net{margin:0 0 14px;padding:12px 16px;border-radius:12px;background:rgba(220,80,80,.12);border:1px solid rgba(220,80,80,.45);color:#f3c9c9;font-size:13px}'
+   +'.render-net b{color:#ffd9d9}.render-net-m{margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#ffecec;word-break:break-word}'
+   +'.render-net-s{margin:8px 0 0;max-height:120px;overflow:auto;font-size:11px;opacity:.75;white-space:pre-wrap}'
+   +'.render-net-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
 </body>
 </html>
