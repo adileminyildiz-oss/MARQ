@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=646;
+var LAST_VER=647;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -39584,7 +39584,7 @@ function testLienSignature() {
 </script>
 <script>
 /* ============================================================================
-   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644, v646)
+   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644, v646, v647)
    - Lien sécurisé par dossier (numéro + jeton) : le cabinet choisit les
      informations à demander (clés du Formulaire), ajoute un message, et envoie
      le lien au client (mail préparé, copie du lien).
@@ -39805,6 +39805,25 @@ function testLienSignature() {
      même si elle porte des pièces ; l'analyse IA n'avale plus le rappel quand une analyse est déjà en cours. */
   try{ if(typeof window.demType==='function'&&!window.demType.__infos){ var _dt=window.demType; window.demType=function(d){ try{ if(d&&d.intake&&d.intake.societe) return 'questionnaire'; }catch(x){} return _dt.apply(this,arguments); }; window.demType.__infos=1; } }catch(x){}
   try{ if(typeof window.demAnalyse==='function'&&!window.demAnalyse.__infos){ var _dan=window.demAnalyse; window.demAnalyse=function(id,cb){ try{ var d=(DB.demandes||[]).find(function(x){ return x.id===id; }); if(d&&d.__iaBusy&&typeof cb==='function'){ var n=0; (function wait(){ if(!d.__iaBusy||n++>40) return cb(d.iaAnalyse||null); setTimeout(wait,150); })(); return; } }catch(x){} return _dan.apply(this,arguments); }; window.demAnalyse.__infos=1; } }catch(x){}
+  /* v647 — « Créer le dossier (Formulaire) » depuis une demande : les informations complémentaires du
+     dirigeant reçues par le questionnaire (filiation, n° de sécurité sociale, pièce d'identité, hébergement,
+     coordonnées professionnelles) et les dates/annexes sont reprises dans le formulaire, puis conservées
+     dans le dossier et la fiche client à la création. */
+  function nomComplet(pre,nom){ return [pre,nom].filter(function(x){ return (''+(x||'')).trim(); }).join(' ').trim(); }
+  try{ if(typeof window.formPrefillFromDemande==='function'&&!window.formPrefillFromDemande.__infos){ var _fpd=window.formPrefillFromDemande; window.formPrefillFromDemande=function(id){ var r=_fpd.apply(this,arguments);
+      try{ var d=demandeById(id); var k=d&&d.intake; var o=window.__formData; if(k&&o&&window.__formFromDemande===id){
+        if(k.dirx&&typeof k.dirx==='object'){ o.dirx=o.dirx||{}; var dx=k.dirx; Object.keys(dx).forEach(function(kk){ if(dx[kk]!=null&&dx[kk]!==''&&(o.dirx[kk]==null||o.dirx[kk]==='')) o.dirx[kk]=dx[kk]; });
+          var pere=nomComplet(dx.perePrenom,dx.pereNom), mere=nomComplet(dx.merePrenom,dx.mereNom); if(pere&&(!o.dirx.pereNom||o.dirx.pereNom===dx.pereNom)) o.dirx.pereNom=pere; if(mere&&(!o.dirx.mereNom||o.dirx.mereNom===dx.mereNom)) o.dirx.mereNom=mere; }
+        ['dates','conjoint','cac','extra','banque'].forEach(function(sec){ if(k[sec]&&typeof k[sec]==='object'){ o[sec]=Object.assign({},k[sec],o[sec]||{}); } });
+        if(k.contact){ o.contact=o.contact||{}; if(!o.contact.email&&k.contact.emailPro) o.contact.email=k.contact.emailPro; if(!o.contact.tel&&k.contact.telPro) o.contact.tel=k.contact.telPro; }
+        try{ render(); }catch(x){} } }catch(x){}
+      return r; }; window.formPrefillFromDemande.__infos=1; } }catch(x){}
+  try{ if(typeof window.formDoCreate==='function'&&!window.formDoCreate.__infos){ var _fdc=window.formDoCreate; window.formDoCreate=function(){ var snap=null; try{ snap=JSON.parse(JSON.stringify(window.__formData||{})); }catch(x){} var n0=(DB.dossiers||[]).length; var r=_fdc.apply(this,arguments);
+      try{ if(snap&&snap.dirx&&(DB.dossiers||[]).length>n0){ var dos=DB.dossiers[DB.dossiers.length-1]; var dx=snap.dirx; if(dos.intake&&!dos.intake.dirx&&Object.keys(dx).length) dos.intake.dirx=JSON.parse(JSON.stringify(dx));
+        var c=null; try{ if(dos.clientIds&&dos.clientIds.length&&typeof clientById==='function') c=clientById(dos.clientIds[0]); }catch(y){} if(!c) c=DB.clients[DB.clients.length-1];
+        if(c){ if(dx.secu&&!c.secu) c.secu=dx.secu; if(dx.heberge!=null&&c.heberge==null) c.heberge=dx.heberge; if(dx.hebergeurNom&&!c.hebergeurNom) c.hebergeurNom=dx.hebergeurNom; if(dx.typePiece&&!c.typePiece) c.typePiece=dx.typePiece; c.docVars=c.docVars||{}; if(dx.pereNom&&!c.docVars.pereNom) c.docVars.pereNom=dx.pereNom; if(dx.mereNom&&!c.docVars.mereNom) c.docVars.mereNom=dx.mereNom; }
+        try{ save(); }catch(y){} } }catch(x){}
+      return r; }; window.formDoCreate.__infos=1; } }catch(x){}
   window.__infosFormDebugExtra={qKeys:qKeys,ALIAS:ALIAS,rattacherPieces:rattacherPieces,creerDemandeLibre:creerDemandeLibre};
   window.__infosFormDebug={MAP:MAP,SECTIONS:SECTIONS,manquants:manquants,trouverEntite:trouverEntite,typeDe:typeDe,numeroDe:numeroDe};
 })();
