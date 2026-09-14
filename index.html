@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=654;
+var LAST_VER=655;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40308,6 +40308,146 @@ function testLienSignature() {
    +'.da-manq{display:flex;flex-wrap:wrap;gap:6px}.da-manq span{font-size:11.5px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
    +'.da-opts{display:flex;flex-wrap:wrap;gap:8px 18px;padding:4px 2px}.da-opt{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}'
    +'.da-journal{margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid rgba(47,174,95,.35);background:rgba(47,174,95,.07);font-size:12.5px}.da-jh{display:flex;align-items:center;gap:10px;margin-bottom:4px}.da-jh span{opacity:.6;font-size:11.5px}.da-jh .btn{margin-left:auto}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Facturation : chaîne du devis à l'encaissement (v655)
+   ----------------------------------------------------------------------------
+   Dans « Factures & devis → Documents émis », un panneau « Chaîne d'exécution »
+   réunit ce qui attend une action : factures émises à ENVOYER au client,
+   factures échues à RELANCER, devis acceptés à FACTURER, ventes à TRANSMETTRE
+   à YADA. Chaque action existe à l'unité (menu ⋯ d'une facture) et en lot
+   (« Tout exécuter »). L'envoi et les relances passent par la passerelle Gmail
+   (silencieux) avec repli sur la messagerie (mailto). Les relances peuvent être
+   AUTOMATIQUES (au chargement puis toutes les 6 h) selon un délai et un maximum
+   réglables. Chaque action est consignée dans le journal de la facture
+   (f.execLog) et dans le journal global (Paramètres du panneau).
+   100 % additif : greffes sur pageFacturier et invActions.
+   ============================================================================ */
+(function(){
+  if(window.__factChaine) return; window.__factChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.factChaine=p.factChaine||{}; var c=p.factChaine; if(c.auto==null) c.auto=false; if(!(c.delai>0)) c.delai=7; if(!(c.max>0)) c.max=3; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function store(){ var p=P(); return Array.isArray(p.facturier)?p.facturier:[]; }
+  function byId(id){ return store().filter(function(x){return x.id===id;})[0]||null; }
+  function iso(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function frD(s){ if(!s) return ''; var m=(''+s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):s; }
+  function typeOf(f){ return f.type||'facture'; }
+  function calc(f){ try{ return (typeof invCalc==='function')?invCalc(f):{net:0}; }catch(e){ return {net:0}; } }
+  function money(n){ n=+n||0; try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  var TITRE={facture:'Facture',devis:'Devis',acompte:"Facture d'acompte",situation:'Facture de situation',solde:'Facture de solde',avoir:'Avoir'};
+  function titre(f){ return TITRE[typeOf(f)]||'Facture'; }
+  function etat(f){ if(f.statut!=='emise') return 'brouillon'; var t=typeOf(f); if(t==='devis') return f.accepte?'accepte':'devis'; if(t==='avoir') return 'avoir'; if(f.paye) return 'payee'; if((f.dateEch||'')&&f.dateEch<iso()) return 'retard'; return 'emise'; }
+  function joursRetard(f){ try{ var e=new Date(f.dateEch+'T00:00:00'); return Math.max(0,Math.round((new Date(iso()+'T00:00:00')-e)/86400000)); }catch(e){ return 0; } }
+  function gwOK(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function log(f,step,ok,detail,mode){ var e={ts:Date.now(),step:step,ok:!!ok,detail:detail||''}; if(f){ (f.execLog=f.execLog||[]).push(e); } var c=cfg(); c.journal.unshift({ts:e.ts,num:f?(f.numero||''):'',step:step,ok:!!ok,detail:detail||'',mode:mode||''}); if(c.journal.length>200) c.journal.length=200; }
+
+  /* ---------- courriers ---------- */
+  function ligneReglement(f){ var s=[]; if(f.emIban) s.push('IBAN : '+f.emIban); if(f.emBic) s.push('BIC : '+f.emBic); return s.length?('\nRèglement par virement :\n'+s.join('\n')+'\n'):''; }
+  function corpsEnvoi(f){ var c=calc(f); var t=typeOf(f); var dev=(t==='devis');
+    return 'Bonjour,\n\nVeuillez trouver ci-joint '+(dev?'notre devis':'notre '+titre(f).toLowerCase())+' n° '+f.numero+' du '+frD(f.dateEmise)+(f.clNom?(' établi(e) à l\'attention de '+f.clNom):'')+', d\'un montant de '+money(c.net)+' TTC'
+      +(dev?(f.dateEch?(', valable jusqu\'au '+frD(f.dateEch)):''):(f.dateEch?(', à régler avant le '+frD(f.dateEch)):''))+'.\n'
+      +(dev?'\nPour l\'accepter, il vous suffit de nous le retourner signé avec la mention « Bon pour accord ».\n':ligneReglement(f))
+      +'\nLe document est également disponible sur simple demande au format PDF.\n\nNous restons à votre disposition.\n\nBien cordialement,\n'+(f.emNom||''); }
+  function corpsRelance(f,n){ var c=calc(f); var j=joursRetard(f);
+    var niveau=n>=3?'Malgré nos précédentes relances, ':(n===2?'Sauf erreur de notre part, et malgré notre premier rappel, ':'Sauf erreur de notre part, ');
+    return 'Bonjour,\n\n'+niveau+'la facture n° '+f.numero+' du '+frD(f.dateEmise)+' d\'un montant de '+money(c.net)+' TTC, échue le '+frD(f.dateEch)+(j?(' ('+j+' jour'+(j>1?'s':'')+' de retard)'):'')+' reste impayée à ce jour.\n'
+      +'Nous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais'+(n>=3?', faute de quoi nous serions contraints d\'engager une procédure de recouvrement (indemnité forfaitaire de 40 € et pénalités de retard applicables)':'')+'.\n'
+      +ligneReglement(f)+'\nSi ce règlement a déjà été effectué, nous vous prions de ne pas tenir compte de ce message.\n\nBien cordialement,\n'+(f.emNom||''); }
+
+  /* ---------- envoi (passerelle silencieuse, repli messagerie) ---------- */
+  function envoyer(to,sujet,corps,cb){
+    if(gwOK()&&typeof demSendViaScript==='function'){ var done=false; try{ demSendViaScript(to,sujet,corps,function(){ done=true; cb&&cb(true,'passerelle'); },{silent:true}); }catch(e){ cb&&cb(false,'erreur'); return; }
+      setTimeout(function(){ if(!done) cb&&cb(null,'passerelle (confirmation non reçue)'); },12000); return 'passerelle'; }
+    try{ window.open('mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(sujet)+'&body='+encodeURIComponent(corps)); }catch(e){}
+    cb&&cb(true,'messagerie'); return 'messagerie';
+  }
+  window.factEnvoyer=function(id,silent){ var f=byId(id); if(!f) return false;
+    if(f.statut!=='emise'){ if(!silent) toast('Émettez d\'abord le document.'); return false; }
+    var to=(f.clMail||'').trim(); if(!to){ log(f,'Envoi',false,'adresse e-mail du client absente'); if(!silent) toast('Adresse e-mail du client absente — renseignez-la sur le document.',4000,'warn'); return false; }
+    var sujet=titre(f)+' n° '+f.numero+' — '+(f.emNom||'AEM CONSEIL');
+    var mode=envoyer(to,sujet,corpsEnvoi(f),function(ok,m){ if(ok===false){ log(f,'Envoi',false,'échec ('+m+')',m); try{save();}catch(e){} } });
+    (f.envois=f.envois||[]).push({ts:Date.now(),to:to,mode:mode}); f.envoyeeLe=f.envoyeeLe||iso();
+    log(f,'Envoi',true,titre(f)+' '+f.numero+' → '+to,mode); try{save();}catch(e){}
+    if(!silent){ toast(titre(f)+' '+f.numero+(mode==='passerelle'?' envoyée à ':' préparée dans la messagerie pour ')+to,4000,'success'); try{render();}catch(e){} }
+    return true; };
+  window.factRelancer=function(id,silent){ var f=byId(id); if(!f) return false;
+    if(etat(f)!=='retard'&&!silent){ /* relance manuelle possible même avant échéance */ }
+    var to=(f.clMail||'').trim(); if(!to){ log(f,'Relance',false,'adresse e-mail du client absente'); if(!silent) toast('Adresse e-mail du client absente.',4000,'warn'); return false; }
+    f.relances=f.relances||[]; var n=f.relances.length+1;
+    var sujet='Relance '+(n>1?('n° '+n+' '):'')+'— facture '+f.numero+' — '+(f.emNom||'AEM CONSEIL');
+    var mode=envoyer(to,sujet,corpsRelance(f,n),function(ok,m){ if(ok===false){ log(f,'Relance',false,'échec ('+m+')',m); try{save();}catch(e){} } });
+    f.relances.push(iso()); (f.relanceLog=f.relanceLog||[]).push({ts:Date.now(),n:n,to:to,mode:mode});
+    log(f,'Relance',true,'n° '+n+' → '+to+' ('+joursRetard(f)+' j de retard)',mode); try{save();}catch(e){}
+    if(!silent){ toast('Relance n° '+n+(mode==='passerelle'?' envoyée à ':' préparée pour ')+to,4000,'success'); try{render();}catch(e){} }
+    return true; };
+
+  /* ---------- bilan ---------- */
+  window.factChaineBilan=function(){ var c=cfg(); var L=store(); var j=iso(); var facs=L.filter(function(f){ return f.statut==='emise'&&typeOf(f)!=='avoir'; });
+    var aEnvoyer=facs.filter(function(f){ return !(f.envois||[]).length&&!f.paye&&(f.clMail||'').trim(); });
+    var sansMail=facs.filter(function(f){ return !(f.envois||[]).length&&!f.paye&&!(f.clMail||'').trim(); });
+    var aRelancer=facs.filter(function(f){ if(typeOf(f)==='devis'||f.paye) return false; if(etat(f)!=='retard') return false; var r=f.relances||[]; if(r.length>=c.max) return false; if(!(f.clMail||'').trim()) return false;
+      var last=r.length?r[r.length-1]:(f.dateEch||''); var lim=new Date(last+'T00:00:00'); lim.setDate(lim.getDate()+(r.length?c.delai:0)); return iso(lim)<=j; });
+    var epuisees=facs.filter(function(f){ return typeOf(f)!=='devis'&&!f.paye&&etat(f)==='retard'&&(f.relances||[]).length>=c.max; });
+    var devisAFacturer=L.filter(function(f){ return typeOf(f)==='devis'&&f.statut==='emise'&&f.accepte&&!L.some(function(g){ return g.refDevis===f.numero&&typeOf(g)!=='devis'; }); });
+    var yada=[]; try{ yada=(typeof yadaVentesEnAttente==='function')?yadaVentesEnAttente():[]; }catch(e){}
+    var encours=facs.filter(function(f){ return typeOf(f)!=='devis'&&!f.paye; }); var du=encours.reduce(function(s,f){ return s+(calc(f).net||0); },0);
+    var retard=encours.filter(function(f){ return etat(f)==='retard'; }); var duRetard=retard.reduce(function(s,f){ return s+(calc(f).net||0); },0);
+    return {aEnvoyer:aEnvoyer,sansMail:sansMail,aRelancer:aRelancer,epuisees:epuisees,devisAFacturer:devisAFacturer,yada:yada,encours:encours,du:du,retard:retard,duRetard:duRetard,gw:gwOK(),cfg:c}; };
+
+  /* ---------- exécution en lot ---------- */
+  window.factChaineExecuter=function(opts){ opts=opts||{}; var b=factChaineBilan(); var r={envois:0,relances:0,yada:0,ko:0};
+    if(opts.envoyer!==false) b.aEnvoyer.forEach(function(f){ if(factEnvoyer(f.id,true)) r.envois++; else r.ko++; });
+    if(opts.relancer!==false) b.aRelancer.forEach(function(f){ if(factRelancer(f.id,true)) r.relances++; else r.ko++; });
+    if(opts.yada&&b.yada.length&&typeof yadaExportVentes==='function'){ try{ yadaExportVentes(); r.yada=b.yada.length; log(null,'YADA',true,r.yada+' facture(s) exportée(s)'); }catch(e){ r.ko++; log(null,'YADA',false,e.message||''); } }
+    log(null,'Chaîne',r.ko===0,r.envois+' envoi(s), '+r.relances+' relance(s)'+(r.yada?(', '+r.yada+' vers YADA'):'')+(r.ko?(', '+r.ko+' échec(s)'):''),opts.auto?'automatique':'manuel');
+    try{save();}catch(e){}
+    if(!opts.silent){ toast((r.envois+r.relances+r.yada)?('Chaîne exécutée : '+r.envois+' envoi(s), '+r.relances+' relance(s)'+(r.yada?(', '+r.yada+' facture(s) vers YADA'):'')+(r.ko?(' — '+r.ko+' échec(s)'):'')):'Rien à exécuter : tout est à jour.',5000,r.ko?'warn':'success'); try{render();}catch(e){} }
+    return r; };
+  window.factChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='delai'){ v=parseInt(v,10); if(v>0) c.delai=v; } if(k==='max'){ v=parseInt(v,10); if(v>=0) c.max=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.factChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+
+  /* relances automatiques : au chargement puis toutes les 6 h (passerelle requise, sinon rien ne part sans vous) */
+  function auto(){ try{ var c=cfg(); if(!c.auto||!gwOK()) return; var b=factChaineBilan(); if(!b.aRelancer.length&&!b.aEnvoyer.length) return; var r=factChaineExecuter({auto:true,silent:true,yada:false}); if(r.envois+r.relances) toast('Chaîne de facturation : '+r.envois+' envoi(s), '+r.relances+' relance(s) automatique(s).',6000); }catch(e){} }
+  setTimeout(auto,6000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function row(f,acts){ var c=calc(f); return '<div class="fc-row"><span class="fc-num">'+E(f.numero||'')+'</span><span class="fc-cli">'+E(f.clNom||'')+(f.clMail?'':' <em>sans e-mail</em>')+'</span><span class="fc-amt">'+E(money(c.net))+'</span><span class="fc-dt">'+E(frD(f.dateEch))+(etat(f)==='retard'?(' · <b>'+joursRetard(f)+' j</b>'):'')+((f.relances||[]).length?(' · '+f.relances.length+' relance(s)'):'')+'</span><span class="fc-act">'+acts+'</span></div>'; }
+  window.factChaineCard=function(){ var b=factChaineBilan(); var c=b.cfg;
+    var kpi='<div class="fc-kpis"><div class="fc-k"><b>'+E(money(b.du))+'</b><span>en cours d\'encaissement · '+b.encours.length+' facture(s)</span></div><div class="fc-k'+(b.retard.length?' warn':'')+'"><b>'+E(money(b.duRetard))+'</b><span>en retard · '+b.retard.length+' facture(s)</span></div><div class="fc-k"><b>'+b.aEnvoyer.length+'</b><span>à envoyer</span></div><div class="fc-k'+(b.aRelancer.length?' warn':'')+'"><b>'+b.aRelancer.length+'</b><span>à relancer</span></div><div class="fc-k"><b>'+b.devisAFacturer.length+'</b><span>devis acceptés à facturer</span></div><div class="fc-k"><b>'+b.yada.length+'</b><span>à transmettre à YADA</span></div></div>';
+    var sec=function(t,list,fn){ return '<div class="fc-sec"><div class="fc-h">'+t+' <span>'+list.length+'</span></div>'+(list.length?list.map(fn).join(''):'<div class="fc-empty">Rien en attente.</div>')+'</div>'; };
+    var s1=sec('Factures et devis à envoyer au client',b.aEnvoyer.concat(b.sansMail),function(f){ return row(f,f.clMail?('<button class="btn btn-sm" onclick="factEnvoyer(\''+f.id+'\')">Envoyer</button>'):('<button class="btn btn-sm btn-ghost" onclick="invVoir(\''+f.id+'\')">Ajouter l\'e-mail</button>')); });
+    var s2=sec('Factures échues à relancer',b.aRelancer.concat(b.epuisees),function(f){ var ep=(f.relances||[]).length>=c.max; return row(f,ep?('<span class="fc-tag">'+c.max+' relances envoyées — recouvrement</span> <button class="btn btn-sm btn-ghost" onclick="factRelancer(\''+f.id+'\')">Relancer encore</button>'):('<button class="btn btn-sm" onclick="factRelancer(\''+f.id+'\')">Relancer</button><button class="btn btn-sm btn-ghost" onclick="invPayer(\''+f.id+'\')">Payée</button>')); });
+    var s3=sec('Devis acceptés à facturer',b.devisAFacturer,function(f){ return row(f,'<button class="btn btn-sm" onclick="invFactureDepuisDevis(\''+f.id+'\')">Facturer</button><button class="btn btn-sm btn-ghost" onclick="invAcompteDepuisDevis(\''+f.id+'\')">Acompte 30 %</button>'); });
+    var s4=sec('Ventes à transmettre à YADA',b.yada,function(f){ return row(f,''); })+(b.yada.length?'<div class="fc-act-r"><button class="btn btn-sm" onclick="yadaExportVentes()">Exporter vers YADA ('+b.yada.length+')</button></div>':'');
+    var opts='<div class="fc-opts"><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="factChaineSet(\'auto\',this.checked)"> Relances automatiques (au chargement puis toutes les 6 h)</label>'
+      +'<label>Délai entre deux relances <input type="number" min="1" max="60" value="'+c.delai+'" onchange="factChaineSet(\'delai\',this.value)"> jours</label>'
+      +'<label>Maximum <input type="number" min="0" max="9" value="'+c.max+'" onchange="factChaineSet(\'max\',this.value)"> relances</label>'
+      +'<span class="fc-gw '+(b.gw?'on':'')+'">'+(b.gw?'Passerelle Gmail reliée : envois silencieux':'Passerelle non configurée : les courriers s\'ouvrent dans votre messagerie (Demandes → ⚙ Configurer la boîte)')+'</span></div>';
+    var J=c.journal.slice(0,8); var jr=J.length?('<div class="fc-journal"><div class="fc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="factChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="fc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.num?(' '+E(x.num)):'')+' — '+E(x.detail)+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    var n=b.aEnvoyer.length+b.aRelancer.length;
+    return '<div class="card fc-card"><div class="card-h"><h2>⚡ Chaîne d\'exécution — du devis à l\'encaissement</h2><div class="fc-hb"><button class="btn btn-sm btn-pri" onclick="factChaineExecuter({})"'+(n?'':' disabled')+'>Tout exécuter ('+n+')</button></div></div><div class="card-b">'+kpi+'<div class="fc-grid">'+s1+s2+s3+s4+'</div>'+opts+jr+'</div></div>'; };
+
+  /* ---------- greffes ---------- */
+  try{ var _pf=window.pageFacturier; if(typeof _pf==='function'&&!_pf.__fc){ window.pageFacturier=function(){ var h=_pf.apply(this,arguments); try{ var u=(window.__invUI||{}); if(u.tab==='hist'&&typeof h==='string'){ /* insertion après la barre d'onglets */ var i=h.indexOf('</div>',h.indexOf('inv-seg')); if(i>0) h=h.slice(0,i+6)+factChaineCard()+h.slice(i+6); } }catch(e){} return h; }; window.pageFacturier.__fc=1; } }catch(e){}
+  try{ var _ia=window.invActions; if(typeof _ia==='function'&&!_ia.__fc){ var _fb=window.fbMenu; window.invActions=function(btn,id){ var f=byId(id); var prev=window.fbMenu; window.fbMenu=function(anchor,items,o){ try{ if(f&&f.statut==='emise'&&typeOf(f)!=='avoir'){ var n=(f.envois||[]).length; items.splice(2,0,{ico:'✉',l:n?('Renvoyer par e-mail (envoyée '+n+' fois)'):'Envoyer par e-mail au client',sub:f.clMail||'e-mail du client à renseigner',fn:function(){ factEnvoyer(id); }}); if((f.execLog||[]).length) items.push({sep:true},{ico:'≡',l:'Journal de la facture ('+f.execLog.length+')',fn:function(){ factJournalVoir(id); }}); } }catch(e){} window.fbMenu=prev; return prev.apply(this,arguments); }; try{ return _ia.apply(this,arguments); } finally { window.fbMenu=prev; } }; window.invActions.__fc=1; } }catch(e){}
+  /* menu ⋯ : reste toujours dans l'écran, même avec les actions ajoutées (recalage après mesure réelle) */
+  try{ var _fbm=window.fbMenu; if(typeof _fbm==='function'&&!_fbm.__fc){ window.fbMenu=function(){ var m=_fbm.apply(this,arguments); try{ if(m&&m.getBoundingClientRect){ var z=(typeof fbZoom==='function')?fbZoom():1; var H=window.innerHeight, W=window.innerWidth; var rr=m.getBoundingClientRect();
+      if(rr.height>H-16){ m.style.maxHeight=((H-16)/z)+'px'; m.style.overflowY='auto'; rr=m.getBoundingClientRect(); }
+      if(rr.bottom>H-8){ m.style.top=Math.max(8,(H-8-rr.height))/z+'px'; } if(rr.right>W-8){ m.style.left=Math.max(8,(W-8-rr.width))/z+'px'; } } }catch(e){} return m; }; window.fbMenu.__fc=1; } }catch(e){}
+  window.factJournalVoir=function(id){ var f=byId(id); if(!f) return; var L=(f.execLog||[]).slice().reverse(); var body='<div class="fc-journal">'+(L.length?L.map(function(x){ return '<div class="fc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b> — '+E(x.detail)+'</div>'; }).join(''):'<div class="fc-empty">Aucune action consignée.</div>')+'</div>'; if(typeof openModal==='function') openModal('Journal — '+E(f.numero||''),body,'<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'); };
+
+  try{ var st=document.createElement('style'); st.id='fact-chaine-css'; st.textContent=
+    '.fc-card{margin:12px 0 16px}.fc-card .card-h{display:flex;align-items:center;gap:10px}.fc-card .card-h h2{margin:0;font-size:15px}.fc-hb{margin-left:auto}'
+   +'.fc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.fc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.fc-k b{display:block;font-size:17px}.fc-k span{font-size:11px;opacity:.65}.fc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}'
+   +'.fc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.fc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.fc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.fc-h span{opacity:.6}.fc-h .btn{margin-left:auto}'
+   +'.fc-row{display:grid;grid-template-columns:minmax(90px,auto) 1fr auto auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.fc-row:first-of-type{border-top:0}.fc-num{font-weight:700}.fc-cli em{font-style:normal;font-size:11px;color:#e0a458}.fc-amt{font-variant-numeric:tabular-nums}.fc-dt{font-size:11.5px;opacity:.7}.fc-act{display:flex;gap:6px}.fc-act-r{display:flex;justify-content:flex-end;margin-top:6px}'
+   +'.fc-empty{font-size:12px;opacity:.55;padding:2px 0}.fc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
+   +'.fc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.fc-opts label{display:inline-flex;align-items:center;gap:6px}.fc-opts input[type=number]{width:56px;padding:3px 6px}.fc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.fc-gw.on{color:#2fae5f;opacity:1}'
+   +'.fc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.fc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.fc-jl span{opacity:.55;min-width:130px}.fc-jl.ko b{color:#e0a458}.fc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
