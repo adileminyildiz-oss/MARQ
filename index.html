@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=669;
+var LAST_VER=670;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41255,7 +41255,7 @@ function testLienSignature() {
    Sous l'en-tête du Tableau de bord, un panneau « Centre d'exécution » réunit
    les chaînes d'exécution de tous les modules (Demandes, Traitement,
    Facturation, Agenda, Fiscal, Clients, Factures prestataires, Export YADA,
-   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier, Signatures, Veille, Coffre) : pour chacune, ce qui est en
+   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier, Signatures, Veille, Coffre, Études) : pour chacune, ce qui est en
    attente, ce qui demande une action humaine, la dernière action journalisée,
    un bouton « Exécuter » (les actions sûres : envois, rappels, relances,
    écritures, récupérations — jamais de téléchargement ni de création de
@@ -41309,13 +41309,15 @@ function testLienSignature() {
     if(fn('veChaineBilan')){ var b12=safe(veChaineBilan,null); if(b12&&b12.total){ var n12=b12.aDiffuser.length; L.push({key:'ve',lbl:'Veille réglementaire',page:'services',openJs:"try{svcGo('veille')}catch(e){}",attente:n12,humain:b12.sansDate+(b12.dest.length?0:(n12?1:0)),detail:n12+' changement(s) à diffuser · '+b12.diffuses.length+' diffusé(s) · '+b12.aVenir.length+' à venir · '+b12.dest.length+' destinataire(s)',exec:(n12&&b12.gw&&b12.dest.length)?function(){ veChaineExecuter(true); return n12+' diffusion(s) lancée(s) à '+b12.dest.length+' destinataire(s)'; }:null,execLbl:n12?(b12.gw?(b12.dest.length?'Exécuter':'Aucun destinataire'):'Passerelle requise'):'Rien à faire',last:jr('veChaine')}); } }
     /* Coffre-fort & portail client (Services) */
     if(fn('coChaineBilan')){ var b13=safe(coChaineBilan,null); if(b13&&(b13.aVerser.length||b13.sansClient.length||b13.items||b13.verses)){ var n13=b13.aVerser.length+b13.aPartager.length; L.push({key:'cof',lbl:'Coffre-fort & portail',page:'services',openJs:"try{svcGo('coffre')}catch(e){}",attente:n13,humain:b13.sansClient.length,detail:b13.nbDocs+' document(s) à verser ('+b13.aVerser.length+' dossier(s)) · '+b13.aPartager.length+' à partager · '+b13.partages+' partagé(s)'+(b13.sansClient.length?(' · '+b13.sansClient.length+' sans client'):''),exec:n13?function(){ coChaineExecuter(true); return b13.nbDocs+' document(s) à verser, '+b13.aPartager.length+' partage(s) lancés'; }:null,execLbl:n13?'Exécuter':'Rien à faire',last:jr('coChaine')}); } }
+    /* Étude de marché */
+    if(fn('emChaineBilan')){ var b14=safe(emChaineBilan,null); if(b14&&b14.total){ var n14=b14.aEnregistrer.length+b14.caAReprendre.filter(function(r){return r.prevExiste;}).length; L.push({key:'em',lbl:'Études de marché',page:'etudemarche',attente:b14.absentes.length+b14.aCompleter.length+b14.aStatuer.length+b14.caAReprendre.length,humain:b14.absentes.length+b14.aCompleter.length+b14.aStatuer.length,detail:b14.absentes.length+' sans étude · '+b14.aCompleter.length+' à compléter · '+b14.aStatuer.length+' à statuer · '+b14.statuees.length+' statuée(s) · '+b14.caAReprendre.length+' CA à reprendre',exec:n14?function(){ var r=emChaineExecuter(true); return r.enreg+' enregistrée(s), '+r.ca+' CA repris'; }:null,execLbl:n14?'Exécuter':'Rien à faire',last:jr('emChaine')}); } }
     return L; };
   window.cxChaineExecuter=function(key){ var L=cxChaineLignes(); var l=L.filter(function(x){return x.key===key;})[0]; if(!l||!l.exec){ if(typeof toast==='function') toast('Rien à exécuter automatiquement pour ce module.'); return null; } var r=null; try{ r=l.exec(); log(l.lbl,true,''+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); r=null; } try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast(l.lbl+' : '+(r==null?'échec':r)+'.',6000); return r; };
   window.cxChaineTout=function(){ var L=cxChaineLignes().filter(function(x){return !!x.exec;}); if(!L.length){ if(typeof toast==='function') toast('Aucune chaîne exécutable automatiquement : tout demande une action humaine ou est à jour.'); return 0; } var out=[]; L.forEach(function(l){ try{ var r=l.exec(); log(l.lbl,true,''+r); out.push(l.lbl+' : '+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); out.push(l.lbl+' : échec'); } }); log('Tout exécuter',true,out.join(' · ')); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast('Centre d\'exécution — '+out.join(' · ')+'.',8000); return L.length; };
   window.cxChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
   window.cxChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
   /* journal consolidé : dix dernières actions, tous modules */
-  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',coChaine:'Coffre',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
+  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',coChaine:'Coffre',emChaine:'Étude de marché',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
 
   /* ---------- panneau ---------- */
   window.cxChaineCard=function(){ var L=cxChaineLignes(), c=cfg(); if(!L.length) return ''; var att=0, hum=0, ex=0; L.forEach(function(l){ att+=l.attente; hum+=l.humain; if(l.exec) ex++; });
@@ -41753,6 +41755,93 @@ function testLienSignature() {
    +'.coc-empty{font-size:12px;opacity:.55;padding:2px 0}.coc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
    +'.coc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.coc-opts label{display:inline-flex;align-items:center;gap:6px}.coc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.coc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.coc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.coc-jl span{opacity:.55;min-width:130px}.coc-jl.ko b{color:#e0a458}.coc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Étude de marché : suivi par dossier & reprise dans le prévisionnel (v670)
+   ----------------------------------------------------------------------------
+   En tête du module Étude de marché, un panneau « Chaîne d'exécution » suit,
+   pour chaque dossier de création en cours : l'étude ABSENTE, À COMPLÉTER
+   (avancement A→K), À STATUER (complète sans verdict), STATUÉE (go / no-go /
+   sous conditions), les MODIFICATIONS non enregistrées du formulaire (l'étude
+   éditée ici est enregistrée dans le dossier), et le CA de l'étude À REPRENDRE
+   dans le bilan prévisionnel (repris automatiquement quand le prévisionnel du
+   dossier existe). Chaque action est consignée dans un journal. 100 % additif :
+   greffe sur le rendu de la page ; formReprendreDossier, etudeCA / etudeInfo
+   et le prévisionnel existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__emChaine) return; window.__emChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.emChaine=p.emChaine||{}; var c=p.emChaine; if(c.autoCA==null) c.autoCA=true; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function num(v){ if(v==null||v==='') return null; var x=parseFloat((''+v).replace(/\s/g,'').replace(',','.')); return isNaN(x)?null:x; }
+  function money(n){ n=Math.round(+n||0); try{ return n.toLocaleString('fr-FR')+' €'; }catch(e){ return n+' €'; } }
+  function get(o,p){ try{ return p.split('.').reduce(function(a,k){ return (a==null)?undefined:a[k]; },o); }catch(e){ return undefined; } }
+  var KEYS=['ident.entreprise','ident.offre','cad.decision','cad.go','cad.nogo','mar.nbClients','mar.penetration','mar.croissance','pes.decisif','conc.angle','qua.pb1','qnt.n','qnt.intCertain','eco.prix','eco.arpu','eco.cac','ccl.verdict','ccl.position'];
+  function avancement(e){ e=e||{}; var done=0; KEYS.forEach(function(k){ if((''+(get(e,k)==null?'':get(e,k))).trim()!=='') done++; }); if((e.concurrents||[]).length) done++; return {done:done,total:KEYS.length+1,pct:Math.round(done/(KEYS.length+1)*100)}; }
+  function verdict(e){ var v=(''+(get(e,'ccl.verdict')||'')).trim(); if(!v) return ''; var l=v.toLowerCase(); return /no.?go/.test(l)?'no-go':(/condition/.test(l)?'sous conditions':(/go/.test(l)?'go':v)); }
+  /* signature des saisies utilisateur (la page recalcule des champs dérivés : on ne compare que les entrées) */
+  function sig(e){ e=e||{}; var o={}; KEYS.forEach(function(k){ o[k]=(''+(get(e,k)==null?'':get(e,k))).trim(); }); ['caVise','panier','partVisee','nbClients','secteur'].forEach(function(k){ o[k]=(''+(e[k]==null?'':e[k])).trim(); }); ['concurrents','criteres','risques'].forEach(function(k){ o[k]=JSON.stringify(e[k]||[]); }); return JSON.stringify(o); }
+  function draftOf(id){ return (window.__formEditId===id&&window.__formData&&typeof window.__formData==='object')?window.__formData:null; }
+  function dossiers(){ try{ return (DB.dossiers||[]).filter(function(d){ return !d.archived&&d.statut!=='Clôturé'&&d.formaliteNature!=='modification'&&!(d.modif&&d.modif.kind); }); }catch(e){ return []; } }
+  function cli(d){ try{ return clientById((d.clientIds||[])[0])||{}; }catch(e){ return {}; } }
+  function nomDe(d){ var c=cli(d); return (d.intake&&d.intake.societe&&d.intake.societe.denomination)||c.denomination||((c.prenom||'')+' '+(c.nom||'')).trim()||d.ref||d.id; }
+  function caDe(d){ try{ return (typeof etudeCA==='function')?(etudeCA(d)||0):0; }catch(e){ return 0; } }
+  function prevCA(d){ try{ var p=d.fiscal&&d.fiscal.prev; if(!p||!p.prod) return null; return num(p.prod.presta20); }catch(e){ return null; } }
+
+  /* ---------- bilan ---------- */
+  window.emChaineBilan=function(){ var c=cfg(); var absentes=[], aCompleter=[], aStatuer=[], statuees=[], aEnregistrer=[], caAReprendre=[], caRepris=0;
+    dossiers().forEach(function(d){ var e=d.etude||{}; var dr=draftOf(d.id); var dirty=false; if(dr&&dr.etude&&typeof dr.etude==='object'){ try{ dirty=sig(dr.etude)!==sig(e); }catch(x){} }
+      var info=null; try{ info=(typeof etudeInfo==='function')?etudeInfo(d):null; }catch(x){} var has=!!(info&&info.has)||Object.keys(e).length>0; var av=avancement(e); var vd=verdict(e); var ca=caDe(d); var pc=prevCA(d);
+      var row={d:d,nom:nomDe(d),av:av,verdict:vd,ca:ca,prev:pc,dirty:dirty,prevExiste:!!(d.fiscal&&d.fiscal.prev)};
+      if(dirty) aEnregistrer.push(row);
+      if(!has){ absentes.push(row); return; }
+      if(vd) statuees.push(row); else if(av.done>=av.total-1) aStatuer.push(row); else aCompleter.push(row);
+      if(ca>0){ if(pc!=null&&Math.abs(pc-ca)<1) caRepris++; else caAReprendre.push(row); } });
+    return {absentes:absentes,aCompleter:aCompleter,aStatuer:aStatuer,statuees:statuees,aEnregistrer:aEnregistrer,caAReprendre:caAReprendre,caRepris:caRepris,total:dossiers().length,edit:window.__formEditId||null,cfg:c}; };
+
+  /* ---------- actions ---------- */
+  window.emOuvrir=function(id){ try{ if(typeof formReprendreDossier==='function') formReprendreDossier(id); }catch(e){} try{ if(typeof go==='function') go('etudemarche'); }catch(e){} };
+  window.emEnregistrer=function(id,silent){ var d=(DB.dossiers||[]).filter(function(x){return x.id===id;})[0]; var dr=draftOf(id); if(!d||!dr||!dr.etude){ if(!silent&&typeof toast==='function') toast('Aucune étude en cours d\'édition pour ce dossier (ouvrez-la depuis la liste).'); return false; } try{ d.etude=JSON.parse(JSON.stringify(dr.etude)); }catch(e){ return false; } var av=avancement(d.etude); log('Étude enregistrée',true,av.done+'/'+av.total+' éléments · '+(verdict(d.etude)||'sans verdict'),silent?'automatique':'manuel',nomDe(d)); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast('Étude de marché enregistrée dans le dossier '+(d.ref||'')+'.'); } return true; };
+  window.emReprendreCA=function(id,silent){ var d=(DB.dossiers||[]).filter(function(x){return x.id===id;})[0]; if(!d) return false; var ca=caDe(d); if(!(ca>0)){ if(!silent&&typeof toast==='function') toast('Complétez le panier moyen et la part de marché visée pour estimer le CA.'); return false; } if(!(d.fiscal&&d.fiscal.prev&&d.fiscal.prev.prod)){ if(!silent&&typeof toast==='function') toast('Ouvrez d\'abord le bilan prévisionnel du dossier (il sera initialisé avec ce CA).'); log('CA repris',false,'prévisionnel non initialisé','manuel',nomDe(d)); return false; } d.fiscal.prev.prod.presta20=Math.round(ca); try{ if(d.fiscal.prev.base) d.fiscal.prev.base.ca=Math.round(ca); }catch(e){} (d.historique=d.historique||[]).unshift({d:new Date().toISOString().slice(0,10),t:'CA prévisionnel repris de l\'étude de marché : '+money(ca)}); log('CA repris dans le prévisionnel',true,money(ca)+' (prestations 20 %)',silent?'automatique':'manuel',nomDe(d)); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast('CA prévisionnel repris : '+money(ca)+'.'); } return true; };
+  window.emChaineExecuter=function(silent){ var b=emChaineBilan(); var R={enreg:0,ca:0,sansPrev:0}; b.aEnregistrer.forEach(function(r){ if(emEnregistrer(r.d.id,true)) R.enreg++; }); b=emChaineBilan(); b.caAReprendre.forEach(function(r){ if(r.prevExiste){ if(emReprendreCA(r.d.id,true)) R.ca++; } else R.sansPrev++; }); var b2=emChaineBilan(); var m='Études : '+R.enreg+' enregistrée(s), '+R.ca+' CA repris dans le prévisionnel'+(R.sansPrev?(' · '+R.sansPrev+' prévisionnel(s) à ouvrir'):'')+' · '+b2.absentes.length+' sans étude · '+b2.aCompleter.length+' à compléter · '+b2.aStatuer.length+' à statuer.'; log('Tout exécuter',true,m,silent?'automatique':'manuel'); try{render();}catch(e){} if(!silent&&typeof toast==='function') toast(m,7000); return R; };
+  window.emChaineSet=function(k,v){ var c=cfg(); if(k==='autoCA') c.autoCA=!!v; try{save();}catch(e){} try{render();}catch(e){} };
+  window.emChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.emChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.emChaineDossier=function(id){ try{ state.dossierId=id; state.selected=id; if(typeof go==='function') go('espace'); }catch(e){} };
+  function auto(){ try{ var c=cfg(); if(!c.autoCA) return; var b=emChaineBilan(); var n=0; b.caAReprendre.forEach(function(r){ if(r.prevExiste&&emReprendreCA(r.d.id,true)) n++; }); if(n){ try{render();}catch(e){} if(typeof toast==='function') toast('Étude de marché : '+n+' CA repris automatiquement dans le prévisionnel.',6000); } }catch(e){} }
+  setTimeout(auto,17000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="emc-sec"><div class="emc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="emc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  function lig(r,act,info){ return '<div class="emc-row"><span class="emc-cli"><b>'+E(r.nom)+'</b> · '+E(r.d.ref||'')+(r.dirty?' <em>modifications non enregistrées</em>':'')+'<small>'+E(info||'')+'</small></span><span class="emc-amt"><i style="width:'+r.av.pct+'%"></i><b>'+r.av.pct+' %</b></span><span class="emc-act">'+act+'<button class="btn btn-sm btn-ghost" onclick="emOuvrir(\''+E(r.d.id)+'\')">Ouvrir l\'étude</button></span></div>'; }
+  window.emChaineCard=function(){ var b=emChaineBilan(), c=b.cfg; if(!b.total) return ''; var n=b.aEnregistrer.length+b.caAReprendre.filter(function(r){return r.prevExiste;}).length;
+    var edit=b.edit?((DB.dossiers||[]).filter(function(x){return x.id===b.edit;})[0]):null;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — études des dossiers de création</h2><div class="emc-hb"><span class="emc-gw'+(edit?' on':'')+'">'+(edit?('● étude ouverte : '+E(nomDe(edit))+' · '+E(edit.ref||'')):'○ aucune étude de dossier ouverte (formulaire libre)')+'</span><button class="btn btn-sm btn-ghost" onclick="emChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="emChaineExecuter()"'+(n?'':' disabled')+'>Tout exécuter ('+n+')</button></div></div>';
+    if(c.reduit) return '<div class="card emc-card">'+head+'</div>';
+    var kpi='<div class="emc-kpis"><div class="emc-k'+(b.absentes.length?' warn':'')+'"><b>'+b.absentes.length+'</b><span>dossier(s) sans étude</span></div><div class="emc-k"><b>'+b.aCompleter.length+'</b><span>à compléter</span></div><div class="emc-k'+(b.aStatuer.length?' warn':'')+'"><b>'+b.aStatuer.length+'</b><span>complète(s), à statuer</span></div><div class="emc-k ok"><b>'+b.statuees.length+'</b><span>statuée(s) · '+b.statuees.filter(function(r){return r.verdict==='go';}).length+' go</span></div><div class="emc-k'+(b.caAReprendre.length?' warn':'')+'"><b>'+b.caAReprendre.length+'</b><span>CA à reprendre · '+b.caRepris+' repris</span></div></div>';
+    var s1=sec('Étude à enregistrer / à compléter / à statuer',b.aEnregistrer.concat(b.aCompleter.filter(function(r){return !r.dirty;})).concat(b.aStatuer.filter(function(r){return !r.dirty;})).concat(b.absentes.filter(function(r){return !r.dirty;})),function(r){ var st=r.dirty?'':(r.av.done?'':'aucun élément'); return lig(r,(r.dirty?('<button class="btn btn-sm btn-pri" onclick="emEnregistrer(\''+E(r.d.id)+'\')">Enregistrer</button>'):''),(r.av.done?(r.av.done+'/'+r.av.total+' éléments'+(r.verdict?(' · '+r.verdict):(r.av.done>=r.av.total-1?' · verdict à saisir (section K)':''))):'aucune étude — à démarrer')); },'Toutes les études sont enregistrées et statuées.');
+    var s2=sec('CA de l\'étude à reprendre dans le prévisionnel',b.caAReprendre,function(r){ return lig(r,(r.prevExiste?('<button class="btn btn-sm btn-pri" onclick="emReprendreCA(\''+E(r.d.id)+'\')">Reprendre '+E(money(r.ca))+'</button>'):('<button class="btn btn-sm" onclick="emChaineDossier(\''+E(r.d.id)+'\')">Ouvrir le prévisionnel</button>')),'CA an 1 estimé '+money(r.ca)+(r.prev!=null?(' · prévisionnel actuel '+money(r.prev)):' · prévisionnel non initialisé')); },'Tous les CA estimés sont repris dans les prévisionnels.');
+    var s3=sec('Études statuées',b.statuees.slice(0,8),function(r){ return lig(r,'<span class="emc-tag emc-'+E(r.verdict.replace(/[^a-z]/g,''))+'">'+E(r.verdict)+'</span>','CA an 1 '+money(r.ca)+(r.prev!=null?(' · prévisionnel '+money(r.prev)):'')); },'Aucune étude statuée pour le moment.');
+    var opts='<div class="emc-opts"><label><input type="checkbox" '+(c.autoCA?'checked':'')+' onchange="emChaineSet(\'autoCA\',this.checked)"> Reprendre automatiquement le CA de l\'étude dans le prévisionnel (quand il existe)</label><span class="emc-note">L\'étude s\'édite dans ce module pour le dossier ouvert ; « Enregistrer » la reporte dans le dossier.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="emc-journal"><div class="emc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="emChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="emc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card emc-card">'+head+'<div class="card-b">'+kpi+'<div class="emc-grid">'+s1+s2+s3+'</div>'+opts+jr+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='etudemarche')) return; var v=document.getElementById('view'); var w=v&&v.querySelector('.em-wrap'); if(!w||w.querySelector('.emc-card')) return; var h=emChaineCard(); if(!h) return; var tmp=document.createElement('div'); tmp.innerHTML=h; var card=tmp.firstElementChild; var anchor=w.querySelector('.em-synth')||w.querySelector('.card'); if(anchor) anchor.insertAdjacentElement('beforebegin',card); else w.appendChild(card); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__emc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__emc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='em-chaine-css'; st.textContent=
+    '.emc-card{margin:0 0 14px}.emc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.emc-card .card-h h2{margin:0;font-size:15px}.emc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.emc-gw{font-size:11.5px;opacity:.65}.emc-gw.on{color:#2fae5f;opacity:1}'
+   +'.emc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.emc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.emc-k b{display:block;font-size:17px}.emc-k span{font-size:11px;opacity:.65}.emc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.emc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.emc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.emc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.emc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.emc-h span{opacity:.6}.emc-h .btn{margin-left:auto}'
+   +'.emc-row{display:grid;grid-template-columns:1fr 90px auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.emc-row:first-of-type{border-top:0}.emc-cli em{font-style:normal;font-size:11px;color:#e0a458}.emc-cli small{display:block;font-size:11px;opacity:.6;margin-top:1px}.emc-amt{position:relative;height:16px;border:1px solid rgba(255,255,255,.14);border-radius:8px;overflow:hidden;font-size:10.5px;text-align:center}.emc-amt i{position:absolute;left:0;top:0;bottom:0;background:rgba(47,174,95,.35)}.emc-amt b{position:relative;line-height:14px}.emc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.emc-tag{font-size:10.5px;padding:2px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.14);text-transform:uppercase;letter-spacing:.05em}.emc-tag.emc-go{color:#2fae5f;border-color:rgba(47,174,95,.5)}.emc-tag.emc-nogo{color:#e0a458;border-color:rgba(217,154,58,.5)}'
+   +'.emc-empty{font-size:12px;opacity:.55;padding:2px 0}'
+   +'.emc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.emc-opts label{display:inline-flex;align-items:center;gap:6px}.emc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.emc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.emc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.emc-jl span{opacity:.55;min-width:130px}.emc-jl.ko b{color:#e0a458}.emc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
