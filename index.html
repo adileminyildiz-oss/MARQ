@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=660;
+var LAST_VER=661;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40952,6 +40952,112 @@ function testLienSignature() {
    +'.fpc-empty{font-size:12px;opacity:.55;padding:2px 0}.fpc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
    +'.fpc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.fpc-opts label{display:inline-flex;align-items:center;gap:6px}.fpc-opts input[type=number]{width:56px;padding:3px 6px}.fpc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.fpc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.fpc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.fpc-jl span{opacity:.55;min-width:130px}.fpc-jl.ko b{color:#e0a458}.fpc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Export YADA : contrôle avant transmission + export unique (v661)
+   ----------------------------------------------------------------------------
+   En tête du module Export YADA, un panneau « Contrôle & transmission » vérifie
+   chaque élément en attente AVANT de l'exporter : ventes (client, numéro, date,
+   montant, numéro en doublon, équilibre débit/crédit), OD de paie (brut, net,
+   équilibre), factures prestataires (fournisseur, montant, HT + TVA = TTC,
+   numéro en doublon). Les éléments conformes partent dans UN SEUL fichier FEC
+   (ventes + paie + achats) dont l'équilibre est recalculé après génération ;
+   les anomalies restent en attente avec un lien de correction. « Tout exporter »
+   du module utilise cette chaîne (option « fichier unique », désactivable).
+   100 % additif : greffe sur pageYada et yadaExportTout ; yadaLignesVente,
+   yadaLignesPaie et le marquage « transmis » existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__ydChaine) return; window.__ydChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.ydChaine=p.ydChaine||{}; var c=p.ydChaine; if(c.unique==null) c.unique=true; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function r2(x){ return Math.round((+x||0)*100)/100; }
+  function num(v){ var x=parseFloat((''+(v==null?'':v)).replace(/\s/g,'').replace(',','.')); return isNaN(x)?0:x; }
+  function money(n){ n=r2(n); try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function fm(x){ x=r2(x); return (x?x.toFixed(2):'0.00').replace('.',','); }
+  function iso(d){ d=(''+(d||'')).trim(); var m=d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m) return m[3]+'-'+m[2]+'-'+m[1]; return d.slice(0,10); }
+  function fecD(d){ return iso(d).replace(/-/g,'').slice(0,8); }
+  function frD(d){ d=iso(d); return d?(d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)):''; }
+  function dateOK(d){ d=iso(d); return /^\d{4}-\d{2}-\d{2}$/.test(d)&&!isNaN(new Date(d+'T00:00:00').getTime()); }
+  function futur(d){ d=iso(d); try{ return new Date(d+'T00:00:00').getTime()>Date.now()+86400000; }catch(e){ return false; } }
+  function todayISO(){ try{ if(typeof today==='function') return today(); }catch(e){} return new Date().toISOString().slice(0,10); }
+  function aux(pref,nom){ var s=(''+(nom||'')).toUpperCase().normalize('NFD').replace(/[^A-Z0-9]/g,''); return (pref+(s.slice(0,4)||'DIV')).padEnd(9,'0').slice(0,9); }
+  function nrm(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function log(step,ok,detail){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  var COLS=['JournalCode','JournalLib','EcritureNum','EcritureDate','CompteNum','CompteLib','CompAuxNum','CompAuxLib','PieceRef','PieceDate','EcritureLib','Debit','Credit','EcritureLet','DateLet','ValidDate','Montantdevise','Idevise'];
+  function row(j,jl,n,date,cpt,clib,ax,axl,piece,lib,d,c){ return [j,jl,n,fecD(date),cpt,clib,ax||'',axl||'',piece||'',fecD(date),lib,fm(d),fm(c),'','',fecD(date),'',''].join('\t'); }
+  function calcF(f){ try{ if(typeof invCalc==='function') return invCalc(f); }catch(e){} var st=0; (f.lignes||[]).forEach(function(l){ st+=num(l.qte)*num(l.pu); }); st=r2(st); var rate=(f.franchiseTVA||f.autoliq)?0:num(f.tva); var tva=r2(st*rate/100); var rem=num(f.remise); return {sousTotal:st,tva:tva,remise:rem,total:r2(st+tva-rem)}; }
+  function factures(){ var p=P(); return Array.isArray(p.facturier)?p.facturier:[]; }
+  function fpAll(){ var p=P(); return (p.factPresta&&Array.isArray(p.factPresta.list))?p.factPresta.list:[]; }
+  function bal(L,kd,kc){ var d=0,c=0; L.forEach(function(l){ d+=num(l[kd]); c+=num(l[kc]); }); return {d:r2(d),c:r2(c),ok:Math.abs(d-c)<0.005&&d>0}; }
+  var FP_CHARGES_LIB={'606100000':'Fournitures non stockables','604000000':'Achats d\'études et prestations','607000000':'Achats de marchandises','611000000':'Sous-traitance générale','613200000':'Locations immobilières','615000000':'Entretien et réparations','616000000':'Primes d\'assurance','622600000':'Honoraires','623000000':'Publicité, publications','625100000':'Voyages et déplacements','626000000':'Frais postaux et télécommunications','627000000':'Services bancaires','651000000':'Redevances (concessions, licences)'};
+  function fpLignes(f){ var ht=num(f.ht), tva=num(f.tva), ttc=num(f.ttc)||(ht+tva); var cc=f.compteCharge||'606100000'; var lib=((f.fournisseur||'Fournisseur')+(f.numero?(' · '+f.numero):'')); var L=[{cpt:cc,clib:FP_CHARGES_LIB[cc]||'Charges',lib:lib,d:ht,c:0}]; if(tva>0) L.push({cpt:'445660000',clib:'TVA déductible sur autres biens et services',lib:lib,d:tva,c:0}); L.push({cpt:'401000000',clib:'Fournisseurs',ax:aux('401',f.fournisseur),axl:(f.fournisseur||'Fournisseur'),lib:lib,d:0,c:ttc}); return L; }
+
+  /* ---------- contrôle ---------- */
+  window.yadaControle=function(){
+    var V=(typeof yadaVentesEnAttente==='function')?yadaVentesEnAttente():[]; var PA=(typeof yadaPaieMois==='function')?yadaPaieMois().filter(function(a){return !a.transmis;}):[]; var FP=fpAll().filter(function(f){return f.statut==='ecriture';});
+    var ok=[], ko=[]; var nums={}; factures().forEach(function(f){ if(f.statut==='emise'&&f.numero){ var k=nrm(f.numero); nums[k]=(nums[k]||0)+1; } });
+    V.forEach(function(f){ var pb=[]; var c=calcF(f); if(!(''+(f.clNom||'')).trim()) pb.push('client manquant'); if(!(''+(f.numero||'')).trim()) pb.push('numéro manquant'); else if(nums[nrm(f.numero)]>1) pb.push('numéro en doublon'); if(!dateOK(f.dateEmise)) pb.push('date invalide'); else if(futur(f.dateEmise)) pb.push('date future'); if(!(c.total>0)) pb.push('montant nul'); var L=[]; try{ L=yadaLignesVente(f); }catch(e){} var b=bal(L,'d','c'); if(L.length&&!b.ok) pb.push('écriture déséquilibrée'); var it={type:'vente',id:f.id,lib:'Facture '+(f.numero||'(sans n°)')+' · '+(f.clNom||'—'),date:iso(f.dateEmise),montant:c.total,pb:pb,go:'facturier'}; (pb.length?ko:ok).push(it); });
+    PA.forEach(function(a){ var pb=[]; if(!(a.brut>0)) pb.push('brut nul'); if(!(a.net>0)) pb.push('net à payer nul'); if(a.net>a.brut+a.indem+0.005) pb.push('net supérieur au brut'); var L=[]; try{ L=yadaLignesPaie(a); }catch(e){} var b=bal(L,'d','c'); if(L.length&&!b.ok) pb.push('OD déséquilibrée'); var fin=new Date(+a.an,+a.m,0).getDate(); var it={type:'paie',id:a.an+'-'+a.m,lib:'OD de paie '+a.lib+' · '+a.nb+' salarié(s)',date:a.an+'-'+a.m+'-'+String(fin).padStart(2,'0'),montant:a.brut,pb:pb,go:'editions',a:a}; (pb.length?ko:ok).push(it); });
+    var fnums={}; fpAll().forEach(function(f){ if(f.fournisseur&&f.numero){ var k=nrm(f.fournisseur)+'|'+nrm(f.numero); fnums[k]=(fnums[k]||0)+1; } });
+    FP.forEach(function(f){ var pb=[]; if(!(''+(f.fournisseur||'')).trim()) pb.push('fournisseur manquant'); if(!(num(f.ttc)>0)) pb.push('montant nul'); if(Math.abs(num(f.ht)+num(f.tva)-num(f.ttc))>=0.011) pb.push('HT + TVA ≠ TTC'); if(!dateOK(f.dateFact)) pb.push('date invalide'); else if(futur(f.dateFact)) pb.push('date future'); if(f.fournisseur&&f.numero&&fnums[nrm(f.fournisseur)+'|'+nrm(f.numero)]>1) pb.push('numéro en doublon'); var it={type:'achat',id:f.id,lib:'Achat '+(f.numero||'(sans n°)')+' · '+(f.fournisseur||'—'),date:iso(f.dateFact),montant:num(f.ttc),pb:pb,go:'factpresta',f:f}; (pb.length?ko:ok).push(it); });
+    var tot=0; ok.forEach(function(it){ tot+=it.montant; });
+    return {ok:ok,ko:ko,total:ok.length+ko.length,montant:r2(tot),nV:V.length,nP:PA.length,nF:FP.length,cfg:cfg()};
+  };
+  /* Vérifie l'équilibre global d'un texte FEC (colonnes Debit / Credit). */
+  window.yadaVerifierFEC=function(txt){ var L=(''+(txt||'')).split(/\r?\n/).filter(function(x){return x.trim();}); if(L.length<2) return {lignes:0,d:0,c:0,ok:false}; var hd=L[0].split('\t'), iD=hd.indexOf('Debit'), iC=hd.indexOf('Credit'); var d=0,c=0,ecr={}; for(var i=1;i<L.length;i++){ var r=L[i].split('\t'); d+=num(r[iD]); c+=num(r[iC]); var k=r[0]+'|'+r[2]; ecr[k]=ecr[k]||{d:0,c:0}; ecr[k].d+=num(r[iD]); ecr[k].c+=num(r[iC]); } var bad=Object.keys(ecr).filter(function(k){ return Math.abs(ecr[k].d-ecr[k].c)>=0.005; }); return {lignes:L.length-1,ecritures:Object.keys(ecr).length,d:r2(d),c:r2(c),ok:Math.abs(d-c)<0.005&&!bad.length,desequilibrees:bad}; };
+
+  /* ---------- export unique ---------- */
+  window.yadaChaineExporter=function(){
+    var R=yadaControle(); if(!R.ok.length){ if(typeof toast==='function') toast(R.ko.length?('Rien à transmettre : corrigez d\'abord les '+R.ko.length+' anomalie(s).'):'Rien en attente : tout est déjà transmis à YADA.'); return null; }
+    var out=[COLS.join('\t')], kV=0,kP=0,kF=0, cnt={vente:0,paie:0,achat:0};
+    R.ok.forEach(function(it){
+      if(it.type==='vente'){ var f=factures().filter(function(x){return x.id===it.id;})[0]; if(!f) return; kV++; var n='V'+String(kV).padStart(5,'0'); var lib='Facture '+(f.numero||'')+' · '+(f.clNom||''); yadaLignesVente(f).forEach(function(l){ out.push(row('VT','VENTES',n,iso(f.dateEmise),l.cpt,l.clib,l.ax,l.axl,f.numero,lib,l.d,l.c)); }); f.yadaTransmis=new Date().toISOString(); cnt.vente++; }
+      else if(it.type==='paie'){ var a=it.a; kP++; var np='P'+a.an+a.m; yadaLignesPaie(a).forEach(function(l){ out.push(row('OD','OD PAIE',np,it.date,l.cpt,l.clib,'','','PAIE'+a.m+a.an,l.lib,l.d,l.c)); }); try{ var A=DB.paie26.annees[a.an]; A.transmisYada=A.transmisYada||{}; A.transmisYada[a.m]={ts:Date.now(),nb:a.nb,brut:a.brut,net:a.net}; }catch(e){} cnt.paie++; }
+      else if(it.type==='achat'){ var g=it.f; kF++; var nf='FP'+String(kF).padStart(5,'0'); fpLignes(g).forEach(function(l){ out.push(row('ACH','ACHATS',nf,iso(g.dateFact),l.cpt,l.clib,l.ax,l.axl,g.numero,l.lib,l.d,l.c)); }); g.statut='transmise'; g.transmisLe=new Date().toISOString(); cnt.achat++; }
+    });
+    var txt=out.join('\r\n'); var v=yadaVerifierFEC(txt); var nom='YADA-export-'+todayISO()+'.txt';
+    try{ window.yadaDernierFEC={nom:nom,texte:txt}; var b=new Blob([txt],{type:'text/plain;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=nom; document.body.appendChild(a); a.click(); setTimeout(function(){ try{URL.revokeObjectURL(a.href);}catch(e){} a.remove(); },600); }catch(e){ if(typeof toast==='function') toast('Téléchargement impossible.'); }
+    var det=cnt.vente+' vente(s), '+cnt.paie+' mois de paie, '+cnt.achat+' achat(s) · '+v.lignes+' lignes · débit '+money(v.d)+' = crédit '+money(v.c)+(v.ok?' ✓':' ✗ DÉSÉQUILIBRE');
+    try{ var p=P(); p.yadaExports=p.yadaExports||[]; p.yadaExports.unshift({ts:Date.now(),type:'Export unique',n:R.ok.length,fichier:nom,lignes:v.lignes,detail:det}); if(p.yadaExports.length>60) p.yadaExports.length=60; }catch(e){}
+    log('Export unique',v.ok,det+(R.ko.length?(' · '+R.ko.length+' anomalie(s) laissée(s) en attente'):''));
+    try{save();}catch(e){} try{render();}catch(e){}
+    if(typeof toast==='function') toast(R.ok.length+' élément(s) exporté(s) dans un seul fichier FEC ('+v.lignes+' lignes, '+(v.ok?'équilibré ✓':'DÉSÉQUILIBRÉ — à vérifier')+')'+(R.ko.length?(' · '+R.ko.length+' anomalie(s) à corriger.'):'.'),7000);
+    return {n:R.ok.length,cnt:cnt,verif:v,nom:nom,ko:R.ko.length};
+  };
+  window.yadaChaineSet=function(k,v){ var c=cfg(); if(k==='unique') c.unique=!!v; try{save();}catch(e){} try{render();}catch(e){} };
+  window.yadaChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.yadaChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.yadaChaineCorriger=function(it){ try{ if(it==='factpresta'){ window.__fpF='ecriture'; } if(typeof go==='function') go(it); }catch(e){} };
+  /* « Tout exporter » du module → fichier unique (option), sinon comportement d'origine (3 fichiers). */
+  try{ var _te=window.yadaExportTout; if(typeof _te==='function'&&!_te.__ydc){ window.yadaExportTout=function(){ if(cfg().unique){ return yadaChaineExporter(); } return _te.apply(this,arguments); }; window.yadaExportTout.__ydc=1; } }catch(e){}
+
+  /* ---------- panneau ---------- */
+  var TL={vente:'Vente',paie:'Paie',achat:'Achat'};
+  function rowHTML(it){ return '<div class="ydc-row'+(it.pb.length?' ko':'')+'"><span class="ydc-t">'+TL[it.type]+'</span><span class="ydc-lib"><b>'+E(it.lib)+'</b> · '+E(frD(it.date)||'date ?')+(it.pb.length?(' <em>'+E(it.pb.join(', '))+'</em>'):'')+'</span><span class="ydc-amt">'+E(money(it.montant))+'</span><span class="ydc-act">'+(it.pb.length?('<button class="btn btn-sm" onclick="yadaChaineCorriger(\''+it.go+'\')">Corriger</button>'):'<span class="ydc-ok">conforme ✓</span>')+'</span></div>'; }
+  window.yadaChaineCard=function(){ var R=yadaControle(), c=R.cfg; var last=(window.yadaDernierFEC&&window.yadaDernierFEC.texte)?yadaVerifierFEC(window.yadaDernierFEC.texte):null;
+    var head='<div class="card-h"><h2>⚡ Contrôle & transmission — fichier unique pour YADA</h2><div class="ydc-hb"><button class="btn btn-sm btn-ghost" onclick="yadaChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="yadaChaineExporter()"'+(R.ok.length?'':' disabled')+'>Exporter les '+R.ok.length+' conforme(s) en un fichier</button></div></div>';
+    if(c.reduit) return '<div class="card ydc-card">'+head+'</div>';
+    var kpi='<div class="ydc-kpis"><div class="ydc-k"><b>'+R.total+'</b><span>en attente · '+R.nV+' ventes · '+R.nP+' paie · '+R.nF+' achats</span></div><div class="ydc-k ok"><b>'+R.ok.length+'</b><span>conformes · '+E(money(R.montant))+'</span></div><div class="ydc-k'+(R.ko.length?' warn':'')+'"><b>'+R.ko.length+'</b><span>anomalie(s) à corriger</span></div><div class="ydc-k'+(last?(last.ok?' ok':' warn'):'')+'"><b>'+(last?(last.ok?'équilibré ✓':'déséquilibré ✗'):'—')+'</b><span>dernier fichier généré'+(last?(' · '+last.lignes+' lignes'):'')+'</span></div></div>';
+    var s1='<div class="ydc-sec"><div class="ydc-h">Anomalies bloquantes <span>'+R.ko.length+'</span></div>'+(R.ko.length?R.ko.map(rowHTML).join(''):'<div class="ydc-empty">Aucune anomalie : tout ce qui est en attente est conforme.</div>')+'</div>';
+    var s2='<div class="ydc-sec"><div class="ydc-h">Prêts à transmettre <span>'+R.ok.length+'</span></div>'+(R.ok.length?R.ok.slice(0,20).map(rowHTML).join('')+(R.ok.length>20?('<div class="ydc-empty">… et '+(R.ok.length-20)+' autre(s)</div>'):''):'<div class="ydc-empty">Rien en attente.</div>')+'</div>';
+    var opts='<div class="ydc-opts"><label><input type="checkbox" '+(c.unique?'checked':'')+' onchange="yadaChaineSet(\'unique\',this.checked)"> « Tout exporter » produit un seul fichier FEC (ventes + paie + achats), contrôlé et équilibré</label><span class="ydc-note">Dans YADA : Import / Export FEC → déposer le fichier → Intégrer dans le dossier courant.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="ydc-journal"><div class="ydc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="yadaChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="ydc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.detail?(' — '+E(x.detail)):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card ydc-card">'+head+'<div class="card-b">'+kpi+'<div class="ydc-grid">'+s1+s2+'</div>'+opts+jr+'</div></div>'; };
+  try{ var _py=window.pageYada; if(typeof _py==='function'&&!_py.__ydc){ window.pageYada=function(){ var h=_py.apply(this,arguments); try{ if(typeof h==='string'&&h.indexOf('<div class="yd-wrap">')===0) h='<div class="yd-wrap">'+yadaChaineCard()+h.slice('<div class="yd-wrap">'.length); }catch(e){} return h; }; window.pageYada.__ydc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='yd-chaine-css'; st.textContent=
+    '.ydc-card{margin:0}.ydc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ydc-card .card-h h2{margin:0;font-size:15px}.ydc-hb{margin-left:auto;display:flex;gap:8px;align-items:center}'
+   +'.ydc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px}.ydc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.ydc-k b{display:block;font-size:17px}.ydc-k span{font-size:11px;opacity:.65}.ydc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.ydc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.ydc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px}.ydc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.ydc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.ydc-h span{opacity:.6}.ydc-h .btn{margin-left:auto}'
+   +'.ydc-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.ydc-row:first-of-type{border-top:0}.ydc-t{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.8}.ydc-row.ko .ydc-t{border-color:rgba(217,154,58,.5);color:#e0a458}.ydc-lib em{font-style:normal;font-size:11px;color:#e0a458}.ydc-amt{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.8;white-space:nowrap}.ydc-act{display:flex;gap:6px;justify-content:flex-end}.ydc-ok{font-size:11px;color:#2fae5f}'
+   +'.ydc-empty{font-size:12px;opacity:.55;padding:2px 0}'
+   +'.ydc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.ydc-opts label{display:inline-flex;align-items:center;gap:6px}.ydc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.ydc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.ydc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.ydc-jl span{opacity:.55;min-width:130px}.ydc-jl.ko b{color:#e0a458}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
