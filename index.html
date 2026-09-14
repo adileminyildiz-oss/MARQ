@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=647;
+var LAST_VER=648;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -14965,7 +14965,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   window.formManques=function(){ var o=FD();
     if(o.nature==='modification'){ var M=o.modif||{},S=M.societe||{},D=M.dates||{},G=M.signataire||{},N=M.nouveau||{}; var mm=[];
       function nm(v,l){ if(!(''+(v==null?'':v)).trim())mm.push(l); }
-      nm(S.denomination,'Dénomination de la société'); nm(S.siren,'SIREN'); nm(D.acte,'Date de la décision'); nm(D.effet,'Date d\'effet'); nm(D.ville,'Ville de signature'); nm(G.prenom,'Prénom du signataire'); nm(G.nom,'Nom du signataire');
+      nm(S.denomination,'Dénomination de la société'); nm(S.siren,'SIREN'); nm(D.acte,'Date de la décision'); nm(D.effet,'Date d\'effet'); nm(D.ville,'Ville de signature'); nm(G.prenom,'Prénom du signataire'); nm(G.nom,'Nom du signataire'); nm((o.contact||{}).email,'E-mail du demandeur');
       var mk=M.kind||'siege';
       if(mk==='siege'){ nm(N.siege,'Nouvelle adresse du siège'); nm(N.cp,'Nouveau code postal'); nm(N.ville,'Nouvelle ville'); }
       else if(mk==='dirigeant'){ nm(N.prenom,'Prénom du nouveau dirigeant'); nm(N.nom,'Nom du nouveau dirigeant'); nm(N.naissance,'Date de naissance du nouveau dirigeant'); nm(N.adresse,'Adresse du nouveau dirigeant'); }
@@ -15178,7 +15178,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
         r2('Date de la décision (acte)',fD('modif.dates.acte'),'Date d\'effet',fD('modif.dates.effet'))
         +r2('Ville de signature',fI('modif.dates.ville'),'Qualité du signataire',fSel('modif.signataire.qualite',[['Président','Président'],['Gérant','Gérant'],['Représentant légal','Représentant légal']],get('modif.signataire.qualite')||'Président'))
         +r2('Civilité',fSel('modif.signataire.civilite',[['M.','M.'],['Mme','Mme']],get('modif.signataire.civilite')||'M.'),'Prénom',fI('modif.signataire.prenom'))
-        +r1('Nom',fI('modif.signataire.nom')));
+        +r1('Nom',fI('modif.signataire.nom'))
+        +r2('E-mail du demandeur',fI('contact.email','courriel du client'),'Téléphone du demandeur',fI('contact.tel')));
       var specM='';
       if(mk==='siege'){ specM=grp('Nouveau siège social',
           r1('Ancien siège (rappel)',fI('modif.ancien.siege'))
@@ -39584,7 +39585,7 @@ function testLienSignature() {
 </script>
 <script>
 /* ============================================================================
-   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644, v646, v647)
+   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644, v646, v648)
    - Lien sécurisé par dossier (numéro + jeton) : le cabinet choisit les
      informations à demander (clés du Formulaire), ajoute un message, et envoie
      le lien au client (mail préparé, copie du lien).
@@ -39818,8 +39819,8 @@ function testLienSignature() {
         if(k.contact){ o.contact=o.contact||{}; if(!o.contact.email&&k.contact.emailPro) o.contact.email=k.contact.emailPro; if(!o.contact.tel&&k.contact.telPro) o.contact.tel=k.contact.telPro; }
         try{ render(); }catch(x){} } }catch(x){}
       return r; }; window.formPrefillFromDemande.__infos=1; } }catch(x){}
-  try{ if(typeof window.formDoCreate==='function'&&!window.formDoCreate.__infos){ var _fdc=window.formDoCreate; window.formDoCreate=function(){ var snap=null; try{ snap=JSON.parse(JSON.stringify(window.__formData||{})); }catch(x){} var n0=(DB.dossiers||[]).length; var r=_fdc.apply(this,arguments);
-      try{ if(snap&&snap.dirx&&(DB.dossiers||[]).length>n0){ var dos=DB.dossiers[DB.dossiers.length-1]; var dx=snap.dirx; if(dos.intake&&!dos.intake.dirx&&Object.keys(dx).length) dos.intake.dirx=JSON.parse(JSON.stringify(dx));
+  try{ if(typeof window.formDoCreate==='function'&&!window.formDoCreate.__infos){ var _fdc=window.formDoCreate; window.formDoCreate=function(){ var snap=null; try{ snap=JSON.parse(JSON.stringify(window.__formData||{})); }catch(x){} var avant={}; (DB.dossiers||[]).forEach(function(x){ avant[x.id]=1; }); var r=_fdc.apply(this,arguments);
+      try{ var dos=(DB.dossiers||[]).filter(function(x){ return !avant[x.id]; })[0]; if(snap&&snap.dirx&&dos){ var dx=snap.dirx; if(dos.intake&&!dos.intake.dirx&&Object.keys(dx).length) dos.intake.dirx=JSON.parse(JSON.stringify(dx));
         var c=null; try{ if(dos.clientIds&&dos.clientIds.length&&typeof clientById==='function') c=clientById(dos.clientIds[0]); }catch(y){} if(!c) c=DB.clients[DB.clients.length-1];
         if(c){ if(dx.secu&&!c.secu) c.secu=dx.secu; if(dx.heberge!=null&&c.heberge==null) c.heberge=dx.heberge; if(dx.hebergeurNom&&!c.hebergeurNom) c.hebergeurNom=dx.hebergeurNom; if(dx.typePiece&&!c.typePiece) c.typePiece=dx.typePiece; c.docVars=c.docVars||{}; if(dx.pereNom&&!c.docVars.pereNom) c.docVars.pereNom=dx.pereNom; if(dx.mereNom&&!c.docVars.mereNom) c.docVars.mereNom=dx.mereNom; }
         try{ save(); }catch(y){} } }catch(x){}
@@ -39932,61 +39933,79 @@ function testLienSignature() {
 })();
 </script>
 
+<!-- v648 : barre latérale en modules repliables retirée à la demande — tous les modules restent visibles et accessibles directement (barre à plat par groupes). -->
+
 <script>
 /* ============================================================================
-   Mar'q — Barre latérale en modules repliables (v641 · v645 : un appui sur le module ouvre sa page)
-   - Chaque groupe (Dossiers, Facturation, Documents, Pilotage) devient un MODULE :
-     en-tête cliquable (libellé, nombre d'entrées, chevron) qui replie / déplie ses
-     sous-modules. Le module de la page active est toujours déplié ; l'état des autres
-     est mémorisé sur l'appareil. « Tableau de bord » et « Paramètres » restent seuls.
-   - Ordre du module Dossiers aligné sur le parcours : Demandes → Formulaire → Traitement.
-   - v645 : un APPUI SUR LE MODULE ouvre le module ET sa page (page active du module, sinon
-     la première) ; seul le chevron replie / déplie sans changer de page. Plus aucun appui
-     « sans effet ».
-   100 % additif : post-traitement de la barre après chaque reconstruction.
+   Mar'q — Traitement des dossiers de MODIFICATION statutaire (v648)
+   Le circuit Pièces → Actes → Attestations → Immatriculation → Clôture avait été
+   verrouillé pour les créations de société : un dossier de modification (transfert
+   de siège, changement de dirigeant, cession…) restait bloqué à l'étape Pièces
+   (pièces de création exigées), à l'étape Actes (aucun acte de modification
+   signable) et à l'étape Attestations (dépôt de capital exigé).
+   Pour ces dossiers, les verrous humains portent désormais sur les bons objets :
+   - Pièces : chaque pièce attendue du client (liste propre au type de modification)
+     doit être reçue (case cochée) ou classée parmi les pièces jointes ;
+   - Actes : chaque acte requis doit être généré, approuvé par le vérificateur et
+     constaté signé (carte « Signature des actes » ajoutée dans l'onglet Actes) ;
+   - Attestations : attestation de parution exigée ; l'attestation de dépôt des
+     fonds n'est exigée que pour une modification de capital ;
+   - Immatriculation (K-bis vérifié) et Clôture : inchangées.
+   100 % additif : greffe la plus externe sur trwValider / a3ToutSigner / pageEspace.
    ========================================================================= */
 (function(){
-  if(window.__aemNavMod) return; window.__aemNavMod=true;
-  var KEY='marq-nav-open'; function st(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ return {}; } } function put(o){ try{ localStorage.setItem(KEY,JSON.stringify(o)); }catch(e){} }
-  var ICO={Dossiers:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',Facturation:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',Documents:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>',Pilotage:'<path d="M3 3v18h18"/><path d="m7 15 4-5 3 3 5-7"/>'};
-  function svgOf(l){ var p=ICO[l]||'<circle cx="12" cy="12" r="8"/>'; return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
-  function apply(){ var nav=document.getElementById('nav'); if(!nav||nav.__modDone) return; var open=st(); var kids=[].slice.call(nav.children); var cur=null; var groups=[];
-    kids.forEach(function(el){ if(el.classList.contains('nav-lbl')){ cur={lbl:el,items:[]}; groups.push(cur); } else if(cur){ cur.items.push(el); } });
-    groups.forEach(function(g){ var name=(g.lbl.textContent||'').trim(); if(!name||name==='Système'||g.items.length<2) return;
-      var active=g.items.some(function(b){ return b.classList.contains('on'); });
-      var isOpen=active||open[name]!==false;
-      var head=document.createElement('button'); head.type='button'; head.className='nav-mod-h'+(isOpen?' open':'')+(active?' has-on':''); head.setAttribute('aria-expanded',isOpen?'true':'false'); head.title='Ouvrir '+name+' — le chevron replie la liste';
-      head.innerHTML='<span class="nav-mod-ic">'+svgOf(name)+'</span><span class="nav-mod-l">'+name+'</span><span class="nav-mod-n">'+g.items.length+'</span><span class="nav-mod-c"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></span>';
-      var box=document.createElement('div'); box.className='nav-mod-b'+(isOpen?'':' closed');
-      g.lbl.replaceWith(head); g.items.forEach(function(b){ box.appendChild(b); }); head.insertAdjacentElement('afterend',box);
-      function setOpen(now){ var o=st(); box.classList.toggle('closed',!now); head.classList.toggle('open',now); head.setAttribute('aria-expanded',now?'true':'false'); o[name]=now; put(o); }
-      head.addEventListener('click',function(ev){ var chev=ev&&ev.target&&ev.target.closest&&ev.target.closest('.nav-mod-c');
-        if(chev){ setOpen(box.classList.contains('closed')); return; }
-        /* appui sur le module : on l'ouvre et on affiche sa page (active sinon la première) */
-        setOpen(true);
-        var target=g.items.filter(function(b){ return b.classList.contains('on'); })[0]||g.items.filter(function(b){ return b.tagName==='BUTTON'&&!b.disabled; })[0];
-        if(target&&!target.classList.contains('on')){ try{ target.click(); }catch(e){} } }); });
-    nav.__modDone=true; }
-  var _bn=window.buildNav; if(typeof _bn==='function'){ window.buildNav=function(){ var r=_bn.apply(this,arguments); try{ var nav=document.getElementById('nav'); if(nav) nav.__modDone=false; apply(); }catch(e){ window.__navModErr=e&&e.message; } return r; }; }
-  var _r=window.render; if(typeof _r==='function'){ window.render=function(){ var o=_r.apply(this,arguments); try{ apply(); }catch(e){} return o; }; }
-  var css=document.createElement('style'); css.id='nav-mod-css'; css.textContent=[
-    '#nav .nav-mod-h{display:flex;align-items:center;gap:9px;width:100%;margin:6px 0 2px;padding:7px 9px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--ink-2,#b0b8c6);font:700 12.5px/1.2 inherit;letter-spacing:.1px;text-transform:none;cursor:pointer;text-align:left}',
-    '#nav .nav-mod-h:hover{background:rgba(255,255,255,.05);color:var(--ink,#f3f5f9)}',
-    '#nav .nav-mod-h.has-on{color:var(--ink,#f3f5f9)}',
-    '#nav .nav-mod-ic{display:inline-flex;width:16px;height:16px;opacity:.85}',
-    '#nav .nav-mod-l{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '#nav .nav-mod-n{font:600 10px/1 inherit;letter-spacing:0;color:var(--ink-3,#858d9b);background:rgba(255,255,255,.06);border-radius:8px;padding:3px 6px}',
-    '#nav .nav-mod-c{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:-4px -6px -4px 0;border-radius:6px;color:var(--ink-3,#858d9b);transition:transform .18s,background .15s;transform:rotate(0deg)}',
-    '#nav .nav-mod-c:hover{background:rgba(255,255,255,.08);color:var(--ink,#f3f5f9)}',
-    '#nav .nav-mod-c svg{pointer-events:none}',
-    '#nav .nav-mod-h.open .nav-mod-c{transform:rotate(90deg)}',
-    '#nav .nav-mod-h[title]{cursor:pointer}',
-    '#nav .nav-mod-b{display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:1px solid var(--line,#1f2024);margin-left:14px}',
-    '#nav .nav-mod-b.closed{display:none}',
-    '#nav .nav-mod-b .nav-btn{min-height:30px;padding-top:6px;padding-bottom:6px}'
-  ].join('\n'); document.head.appendChild(css);
-  setTimeout(apply,350);
-  window.__navModDebug={apply:apply,state:st};
+  if(window.__trwModif) return; window.__trwModif=1;
+  var WF=[['demande','Demande'],['pieces','Pièces'],['actes','Actes'],['attestations','Attestations'],['immatriculation','Immatriculation'],['cloture','Clôture']];
+  function E(s){ return (typeof esc==='function')?esc(s):String(s==null?'':s); }
+  function T(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function dossier(id){ try{ if(id) return (DB.dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; var s=(typeof state!=='undefined')?state:{}; return (DB.dossiers||[]).filter(function(x){ return x.id===s.espaceDossier; })[0]||null; }catch(e){ return null; } }
+  var RX_MOD=/transfert|si[èe]ge|g[ée]rant|dirigeant|pr[ée]sident|cession|augmentation|r[ée]duction|d[ée]nomination|objet social|dissolution|liquidation|radiation|transformation|date de cl[ôo]ture/i;
+  var RX_CREA=/cr[ée]ation|constitution|immatriculation d|nouvelle soci/i;
+  function isModif(d){ if(!d) return false; if(d.modifDocs&&d.modifDocs.length) return true; if(d.nature==='modification') return true;
+    var txt=(d.serviceSouhaite||'')+' '+(d.formalite||'')+' '+(d.formaliteType||''); if(RX_CREA.test(txt)) return false; return RX_MOD.test(txt); }
+  function kind(d){ var k=(d.intake&&d.intake.type)||''; if(/^(siege|dirigeant|denomination|objet|capital|transformation|cession|dissolution|radiation|cloture)$/.test(k)) return k;
+    var t=((d.serviceSouhaite||'')+' '+(d.formalite||'')).toLowerCase(); if(/capital/.test(t)) return 'capital'; if(/si[èe]ge|transfert/.test(t)) return 'siege'; if(/g[ée]rant|dirigeant|pr[ée]sident/.test(t)) return 'dirigeant'; if(/cession/.test(t)) return 'cession'; if(/dissolution|liquidation/.test(t)) return 'dissolution'; return k||'siege'; }
+  window.dossierEstModification=isModif;
+  /* validation de base d'une étape (ordre + horodatage + historique), identique au moteur */
+  function coreValider(d,key){ var w=d.wf=d.wf||{}; var idx=WF.map(function(x){ return x[0]; }).indexOf(key); if(idx<0||w[key]) return;
+    for(var j=0;j<idx;j++){ if(!w[WF[j][0]]){ T('Étape bloquée — validez d’abord « '+WF[j][1]+' ».'); try{ state.espTab=WF[j][0]; render(); }catch(e){} return; } }
+    var go=function(){ w[key]=Date.now(); (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:'Étape « '+WF[idx][1]+' » validée'}); var nx=WF[idx+1]; try{ state.espTab=nx?nx[0]:key; }catch(e){} try{ save(); }catch(e){} try{ render(); }catch(e){} };
+    if(typeof uiConfirm==='function') uiConfirm('Valider l’étape « '+WF[idx][1]+' » ?\n\nVous attestez avoir contrôlé les pièces et les mentions de cette étape. L’étape suivante sera ouverte.',go,{title:'Validation de l’étape',okLabel:'Valider l’étape',danger:false}); else go(); }
+  function piecesManquantes(d){ var L=[]; try{ L=(typeof enregPieces==='function')?enregPieces(d):[]; }catch(e){} var cats={}; try{ (d.attachments||[]).forEach(function(a){ var c=(typeof demAttCat==='function')?demAttCat(a):null; if(c&&c.key) cats[c.key]=1; }); }catch(e){}
+    return L.filter(function(p){ if(p.origine!=='client') return false; var st=(d.pieces||{})[p.k]||{}; if(st.recu) return false; if(cats[p.k]) return false; if((d.piecesRecues||{})[p.k]) return false; return true; }); }
+  function docsRequis(d){ try{ return (typeof espDocsRequis==='function')?espDocsRequis(d):[]; }catch(e){ return []; } }
+  function genere(d,k){ return !!(d.docs&&d.docs[k]&&d.docs[k].genere); }
+  function approuve(d,k){ return !!(d.docFolder&&d.docFolder.approved&&d.docFolder.approved[k]); }
+  function signe(d,k){ return !!(d.sign&&d.sign[k]&&d.sign[k].ok); }
+  function attNeed(d){ return kind(d)==='capital'?['capital','annonce']:['annonce']; }
+  var _v=window.trwValider;
+  if(typeof _v==='function'){ window.trwValider=function(id,key){ var d=dossier(id); if(!d||!isModif(d)) return _v.apply(this,arguments);
+      if(key==='pieces'){ var mq=piecesManquantes(d); if(mq.length){ T('Étape incomplète — pièce(s) attendue(s) du client : '+mq.map(function(p){ return p.l; }).join(', ')); return; } return coreValider(d,key); }
+      if(key==='actes'){ var req=docsRequis(d); if(!req.length){ T('Aucun acte requis pour ce dossier — vérifiez le type de modification.'); return; }
+        var ng=req.filter(function(dc){ return !genere(d,dc.k); }); if(ng.length){ T('Étape bloquée — générez d’abord : '+ng.map(function(x){ return x.l; }).join(', ')); return; }
+        var na=req.filter(function(dc){ return !approuve(d,dc.k); }); if(na.length){ T('Étape bloquée — '+na.length+' acte(s) à approuver par le vérificateur : '+na.map(function(x){ return x.l; }).join(', ')); return; }
+        var ns=req.filter(function(dc){ return !signe(d,dc.k); }); if(ns.length){ T('Étape bloquée — '+ns.length+' acte(s) restent à signer : '+ns.map(function(x){ return x.l; }).join(', ')); return; }
+        return coreValider(d,key); }
+      if(key==='attestations'){ var a=d.attest||{}; var need=attNeed(d); var man=need.filter(function(t){ return !(a[t]&&a[t].verifie); }); if(man.length){ T('Étape bloquée — en attente de : '+man.map(function(t){ return t==='capital'?'Attestation de dépôt des fonds':'Attestation de parution'; }).join(' et ')+'.'); return; } return coreValider(d,key); }
+      return _v.apply(this,arguments); }; }
+  /* « Tout signer » : sur une modification, tous les actes requis générés sont constatés signés */
+  var _ts=window.a3ToutSigner;
+  if(typeof _ts==='function'){ window.a3ToutSigner=function(id){ var d=dossier(id); if(!d||!isModif(d)) return _ts.apply(this,arguments);
+      var go=function(){ d.sign=d.sign||{}; docsRequis(d).forEach(function(dc){ if(genere(d,dc.k)) d.sign[dc.k]={ok:true,ts:Date.now(),voie:(d.signVoie&&d.signVoie.voie)||'cabinet'}; }); try{ save(); }catch(e){} T('Tous les actes sont constatés signés.'); try{ render(); }catch(e){} };
+      if(typeof uiConfirm==='function') uiConfirm('Constater la signature de tous les actes ?',go,{okLabel:'Constater'}); else go(); }; }
+  window.trwModifSigner=function(id,k){ var d=dossier(id); if(!d) return; d.sign=d.sign||{}; d.sign[k]={ok:true,ts:Date.now(),voie:(d.signVoie&&d.signVoie.voie)||'cabinet'}; try{ save(); }catch(e){} T('Signature constatée.'); try{ render(); }catch(e){} };
+  window.trwModifDesigner=function(id,k){ var d=dossier(id); if(!d||!d.sign) return; delete d.sign[k]; try{ save(); }catch(e){} try{ render(); }catch(e){} };
+  /* carte « Signature des actes » (onglet Actes) + rappel des attestations exigées (onglet Attestations) */
+  function carteSign(d){ var req=docsRequis(d); if(!req.length) return ''; var rows=req.map(function(dc){ var g=genere(d,dc.k), ap=approuve(d,dc.k), s=signe(d,dc.k);
+      var etat=!g?'à générer':(!ap?'à approuver':(s?'signé':'à signer'));
+      return '<div class="at4-l '+(s?'ok':(g&&ap?'at':''))+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line,#1f2024)"><span style="width:18px;text-align:center">'+(s?'✓':'·')+'</span><span style="flex:1"><b>'+E(dc.l)+'</b><br><small class="sub">'+etat+(s&&d.sign[dc.k].ts?(' · le '+new Date(d.sign[dc.k].ts).toLocaleDateString('fr-FR')):'')+'</small></span>'
+        +(s?'<button class="btn btn-sm btn-ghost" onclick="trwModifDesigner(\''+d.id+'\',\''+dc.k+'\')">Annuler</button>':('<button class="btn btn-sm '+(g&&ap?'btn-pri':'btn-ghost')+'" '+(g&&ap?'':'disabled')+' onclick="trwModifSigner(\''+d.id+'\',\''+dc.k+'\')">Constater la signature</button>'))+'</div>'; }).join('');
+    var n=req.filter(function(dc){ return signe(d,dc.k); }).length;
+    return '<div class="card at4-card trw-modif-sign"><div class="card-h"><h2>Signature des actes — modification</h2><span class="at4-tag'+(n===req.length?' ok':'')+'">'+n+'/'+req.length+' signés</span><button class="btn btn-sm" style="margin-left:auto" onclick="a3ToutSigner(\''+d.id+'\')">Tout constater</button></div><div class="card-b"><div class="hint" style="margin-bottom:6px">Chaque acte doit être généré, approuvé par le vérificateur puis signé (au cabinet ou en ligne) avant de valider l’étape.</div>'+rows+'</div></div>'; }
+  function carteAtt(d){ var need=attNeed(d); return '<div class="card trw-modif-att"><div class="card-b"><div class="hint">Modification statutaire : '+(need.length===2?'les attestations de <b>dépôt des fonds</b> et de <b>parution</b> sont exigées.':'seule l’<b>attestation de parution</b> de l’annonce légale est exigée pour valider l’étape (pas de dépôt de capital).')+'</div></div></div>'; }
+  var _pe=window.pageEspace;
+  if(typeof _pe==='function'){ window.pageEspace=function(){ var h=_pe.apply(this,arguments); try{ var d=dossier(); if(d&&isModif(d)&&typeof h==='string'){ var tab=(typeof state!=='undefined')?state.espTab:''; if(tab==='actes'&&h.indexOf('trw-modif-sign')<0) h+=carteSign(d); if(tab==='attestations'&&h.indexOf('trw-modif-att')<0) h+=carteAtt(d); } }catch(e){} return h; }; }
+  window.__trwModifDebug={isModif:isModif,kind:kind,piecesManquantes:piecesManquantes,attNeed:attNeed};
 })();
 </script>
 
