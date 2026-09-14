@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=644;
+var LAST_VER=645;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -39911,12 +39911,15 @@ function testLienSignature() {
 
 <script>
 /* ============================================================================
-   Mar'q — Barre latérale en modules repliables (v641)
+   Mar'q — Barre latérale en modules repliables (v641 · v645 : un appui sur le module ouvre sa page)
    - Chaque groupe (Dossiers, Facturation, Documents, Pilotage) devient un MODULE :
      en-tête cliquable (libellé, nombre d'entrées, chevron) qui replie / déplie ses
      sous-modules. Le module de la page active est toujours déplié ; l'état des autres
      est mémorisé sur l'appareil. « Tableau de bord » et « Paramètres » restent seuls.
    - Ordre du module Dossiers aligné sur le parcours : Demandes → Formulaire → Traitement.
+   - v645 : un APPUI SUR LE MODULE ouvre le module ET sa page (page active du module, sinon
+     la première) ; seul le chevron replie / déplie sans changer de page. Plus aucun appui
+     « sans effet ».
    100 % additif : post-traitement de la barre après chaque reconstruction.
    ========================================================================= */
 (function(){
@@ -39929,11 +39932,17 @@ function testLienSignature() {
     groups.forEach(function(g){ var name=(g.lbl.textContent||'').trim(); if(!name||name==='Système'||g.items.length<2) return;
       var active=g.items.some(function(b){ return b.classList.contains('on'); });
       var isOpen=active||open[name]!==false;
-      var head=document.createElement('button'); head.type='button'; head.className='nav-mod-h'+(isOpen?' open':'')+(active?' has-on':''); head.setAttribute('aria-expanded',isOpen?'true':'false');
+      var head=document.createElement('button'); head.type='button'; head.className='nav-mod-h'+(isOpen?' open':'')+(active?' has-on':''); head.setAttribute('aria-expanded',isOpen?'true':'false'); head.title='Ouvrir '+name+' — le chevron replie la liste';
       head.innerHTML='<span class="nav-mod-ic">'+svgOf(name)+'</span><span class="nav-mod-l">'+name+'</span><span class="nav-mod-n">'+g.items.length+'</span><span class="nav-mod-c"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></span>';
       var box=document.createElement('div'); box.className='nav-mod-b'+(isOpen?'':' closed');
       g.lbl.replaceWith(head); g.items.forEach(function(b){ box.appendChild(b); }); head.insertAdjacentElement('afterend',box);
-      head.addEventListener('click',function(){ var o=st(); var now=box.classList.contains('closed'); box.classList.toggle('closed',!now); head.classList.toggle('open',now); head.setAttribute('aria-expanded',now?'true':'false'); o[name]=now; put(o); }); });
+      function setOpen(now){ var o=st(); box.classList.toggle('closed',!now); head.classList.toggle('open',now); head.setAttribute('aria-expanded',now?'true':'false'); o[name]=now; put(o); }
+      head.addEventListener('click',function(ev){ var chev=ev&&ev.target&&ev.target.closest&&ev.target.closest('.nav-mod-c');
+        if(chev){ setOpen(box.classList.contains('closed')); return; }
+        /* appui sur le module : on l'ouvre et on affiche sa page (active sinon la première) */
+        setOpen(true);
+        var target=g.items.filter(function(b){ return b.classList.contains('on'); })[0]||g.items.filter(function(b){ return b.tagName==='BUTTON'&&!b.disabled; })[0];
+        if(target&&!target.classList.contains('on')){ try{ target.click(); }catch(e){} } }); });
     nav.__modDone=true; }
   var _bn=window.buildNav; if(typeof _bn==='function'){ window.buildNav=function(){ var r=_bn.apply(this,arguments); try{ var nav=document.getElementById('nav'); if(nav) nav.__modDone=false; apply(); }catch(e){ window.__navModErr=e&&e.message; } return r; }; }
   var _r=window.render; if(typeof _r==='function'){ window.render=function(){ var o=_r.apply(this,arguments); try{ apply(); }catch(e){} return o; }; }
@@ -39944,8 +39953,11 @@ function testLienSignature() {
     '#nav .nav-mod-ic{display:inline-flex;width:16px;height:16px;opacity:.85}',
     '#nav .nav-mod-l{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '#nav .nav-mod-n{font:600 10px/1 inherit;letter-spacing:0;color:var(--ink-3,#858d9b);background:rgba(255,255,255,.06);border-radius:8px;padding:3px 6px}',
-    '#nav .nav-mod-c{display:inline-flex;width:14px;height:14px;color:var(--ink-3,#858d9b);transition:transform .18s;transform:rotate(0deg)}',
+    '#nav .nav-mod-c{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:-4px -6px -4px 0;border-radius:6px;color:var(--ink-3,#858d9b);transition:transform .18s,background .15s;transform:rotate(0deg)}',
+    '#nav .nav-mod-c:hover{background:rgba(255,255,255,.08);color:var(--ink,#f3f5f9)}',
+    '#nav .nav-mod-c svg{pointer-events:none}',
     '#nav .nav-mod-h.open .nav-mod-c{transform:rotate(90deg)}',
+    '#nav .nav-mod-h[title]{cursor:pointer}',
     '#nav .nav-mod-b{display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:1px solid var(--line,#1f2024);margin-left:14px}',
     '#nav .nav-mod-b.closed{display:none}',
     '#nav .nav-mod-b .nav-btn{min-height:30px;padding-top:6px;padding-bottom:6px}'
