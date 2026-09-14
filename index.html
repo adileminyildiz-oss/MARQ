@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=661;
+var LAST_VER=662;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41058,6 +41058,99 @@ function testLienSignature() {
    +'.ydc-empty{font-size:12px;opacity:.55;padding:2px 0}'
    +'.ydc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.ydc-opts label{display:inline-flex;align-items:center;gap:6px}.ydc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.ydc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.ydc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.ydc-jl span{opacity:.55;min-width:130px}.ydc-jl.ko b{color:#e0a458}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Remboursement TVA : chaîne de constitution du dossier (v662)
+   ----------------------------------------------------------------------------
+   En tête du module Remboursement TVA, un panneau « Chaîne d'exécution »
+   réunit : la RÉCUPÉRATION automatique des factures déjà présentes dans Mar'q
+   (factures prestataires → TVA déductible, factures de vente émises → TVA
+   collectée, sans doublon), le CONTRÔLE de chaque facture (date, tiers,
+   numéro, cohérence HT / TVA / TTC, justificatif joint, doublons), le calcul
+   de l'ÉLIGIBILITÉ au remboursement (crédit de TVA et seuil légal : 760 €
+   mensuel/trimestriel, 150 € annuel), l'ÉDITION du dossier (existant) et le
+   suivi des DEMANDES déposées (date, période, montant). Chaque action est
+   consignée dans un journal. 100 % additif : greffe sur pageTvaRembours ;
+   tvrImprimer / tvrExportCSV existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__tvrChaine) return; window.__tvrChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function data(){ var p=P(); if(!Array.isArray(p.tvaFactures)) p.tvaFactures=[]; return p.tvaFactures; }
+  function cfg(){ var p=P(); p.tvrChaine=p.tvrChaine||{}; var c=p.tvrChaine; if(!c.regime) c.regime='mensuel'; if(c.autoImport==null) c.autoImport=true; if(!Array.isArray(c.journal)) c.journal=[]; if(!Array.isArray(c.demandes)) c.demandes=[]; c.ignores=c.ignores||{}; return c; }
+  function r2(x){ return Math.round((+x||0)*100)/100; }
+  function num(v){ var x=parseFloat((''+(v==null?'':v)).replace(/\s/g,'').replace(',','.')); return isNaN(x)?0:x; }
+  function money(n){ n=r2(n); try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function iso(d){ d=(''+(d||'')).trim(); var m=d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m) return m[3]+'-'+m[2]+'-'+m[1]; return d.slice(0,10); }
+  function frD(d){ d=iso(d); return /^\d{4}-\d{2}-\d{2}$/.test(d)?(d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)):''; }
+  function dateOK(d){ d=iso(d); return /^\d{4}-\d{2}-\d{2}$/.test(d)&&!isNaN(new Date(d+'T00:00:00').getTime()); }
+  function nrm(s){ return (''+(s||'')).toUpperCase().normalize('NFD').replace(/[^A-Z0-9]/g,''); }
+  function uid2(){ return 'tvf'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+  function log(step,ok,detail,mode){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  var SEUIL={mensuel:760,trimestriel:760,annuel:150};
+  function calcF(f){ try{ if(typeof invCalc==='function') return invCalc(f); }catch(e){} var st=0; (f.lignes||[]).forEach(function(l){ st+=num(l.qte)*num(l.pu); }); st=r2(st); var rate=(f.franchiseTVA||f.autoliq)?0:num(f.tva); var tva=r2(st*rate/100); var rem=num(f.remise); return {sousTotal:st,tva:tva,tvaRate:rate,remise:rem,total:r2(st+tva-rem)}; }
+  function key(f){ return nrm(f.fournisseur)+'|'+nrm(f.numero); }
+
+  /* ---------- candidats des autres modules ---------- */
+  function candidats(){ var have={}, srcs={}; data().forEach(function(f){ have[key(f)]=1; if(f.src) srcs[f.src]=1; }); var out=[];
+    try{ var L=(P().factPresta&&Array.isArray(P().factPresta.list))?P().factPresta.list:[]; L.forEach(function(f){ if(!(f.statut==='ecriture'||f.statut==='transmise')) return; if(!(num(f.tva)>0)) return; var s='presta:'+f.id; if(srcs[s]||have[nrm(f.fournisseur)+'|'+nrm(f.numero)]) return; out.push({src:s,sens:'deb',date:iso(f.dateFact),fournisseur:f.fournisseur||'',numero:f.numero||'',services:'',taux:num(f.taux)||20,ht:num(f.ht),tva:num(f.tva),ttc:num(f.ttc)||r2(num(f.ht)+num(f.tva)),lib:'Achat '+(f.numero||'')+' · '+(f.fournisseur||'')}); }); }catch(e){}
+    try{ var F=Array.isArray(P().facturier)?P().facturier:[]; F.forEach(function(f){ if(f.statut!=='emise') return; var c=calcF(f); if(!(c.tva>0)) return; var s='vente:'+f.id; if(srcs[s]||have[nrm(f.clNom)+'|'+nrm(f.numero)]) return; out.push({src:s,sens:'col',date:iso(f.dateEmise),fournisseur:f.clNom||'',numero:f.numero||'',services:'',taux:num(c.tvaRate!=null?c.tvaRate:f.tva),ht:r2(c.sousTotal-c.remise),tva:c.tva,ttc:c.total,lib:'Vente '+(f.numero||'')+' · '+(f.clNom||'')}); }); }catch(e){}
+    return out; }
+
+  /* ---------- bilan ---------- */
+  function manques(f){ var m=[]; if(!dateOK(f.date)) m.push('date'); if(!(''+(f.fournisseur||'')).trim()) m.push(f.sens==='col'?'client':'fournisseur'); if(!(''+(f.numero||'')).trim()) m.push('n° de facture'); var ht=num(f.ht),tva=num(f.tva),ttc=num(f.ttc),tx=num(f.taux); if(!(ttc>0)) m.push('montant'); else { if(Math.abs(ht+tva-ttc)>=0.011) m.push('HT + TVA ≠ TTC'); if(tx>0&&ht>0&&Math.abs(r2(ht*tx/100)-tva)>=0.02) m.push('TVA ≠ HT × taux'); } if(!(tva>0)) m.push('TVA nulle'); if(!(f.file&&f.file.data)) m.push('justificatif absent'); return m; }
+  window.tvrChaineBilan=function(){ var L=data(), c=cfg(); var inc=[], okL=[], dups=[]; L.forEach(function(f){ var m=manques(f); if(m.length) inc.push({f:f,m:m}); else okL.push(f); });
+    var ign=c.ignores; for(var i=0;i<L.length;i++) for(var j=i+1;j<L.length;j++){ var a=L[i],b=L[j]; if(a.sens!==b.sens) continue; var fa=nrm(a.fournisseur); if(!fa||fa!==nrm(b.fournisseur)) continue; var how=''; var na=nrm(a.numero); if(na&&na===nrm(b.numero)) how='même numéro '+(a.numero||''); else if(num(a.ttc)>0&&Math.abs(num(a.ttc)-num(b.ttc))<0.005&&a.date&&a.date===b.date) how='même montant à la même date'; if(!how) continue; var k=[a.id,b.id].sort().join('|'); if(ign[k]) continue; dups.push({a:a,b:b,how:how}); }
+    var deb=L.filter(function(f){return f.sens==='deb';}), col=L.filter(function(f){return f.sens==='col';}); var tvaDeb=r2(deb.reduce(function(s,f){return s+num(f.tva);},0)), tvaCol=r2(col.reduce(function(s,f){return s+num(f.tva);},0)); var credit=r2(tvaDeb-tvaCol); var seuil=SEUIL[c.regime]||760;
+    var dates=L.map(function(f){return iso(f.date);}).filter(dateOK).sort(); var sansPiece=L.filter(function(f){return !(f.file&&f.file.data);}).length;
+    return {inc:inc,ok:okL,dups:dups,cand:candidats(),credit:credit,tvaDeb:tvaDeb,tvaCol:tvaCol,seuil:seuil,regime:c.regime,eligible:credit>0&&credit>=seuil,total:L.length,sansPiece:sansPiece,periode:dates.length?{du:dates[0],au:dates[dates.length-1]}:null,demandes:c.demandes,cfg:c}; };
+
+  /* ---------- actions ---------- */
+  window.tvrChaineImporter=function(silent){ var C=candidats(); if(!C.length){ if(!silent&&typeof toast==='function') toast('Aucune facture à récupérer : tout est déjà repris.'); return 0; } C.forEach(function(x){ data().push({id:uid2(),src:x.src,sens:x.sens,date:x.date,fournisseur:x.fournisseur,numero:x.numero,services:x.services,taux:x.taux,ht:x.ht,tva:x.tva,ttc:x.ttc,ts:Date.now()}); }); var nd=C.filter(function(x){return x.sens==='deb';}).length; log('Récupération',true,C.length+' facture(s) reprise(s) : '+nd+' achat(s), '+(C.length-nd)+' vente(s)',silent?'automatique':'manuel'); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast(C.length+' facture(s) récupérée(s) depuis les modules Factures prestataires et Factures.'); } return C.length; };
+  window.tvrChaineIgnorer=function(a,b){ var c=cfg(); c.ignores[[a,b].sort().join('|')]=1; log('Doublon écarté',true,'conservé tel quel','manuel'); try{render();}catch(e){} };
+  window.tvrChaineVoir=function(id){ try{ var f=data().filter(function(x){return x.id===id;})[0]; if(!f) return; if(typeof tvrSetFilter==='function') tvrSetFilter('all'); window.__tvrUI.q=f.numero||f.fournisseur||''; render(); var w=document.getElementById('tvr-tbwrap'); if(w&&w.scrollIntoView) w.scrollIntoView({block:'center'}); }catch(e){} };
+  window.tvrChaineEditer=function(){ var b=tvrChaineBilan(); try{ tvrImprimer(); }catch(e){ log('Dossier de remboursement',false,'erreur : '+(e&&e.message||e),'manuel'); return false; } log('Dossier de remboursement',true,'édité · crédit '+money(b.credit)+' · '+b.total+' facture(s)'+(b.inc.length?(' · '+b.inc.length+' anomalie(s) non corrigée(s)'):''),'manuel'); try{render();}catch(e){} return true; };
+  window.tvrChaineDeposer=function(){ var b=tvrChaineBilan(); if(!b.eligible){ if(typeof toast==='function') toast(b.credit>0?('Crédit de '+money(b.credit)+' inférieur au seuil de '+money(b.seuil)+' ('+b.regime+') : demande non recevable.'):'Aucun crédit de TVA : rien à demander.'); return false; }
+    var go=function(){ var c=cfg(); c.demandes.unshift({ts:Date.now(),regime:c.regime,credit:b.credit,nb:b.total,du:b.periode?b.periode.du:'',au:b.periode?b.periode.au:'',anomalies:b.inc.length,statut:'deposee'}); log('Demande déposée',true,money(b.credit)+' · '+b.total+' facture(s) · '+(b.periode?(frD(b.periode.du)+' → '+frD(b.periode.au)):'période non datée'),'manuel'); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast('Demande de remboursement enregistrée : '+money(b.credit)+'.'); };
+    if(b.inc.length&&typeof uiConfirm==='function'){ uiConfirm(b.inc.length+' facture(s) présentent des anomalies (justificatif absent, montants…). Enregistrer la demande quand même ?',go,{okLabel:'Enregistrer'}); return true; } go(); return true; };
+  window.tvrChaineDemande=function(i,statut){ var c=cfg(); var d=c.demandes[i]; if(!d) return; d.statut=statut; if(statut==='remboursee') d.rembourseeLe=new Date().toISOString().slice(0,10); log('Demande '+({remboursee:'remboursée',rejetee:'rejetée',deposee:'déposée'}[statut]||statut),statut!=='rejetee',money(d.credit),'manuel'); try{save();}catch(e){} try{render();}catch(e){} };
+  window.tvrChaineExecuter=function(){ var n=tvrChaineImporter(true); var b=tvrChaineBilan(); var m='Chaîne exécutée : '+n+' facture(s) récupérée(s) · crédit '+money(b.credit)+' ('+(b.eligible?'remboursement recevable, seuil '+money(b.seuil):'non recevable : '+(b.credit>0?'sous le seuil de '+money(b.seuil):'pas de crédit'))+')'+(b.inc.length?(' · '+b.inc.length+' anomalie(s) à corriger'):'')+(b.dups.length?(' · '+b.dups.length+' doublon(s) possible(s)'):'')+'.'; log('Tout exécuter',true,m,'manuel'); try{render();}catch(e){} if(typeof toast==='function') toast(m,7000); return {n:n,bilan:b}; };
+  window.tvrChaineSet=function(k,v){ var c=cfg(); if(k==='regime'&&SEUIL[v]) c.regime=v; if(k==='autoImport') c.autoImport=!!v; try{save();}catch(e){} try{render();}catch(e){} };
+  window.tvrChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.tvrChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  function auto(){ try{ if(!cfg().autoImport) return; var n=tvrChaineImporter(true); if(n){ try{render();}catch(e){} if(typeof toast==='function') toast('Remboursement TVA : '+n+' facture(s) récupérée(s) automatiquement.',6000); } }catch(e){} }
+  setTimeout(auto,10000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="tvc-sec"><div class="tvc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="tvc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  function fid(f){ return '<b>'+E(f.fournisseur||'(tiers à préciser)')+'</b>'+(f.numero?(' · '+E(f.numero)):'')+(dateOK(f.date)?(' · '+frD(f.date)):'')+' <span class="tvc-t">'+(f.sens==='col'?'collectée':'déductible')+'</span>'; }
+  window.tvrChaineCard=function(){ var b=tvrChaineBilan(), c=b.cfg;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — dossier de remboursement</h2><div class="tvc-hb"><span class="tvc-elig '+(b.eligible?'on':'')+'">'+(b.eligible?('recevable · crédit '+E(money(b.credit))):(b.credit>0?('sous le seuil de '+E(money(b.seuil))):'aucun crédit'))+'</span><button class="btn btn-sm btn-ghost" onclick="tvrChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="tvrChaineExecuter()">Tout exécuter</button></div></div>';
+    if(c.reduit) return '<div class="card tvc-card">'+head+'</div>';
+    var kpi='<div class="tvc-kpis"><div class="tvc-k'+(b.credit>0?' ok':'')+'"><b>'+E(money(b.credit))+'</b><span>crédit de TVA · déductible '+E(money(b.tvaDeb))+' − collectée '+E(money(b.tvaCol))+'</span></div><div class="tvc-k'+(b.eligible?' ok':' warn')+'"><b>'+(b.eligible?'recevable':'non recevable')+'</b><span>seuil '+E(money(b.seuil))+' ('+E(b.regime)+')'+(b.periode?(' · '+frD(b.periode.du)+' → '+frD(b.periode.au)):'')+'</span></div><div class="tvc-k'+(b.cand.length?' warn':'')+'"><b>'+b.cand.length+'</b><span>à récupérer des modules</span></div><div class="tvc-k'+(b.inc.length?' warn':'')+'"><b>'+b.inc.length+'</b><span>anomalie(s) · '+b.sansPiece+' sans justificatif</span></div><div class="tvc-k'+(b.dups.length?' warn':'')+'"><b>'+b.dups.length+'</b><span>doublon(s) possible(s)</span></div></div>';
+    var s1=sec('À récupérer (Factures prestataires · Factures émises)',b.cand.slice(0,12),function(x){ return '<div class="tvc-row"><span class="tvc-cli"><b>'+E(x.lib)+'</b> · '+frD(x.date)+' <span class="tvc-t">'+(x.sens==='col'?'collectée':'déductible')+'</span></span><span class="tvc-amt">TVA '+E(money(x.tva))+'</span><span class="tvc-act"></span></div>'; },'Toutes les factures des modules sont reprises.')+(b.cand.length?('<div class="tvc-lot"><button class="btn btn-sm btn-pri" onclick="tvrChaineImporter()">Récupérer les '+b.cand.length+' facture(s)</button></div>'):'');
+    var s2=sec('Anomalies à corriger',b.inc.slice(0,15),function(it){ return '<div class="tvc-row ko"><span class="tvc-cli">'+fid(it.f)+' <em>'+E(it.m.join(', '))+'</em></span><span class="tvc-amt">'+E(money(num(it.f.ttc)))+'</span><span class="tvc-act"><button class="btn btn-sm" onclick="tvrChaineVoir(\''+E(it.f.id)+'\')">Voir</button></span></div>'; },'Toutes les factures sont complètes et justifiées.');
+    var s3=sec('Doublons possibles',b.dups.slice(0,10),function(d){ return '<div class="tvc-row"><span class="tvc-cli">'+fid(d.a)+' <em>'+E(d.how)+'</em></span><span class="tvc-amt">'+E(money(num(d.a.ttc)))+' / '+E(money(num(d.b.ttc)))+'</span><span class="tvc-act"><button class="btn btn-sm" onclick="tvrChaineVoir(\''+E(d.b.id)+'\')">Voir</button><button class="btn btn-sm btn-ghost" onclick="tvrSupprimer(\''+E(d.b.id)+'\')">Retirer</button><button class="btn btn-sm btn-ghost" onclick="tvrChaineIgnorer(\''+E(d.a.id)+'\',\''+E(d.b.id)+'\')">Écarter</button></span></div>'; },'Aucun doublon repéré.');
+    var ST={deposee:'déposée',remboursee:'remboursée',rejetee:'rejetée'};
+    var s4=sec('Demandes de remboursement',b.demandes.slice(0,8),function(d,i){ return '<div class="tvc-row"><span class="tvc-cli"><b>'+E(money(d.credit))+'</b> · '+E(new Date(d.ts).toLocaleDateString('fr-FR'))+' · '+d.nb+' facture(s)'+(d.du?(' · '+frD(d.du)+' → '+frD(d.au)):'')+' <span class="tvc-t st-'+E(d.statut)+'">'+E(ST[d.statut]||d.statut)+'</span></span><span class="tvc-amt"></span><span class="tvc-act">'+(d.statut==='deposee'?('<button class="btn btn-sm" onclick="tvrChaineDemande('+i+',\'remboursee\')">Remboursée</button><button class="btn btn-sm btn-ghost" onclick="tvrChaineDemande('+i+',\'rejetee\')">Rejetée</button>'):'')+'</span></div>'; },'Aucune demande enregistrée.')+'<div class="tvc-lot"><button class="btn btn-sm" onclick="tvrChaineEditer()"'+(b.total?'':' disabled')+'>Éditer le dossier (imprimer / PDF)</button><button class="btn btn-sm btn-pri" onclick="tvrChaineDeposer()"'+(b.eligible?'':' disabled')+'>Enregistrer la demande déposée</button></div>';
+    var opts='<div class="tvc-opts"><label>Régime <select onchange="tvrChaineSet(\'regime\',this.value)">'+['mensuel','trimestriel','annuel'].map(function(r){ return '<option value="'+r+'"'+(c.regime===r?' selected':'')+'>'+r+' (seuil '+SEUIL[r]+' €)</option>'; }).join('')+'</select></label><label><input type="checkbox" '+(c.autoImport?'checked':'')+' onchange="tvrChaineSet(\'autoImport\',this.checked)"> Récupérer automatiquement les factures des modules</label><span class="tvc-note">Demande sur impots.gouv (formulaire n° 3519) avec le dossier édité et les justificatifs.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="tvc-journal"><div class="tvc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="tvrChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="tvc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card tvc-card">'+head+'<div class="card-b">'+kpi+'<div class="tvc-grid">'+s1+s2+s3+s4+'</div>'+opts+jr+'</div></div>'; };
+  try{ var _pt=window.pageTvaRembours; if(typeof _pt==='function'&&!_pt.__tvc){ window.pageTvaRembours=function(){ var h=_pt.apply(this,arguments); try{ if(typeof h==='string'&&h.indexOf('<div class="tvr-wrap">')===0) h='<div class="tvr-wrap">'+tvrChaineCard()+h.slice('<div class="tvr-wrap">'.length); }catch(e){} return h; }; window.pageTvaRembours.__tvc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='tvr-chaine-css'; st.textContent=
+    '.tvc-card{margin:0}.tvc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tvc-card .card-h h2{margin:0;font-size:15px}.tvc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tvc-elig{font-size:11.5px;opacity:.65}.tvc-elig.on{color:#2fae5f;opacity:1}'
+   +'.tvc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.tvc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.tvc-k b{display:block;font-size:17px}.tvc-k span{font-size:11px;opacity:.65}.tvc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.tvc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.tvc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.tvc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.tvc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.tvc-h span{opacity:.6}.tvc-h .btn{margin-left:auto}'
+   +'.tvc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.tvc-row:first-of-type{border-top:0}.tvc-cli em{font-style:normal;font-size:11px;color:#e0a458}.tvc-amt{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.8;white-space:nowrap}.tvc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.tvc-t{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.8}.tvc-t.st-remboursee{color:#2fae5f;border-color:rgba(47,174,95,.5)}.tvc-t.st-rejetee{color:#e0a458;border-color:rgba(217,154,58,.5)}'
+   +'.tvc-empty{font-size:12px;opacity:.55;padding:2px 0}.tvc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
+   +'.tvc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.tvc-opts label{display:inline-flex;align-items:center;gap:6px}.tvc-opts select{padding:3px 6px}.tvc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.tvc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.tvc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.tvc-jl span{opacity:.55;min-width:130px}.tvc-jl.ko b{color:#e0a458}.tvc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
