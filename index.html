@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=648;
+var LAST_VER=649;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -21272,7 +21272,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       nomCommercial:s.enseigne||s.sigle||'', activites:s.objet||'',
       siege:[si.rue,si.cp,si.ville].filter(Boolean).join(', '), adresse:si.rue||s.adresse||'', cp:si.cp||s.cp||'', ville:si.ville||s.ville||'',
       siegeType:si.type||'', bailleur:si.bailleur||'', domiciliataire:si.domiciliataire||'',
-      president:((dir.prenom||'')+' '+(dir.nom||'')).trim(), presidentFonction:dir.fonction||'',
+      president:((dir.prenom||'')+' '+(dir.nom||'')).trim(), presidentFonction:dir.fonction||'', prenom:dir.prenom||'', nom:dir.nom||'',
       dirCivilite:dir.civilite||'', dirNaissance:dir.naissance||'', dirLieuNaissance:dir.lieuNaissance||'',
       dirNationalite:dir.nationalite||'', dirAdresse:dir.adresse||'', dirPays:dir.pays||'',
       email:co.email||'', tel:co.tel||'',
@@ -36700,11 +36700,13 @@ function testLienSignature() {
   if(window.__modPause) return; window.__modPause=1;
   var LBL={demandes:'Demandes',agenda:'Agenda',conformite:'Fiscal',espace:'Traitement',formulaire:'Formulaire',editions:'Éditions',clients:'Clients',facturier:'Factures prestataires',services:'Services'};
   function cfg(){ DB.parametres=DB.parametres||{}; var p=DB.parametres;
-    if(!p.modulesPause){ p.modulesPause={demandes:1,agenda:1,conformite:1}; try{save();}catch(e){} }
+    if(!p.modulesPause){ p.modulesPause={}; try{save();}catch(e){} }
+    /* v649 : les pauses semées par défaut (Demandes, Agenda, Fiscal) sont levées si l'utilisateur n'a jamais choisi lui-même une pause */
+    if(!p.modulesPauseUser){ var ks=Object.keys(p.modulesPause||{}).sort().join(','); if(ks==='agenda,conformite,demandes'){ p.modulesPause={}; try{save();}catch(e){} } }
     return p.modulesPause; }
   function paused(id){ try{ return !!cfg()[id]; }catch(e){ return false; } }
   window.modEnPause=paused;
-  window.modPauseSet=function(id,on){ var c=cfg(); if(on) c[id]=1; else delete c[id]; try{save();}catch(e){} render();
+  window.modPauseSet=function(id,on){ var c=cfg(); DB.parametres.modulesPauseUser=1; if(on) c[id]=1; else delete c[id]; try{save();}catch(e){} render();
     if(typeof toast==='function') toast((LBL[id]||id)+(on?' mis en pause — grisé et inutilisable.':' réactivé.')); };
   /* menu : entrées grisées, étiquette « en pause » */
   function paintNav(){ try{ var nav=document.getElementById('nav'); if(!nav) return;
@@ -38718,8 +38720,10 @@ function testLienSignature() {
   var _bnTick=0; var _render=window.render; window.render=function(){ var r=_render.apply(this,arguments); try{ var nav=document.getElementById('nav'); if(nav&&!nav.classList.contains('nav-flat')) rebuild(); }catch(e){} return r; };
   var css=document.createElement('style'); css.id='nav-flat-mod'; css.textContent=[
     '#nav.nav-flat{overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-width:thin;padding-right:2px}',
-    '#nav.nav-flat .nav-flat-lbl{margin-top:4px}#nav.nav-flat .nav-flat-lbl:first-child{margin-top:0}',
-    '#nav.nav-flat .nav-btn{min-height:32px}#nav.nav-flat .nav-badge-soft{background:rgba(79,157,255,.18);color:#9ec4ff}'
+    '#nav.nav-flat .nav-flat-lbl{margin-top:1px;padding:4px 7px 1px}#nav.nav-flat .nav-flat-lbl:first-child{margin-top:0}',
+    '#nav.nav-flat .nav-btn{min-height:26px;padding-top:3px;padding-bottom:3px}#nav.nav-flat .nav-badge-soft{background:rgba(79,157,255,.18);color:#9ec4ff}',
+    '@media (max-height:820px){#nav.nav-flat .nav-btn{min-height:24px;padding-top:2px;padding-bottom:2px;font-size:11.5px}#nav.nav-flat .nav-flat-lbl{padding:3px 7px 0;margin-top:0}}',
+    '#nav.nav-flat{scrollbar-width:thin;scrollbar-color:#3a4150 transparent}#nav.nav-flat::-webkit-scrollbar{width:8px}#nav.nav-flat::-webkit-scrollbar-thumb{background:#3a4150;border-radius:8px}#nav.nav-flat::-webkit-scrollbar-track{background:transparent}'
   ].join('\n'); document.head.appendChild(css);
   setTimeout(function(){ try{ rebuild(); }catch(e){} },300);
   window.__navFlatDebug={rebuild:rebuild,GROUPS:GROUPS};
