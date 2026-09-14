@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=650;
+var LAST_VER=651;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -7895,7 +7895,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 (function(){
   var COMM={SARL:1,EURL:1,SAS:1,SASU:1,SA:1};
   function formeOf(d){ var c=(typeof clientById==='function')?(clientById((d.clientIds||[])[0])||{}):{}; return ((c.forme||d.forme||'')+'').toUpperCase(); }
-  function addMonths(iso,n){ try{ var d=new Date(iso+'T00:00:00'); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,10); }catch(e){ return iso; } }
+  function addMonths(iso,n){ try{ /* v651 : fin de mois bornée (31/12 + 6 mois = 30/06, pas 01/07) et date locale (pas de décalage UTC) */ var p=(''+iso).split('-').map(Number); var t=new Date(p[0],p[1]-1+n,1); var last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate(); var dd=Math.min(p[2]||1,last); return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0'); }catch(e){ return iso; } }
   function jA(iso){ return (typeof joursAvant==='function')?joursAvant(iso):null; }
   function statut(o){ if(o.done)return {c:'fait',t:'Fait'}; var j=jA(o.due); if(j==null)return {c:'venir',t:'—'};
     if(j<0)return {c:'retard',t:'En retard ('+(-j)+' j)'}; if(j<=30)return {c:'imminent',t:'Imminent ('+j+' j)'}; return {c:'venir',t:'Dans '+j+' j'}; }
@@ -21681,7 +21681,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
 
   /* ---- Routage ---- */
   try{ if(typeof PAGES!=='undefined' && !PAGES.some(function(p){return p.id==='prestataires';})){
-    var _pg={id:'prestataires',lbl:'Factures prestataires',ic:'receipt',sub:'Justificatifs de paiement du cabinet (hors dossiers clients)'};
+    var _pg={id:'prestataires',lbl:'Justificatifs du cabinet',ic:'receipt',sub:'Justificatifs de paiement du cabinet (hors dossiers clients)'};
     var _pi=PAGES.map(function(p){return p.id;}).indexOf('params');
     if(_pi<0)PAGES.push(_pg); else PAGES.splice(_pi,0,_pg);
   } }catch(e){}
@@ -21692,7 +21692,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
     var ico='';try{ if(has('svg')&&typeof IC!=='undefined')ico=svg(IC.receipt||IC.file||IC.euro||IC.idcard||''); }catch(e){}
     var b=document.createElement('button');
     b.className='nav-btn'+on;b.setAttribute('data-fpbtn','1');b.setAttribute('onclick',"go('prestataires')");
-    b.innerHTML=ico+'<span class="nav-btn-lbl">Factures prestataires</span>';
+    b.innerHTML=ico+'<span class="nav-btn-lbl">Justificatifs du cabinet</span>';
     if(params&&params.parentNode)params.parentNode.insertBefore(b,params);else nav.appendChild(b);
   }
   try{ var _bn=window.buildNav; if(typeof _bn==='function'){ window.buildNav=function(){var r=_bn.apply(this,arguments);try{injectBtn();}catch(e){}return r;}; } }catch(e){}
@@ -21707,7 +21707,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   window.fpDl=function(id){ var e=store().filter(function(x){return x.id===id;})[0]; if(!e||!e.fichierData)return; var a=document.createElement('a'); a.href=e.fichierData; a.download=e.fichierNom||'facture'; a.click(); };
 
   /* ---- Page ---- */
-  window.pageFactPresta=function(){
+  var pageJustificatifs=window.pageFactPresta=function(){ /* v651 : référence locale (le module Factures prestataires redéfinit window.pageFactPresta) */
     var list=store();
     var q=(''+(window.__fpQ||'')).toLowerCase();
     var pm=function(e){var m=parseFloat((''+(e.montant||'')).replace(',','.').replace(/[^0-9.]/g,''));return isNaN(m)?0:m;};
@@ -21728,7 +21728,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
         +'<td style="text-align:right;white-space:nowrap"><button class="btn btn-sm btn-ghost" onclick="fpVoir(\''+e.id+'\')">Voir</button><button class="btn btn-sm btn-ghost" onclick="fpDl(\''+e.id+'\')">⤓</button><button class="btn btn-sm btn-ghost fp-x" title="Supprimer" aria-label="Supprimer" onclick="fpDel(\''+e.id+'\')">'+trash+'</button></td></tr>';
     }).join('');
     var refresh=(window.mqRefresh?'<button class="mq-ib" onclick="mqRefresh(this)" title="Actualiser la page" aria-label="Actualiser">'+((window.MQ_ICONS&&window.MQ_ICONS.refresh)||'')+'</button>':'');
-    var hero='<div class="fp-hero"><div><h2 class="fp-hero-t">Factures prestataires</h2>'
+    var hero='<div class="fp-hero"><div><h2 class="fp-hero-t">Justificatifs du cabinet</h2>'
       +'<div class="fp-hero-s">Justificatifs de paiement du cabinet — annonces légales, INPI, autres prestataires. Reçues par e-mail et conservées ici, séparément des dossiers clients.</div></div>'
       +'<div class="fp-hero-r">'+refresh+'</div></div>';
     var K=function(v,l,cls){return '<div class="kpi"><div class="val '+(cls||'')+'">'+v+'</div><div class="lbl">'+l+'</div></div>';};
@@ -21762,9 +21762,9 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       try{buildNav();}catch(e){}
       try{document.body.dataset.page='prestataires';}catch(e){}
       var p=(typeof PAGES!=='undefined')?PAGES.find(function(x){return x.id==='prestataires';}):null;
-      try{document.getElementById('ptitle').firstChild.textContent=(p&&p.lbl)||'Factures prestataires';}catch(e){}
+      try{document.getElementById('ptitle').firstChild.textContent=(p&&p.lbl)||'Justificatifs du cabinet';}catch(e){}
       try{document.getElementById('psub').textContent=(p&&p.sub)||'';}catch(e){}
-      var V=document.getElementById('view');if(V)V.innerHTML=pageFactPresta();
+      var V=document.getElementById('view');if(V)V.innerHTML=pageJustificatifs();
       return;
     }
     return _rd.apply(this,arguments); }; window.render.__fp=true; } }catch(e){}
@@ -40010,6 +40010,27 @@ function testLienSignature() {
   var _pe=window.pageEspace;
   if(typeof _pe==='function'){ window.pageEspace=function(){ var h=_pe.apply(this,arguments); try{ var d=dossier(); if(d&&isModif(d)&&typeof h==='string'){ var tab=(typeof state!=='undefined')?state.espTab:''; if(tab==='actes'&&h.indexOf('trw-modif-sign')<0) h+=carteSign(d); if(tab==='attestations'&&h.indexOf('trw-modif-att')<0) h+=carteAtt(d); } }catch(e){} return h; }; }
   window.__trwModifDebug={isModif:isModif,kind:kind,piecesManquantes:piecesManquantes,attNeed:attNeed};
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Justificatifs du cabinet : modification et suppression rétablies (v651)
+   Les fonctions fpSet / fpDel étaient définies deux fois : par le module
+   « Justificatifs du cabinet » (DB.facturesPrestataires) puis par le module
+   « Factures prestataires » (DB.parametres.factPresta), qui a pris le dessus.
+   Depuis, modifier ou supprimer un justificatif du cabinet ne faisait rien.
+   Chaque appel est maintenant dirigé vers le registre qui contient la pièce.
+   100 % additif.
+   ========================================================================= */
+(function(){
+  if(window.__fpBridge) return; window.__fpBridge=1;
+  function just(){ try{ DB.facturesPrestataires=DB.facturesPrestataires||[]; return DB.facturesPrestataires; }catch(e){ return []; } }
+  function inFP(id){ try{ return !!(DB.parametres&&DB.parametres.factPresta&&(DB.parametres.factPresta.list||[]).some(function(x){ return x.id===id; })); }catch(e){ return false; } }
+  function inJust(id){ return just().some(function(x){ return x.id===id; }); }
+  var _set=window.fpSet, _del=window.fpDel;
+  window.fpSet=function(id,k,v){ if(!inFP(id)&&inJust(id)){ var e=just().filter(function(x){ return x.id===id; })[0]; if(e){ e[k]=v; try{ save(); }catch(x){} } return; } return (typeof _set==='function')?_set.apply(this,arguments):undefined; };
+  window.fpDel=function(id){ if(!inFP(id)&&inJust(id)){ var go=function(){ DB.facturesPrestataires=just().filter(function(x){ return x.id!==id; }); try{ save(); }catch(x){} try{ render(); }catch(x){} }; if(typeof uiConfirm==='function') uiConfirm('Supprimer ce justificatif ?',go,{okLabel:'Supprimer',danger:true}); else go(); return; } return (typeof _del==='function')?_del.apply(this,arguments):undefined; };
 })();
 </script>
 
