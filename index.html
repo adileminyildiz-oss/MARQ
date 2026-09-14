@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=666;
+var LAST_VER=667;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41255,7 +41255,7 @@ function testLienSignature() {
    Sous l'en-tête du Tableau de bord, un panneau « Centre d'exécution » réunit
    les chaînes d'exécution de tous les modules (Demandes, Traitement,
    Facturation, Agenda, Fiscal, Clients, Factures prestataires, Export YADA,
-   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier) : pour chacune, ce qui est en
+   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier, Signatures) : pour chacune, ce qui est en
    attente, ce qui demande une action humaine, la dernière action journalisée,
    un bouton « Exécuter » (les actions sûres : envois, rappels, relances,
    écritures, récupérations — jamais de téléchargement ni de création de
@@ -41303,13 +41303,15 @@ function testLienSignature() {
     if(fn('jcChaineBilan')){ var b8=safe(jcChaineBilan,null); if(b8&&(b8.total||b8.cand.length)){ L.push({key:'jc',lbl:'Justificatifs du cabinet',page:'prestataires',attente:b8.cand.length+b8.inc.length,humain:b8.inc.length+(b8.clot?0:1),detail:b8.cand.length+' paiement(s) à récupérer · '+b8.inc.length+' pièce(s) à compléter · mois '+(b8.clot?'clôturé':'ouvert'),exec:b8.cand.length?function(){ return jcRapprocher(true)+' paiement(s) récupéré(s)'; }:null,execLbl:b8.cand.length?'Exécuter':'Rien à faire',last:jr('jcChaine')}); } }
     /* Échéancier fiscal & social (Services) */
     if(fn('echChaineBilan')){ var b10=safe(echChaineBilan,null); if(b10&&b10.total){ var n10=b10.retard.filter(function(r){return !r.rappele;}).length+b10.aRappeler.length; L.push({key:'ech',lbl:'Échéancier fiscal & social',page:'services',openJs:"try{svcGo('echeancier')}catch(e){}",attente:b10.retard.length+b10.aRappeler.length+b10.rappelees.length,humain:b10.retard.length+b10.aRappeler.length+b10.rappelees.length,detail:b10.retard.length+' en retard · '+b10.aRappeler.length+' rappel(s) à envoyer · '+b10.prochaines.length+' sous 30 j · '+b10.faits.length+' faite(s)',exec:n10&&b10.gw?function(){ var r=echChaineExecuter(true); return (r?r.n:0)+' rappel(s)'; }:null,execLbl:n10?(b10.gw?'Exécuter':'Passerelle requise'):'Rien à faire',last:jr('echChaine')}); } }
+    /* Signatures des actes (Services › Signature électronique) */
+    if(fn('sgChaineBilan')){ var b11=safe(sgChaineBilan,null); if(b11&&b11.total){ var n11=b11.aEnvoyer.length+b11.aRelancer.length; L.push({key:'sg',lbl:'Signatures des actes',page:'services',openJs:"try{svcGo('signature')}catch(e){}",attente:n11+b11.attente.length,humain:b11.sansMail.length+b11.epuisees.length,detail:b11.aEnvoyer.length+' à envoyer · '+b11.aRelancer.length+' à relancer · '+b11.attente.length+' en attente · '+b11.signes.length+' dossier(s) signé(s)'+(b11.enveloppes?(' · '+b11.enveloppes+' enveloppe(s) à relever'):''),exec:null,execLbl:(n11||b11.enveloppes)?(b11.gw?'Circuit asynchrone : ouvrir':'Passerelle requise'):'Rien à faire',last:jr('sgChaine')}); } }
     return L; };
   window.cxChaineExecuter=function(key){ var L=cxChaineLignes(); var l=L.filter(function(x){return x.key===key;})[0]; if(!l||!l.exec){ if(typeof toast==='function') toast('Rien à exécuter automatiquement pour ce module.'); return null; } var r=null; try{ r=l.exec(); log(l.lbl,true,''+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); r=null; } try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast(l.lbl+' : '+(r==null?'échec':r)+'.',6000); return r; };
   window.cxChaineTout=function(){ var L=cxChaineLignes().filter(function(x){return !!x.exec;}); if(!L.length){ if(typeof toast==='function') toast('Aucune chaîne exécutable automatiquement : tout demande une action humaine ou est à jour.'); return 0; } var out=[]; L.forEach(function(l){ try{ var r=l.exec(); log(l.lbl,true,''+r); out.push(l.lbl+' : '+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); out.push(l.lbl+' : échec'); } }); log('Tout exécuter',true,out.join(' · ')); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast('Centre d\'exécution — '+out.join(' · ')+'.',8000); return L.length; };
   window.cxChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
   window.cxChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
   /* journal consolidé : dix dernières actions, tous modules */
-  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
+  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
 
   /* ---------- panneau ---------- */
   window.cxChaineCard=function(){ var L=cxChaineLignes(), c=cfg(); if(!L.length) return ''; var att=0, hum=0, ex=0; L.forEach(function(l){ att+=l.attente; hum+=l.humain; if(l.exec) ex++; });
@@ -41488,6 +41490,98 @@ function testLienSignature() {
    +'.ecc-empty{font-size:12px;opacity:.55;padding:2px 0}'
    +'.ecc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.ecc-opts label{display:inline-flex;align-items:center;gap:6px}.ecc-opts input[type=email]{padding:3px 6px;min-width:220px}'
    +'.ecc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.ecc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.ecc-jl span{opacity:.55;min-width:130px}.ecc-jl.ko b{color:#e0a458}.ecc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Signatures : circuit des actes à signer (v667)
+   ----------------------------------------------------------------------------
+   Dans Services › Signature électronique, un panneau « Chaîne d'exécution »
+   suit, pour tous les dossiers en cours, les ACTES à signer : envoi du LIEN DE
+   SIGNATURE (passerelle : enveloppe e-mail + SMS ; repli messagerie), RELÈVE
+   des signatures reçues (passerelle), RELANCES après un délai réglable (maximum
+   réglable), signataires SANS E-MAIL, dossiers entièrement SIGNÉS. Chaque
+   action est consignée dans un journal. 100 % additif : greffe sur le rendu de
+   la vue ; signLienEnvoyer / signLienRelancer / signLienReleve / actEnvoyer,
+   sigState et a3ASigner existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__sgChaine) return; window.__sgChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.sgChaine=p.sgChaine||{}; var c=p.sgChaine; if(c.auto==null) c.auto=false; if(!(c.delaiJ>0)) c.delaiJ=3; if(!(c.max>=0)) c.max=3; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function attendre(cond,ms,cb){ var t0=Date.now(); (function tick(){ var r=false; try{ r=cond(); }catch(e){} if(r) return cb(true); if(Date.now()-t0>ms) return cb(false); setTimeout(tick,150); })(); }
+  function jours(ts){ return Math.floor((Date.now()-ts)/86400000); }
+  function dossiers(){ try{ return (DB.dossiers||[]).filter(function(d){ return !d.archived&&d.statut!=='Clôturé'; }); }catch(e){ return []; } }
+  function cli(d){ try{ return clientById((d.clientIds||[])[0])||{}; }catch(e){ return {}; } }
+  function nomDe(d){ var c=cli(d); return c.denomination||c.denom||((c.prenom||'')+' '+(c.nom||'')).trim()||d.ref||d.id; }
+  function actes(d){ try{ return (typeof a3ASigner==='function')?(a3ASigner(d)||[]):[]; }catch(e){ return []; } }
+  function etat(d,k){ try{ return sigState(d,k); }catch(e){ return {statut:'a_envoyer',relances:0}; } }
+  function signe(d,k){ return !!(d.sign&&d.sign[k]&&d.sign[k].ok)||etat(d,k).statut==='signe'; }
+
+  /* ---------- bilan ---------- */
+  window.sgChaineBilan=function(){ var c=cfg(); var aEnvoyer=[], aRelancer=[], attente=[], epuisees=[], sansMail=[], signes=[], enveloppes=0;
+    dossiers().forEach(function(d){ var A=actes(d); if(!A.length) return; var rest=A.filter(function(a){ return !signe(d,a.k); }); var sg={nom:'',email:''}; try{ sg=sigSigner(d); }catch(e){} var env=d.signEnv&&d.signEnv.token&&d.signEnv.statut!=='annule'?d.signEnv:null; if(env&&env.statut!=='signe'&&env.statut!=='expire') enveloppes++;
+      var row={d:d,nom:nomDe(d),actes:A,rest:rest,sg:sg,env:env};
+      if(!rest.length){ signes.push(row); return; }
+      var envoyes=rest.filter(function(a){ var s=etat(d,a.k); return s.statut==='envoye'||s.statut==='ouvert'; });
+      if(!envoyes.length){ if(!sg.email&&!(cli(d).tel||cli(d).telephone)) sansMail.push(row); else aEnvoyer.push(row); return; }
+      var last=0, rel=0; envoyes.forEach(function(a){ var s=etat(d,a.k); last=Math.max(last,s.lastRelance||s.sentAt||0); rel=Math.max(rel,s.relances||0); }); if(env){ last=Math.max(last,env.derniereRelance||env.envoye||0); rel=Math.max(rel,env.relances||0); }
+      row.j=last?jours(last):0; row.rel=rel; row.ouvert=!!(env&&env.ouvert);
+      if(row.j>=c.delaiJ){ if(rel>=c.max) epuisees.push(row); else aRelancer.push(row); } else attente.push(row); });
+    return {aEnvoyer:aEnvoyer,aRelancer:aRelancer,attente:attente,epuisees:epuisees,sansMail:sansMail,signes:signes,enveloppes:enveloppes,total:aEnvoyer.length+aRelancer.length+attente.length+epuisees.length+sansMail.length+signes.length,gw:gw(),cfg:c}; };
+
+  /* ---------- actions ---------- */
+  window.sgEnvoyer=function(id,silent,cb){ cb=cb||function(){}; var d=dossiers().filter(function(x){return x.id===id;})[0]; if(!d) return cb(false); var b=sgChaineBilan(); var row=b.aEnvoyer.filter(function(r){return r.d.id===id;})[0]; if(!row){ if(!silent&&typeof toast==='function') toast('Rien à envoyer pour ce dossier (déjà envoyé ou signé).'); return cb(false); }
+    var mode=silent?'automatique':'manuel';
+    if(gw()&&typeof signLienEnvoyer==='function'){ var before=d.signEnv&&d.signEnv.token; try{ signLienEnvoyer(id); }catch(e){ log('Lien de signature',false,'erreur : '+(e&&e.message||e),mode,row.nom); return cb(false); }
+      attendre(function(){ return d.signEnv&&d.signEnv.token&&d.signEnv.token!==before&&d.signEnv.statut!=='annule'; },15000,function(ok){ if(ok) log('Lien de signature envoyé',true,row.rest.length+' acte(s) → '+(row.sg.email||cli(d).tel||''),mode,row.nom); else log('Lien de signature',false,'sans réponse de la passerelle',mode,row.nom); if(!silent){ try{render();}catch(e){} } cb(ok); }); return; }
+    if(silent){ log('Lien de signature',false,'passerelle non configurée','automatique',row.nom); return cb(false); }
+    try{ actEnvoyer(id); }catch(e){} log('Actes envoyés (messagerie)',true,row.rest.length+' acte(s) → '+(row.sg.email||'—'),mode,row.nom); try{render();}catch(e){} cb(true); };
+  window.sgRelancer=function(id,silent,cb){ cb=cb||function(){}; var d=dossiers().filter(function(x){return x.id===id;})[0]; if(!d) return cb(false); var b=sgChaineBilan(); var row=b.aRelancer.concat(b.attente).concat(b.epuisees).filter(function(r){return r.d.id===id;})[0]; if(!row){ if(!silent&&typeof toast==='function') toast('Rien à relancer pour ce dossier.'); return cb(false); } var mode=silent?'automatique':'manuel';
+    if(row.env&&gw()&&typeof signLienRelancer==='function'){ var n0=row.env.relances||0; try{ signLienRelancer(id); }catch(e){ log('Relance signature',false,'erreur : '+(e&&e.message||e),mode,row.nom); return cb(false); } attendre(function(){ return (d.signEnv&&(d.signEnv.relances||0))>n0; },15000,function(ok){ if(ok) log('Relance signature',true,'relance n° '+(d.signEnv.relances||0)+' (lien)',mode,row.nom); else log('Relance signature',false,'sans réponse de la passerelle',mode,row.nom); if(!silent){ try{render();}catch(e){} } cb(ok); }); return; }
+    if(silent){ log('Relance signature',false,'relance par messagerie uniquement (sans lien)','automatique',row.nom); return cb(false); }
+    try{ actEnvoyer(id); }catch(e){} log('Relance signature (messagerie)',true,'relance n° '+(row.rel+1),mode,row.nom); try{render();}catch(e){} cb(true); };
+  window.sgReleve=function(silent,cb){ cb=cb||function(){}; if(!gw()||typeof signLienReleve!=='function'){ if(!silent&&typeof toast==='function') toast('Passerelle non configurée — relevé impossible.'); return cb(0); } try{ signLienReleve(true,function(n){ n=n||0; if(n) log('Relevé des signatures',true,n+' nouvelle(s) signature(s)',silent?'automatique':'manuel'); if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast(n?(n+' nouvelle(s) signature(s) relevée(s).'):'Relevé effectué — aucune nouvelle signature.'); } cb(n); }); }catch(e){ cb(0); } };
+  window.sgMarquerSigne=function(id){ var d=dossiers().filter(function(x){return x.id===id;})[0]; if(!d) return; var n=0; actes(d).forEach(function(a){ if(!signe(d,a.k)){ try{ sigSigne(id,a.k); }catch(e){} n++; } }); log('Actes constatés signés',true,n+' acte(s) (signature papier)','manuel',nomDe(d)); try{render();}catch(e){} };
+  window.sgChaineExecuter=function(silent,done){ done=done||function(){}; var R={rel:0,env:0,relances:0}; var b0=sgChaineBilan(); if(!b0.gw){ if(!silent&&typeof toast==='function') toast('Passerelle non configurée : envoyez et relancez dossier par dossier depuis votre messagerie.'); return done(R); }
+    sgReleve(true,function(n){ R.rel=n||0; var b=sgChaineBilan(); var qE=b.aEnvoyer.slice(), qR=b.aRelancer.slice();
+      (function nextE(){ var r=qE.shift(); if(!r){ return (function nextR(){ var x=qR.shift(); if(!x){ var m='Signatures : '+R.rel+' signature(s) relevée(s), '+R.env+' lien(s) envoyé(s), '+R.relances+' relance(s)'+(b.sansMail.length?(' · '+b.sansMail.length+' signataire(s) sans contact'):'')+(b.epuisees.length?(' · '+b.epuisees.length+' dossier(s) à appeler'):'')+'.'; log('Tout exécuter',true,m,silent?'automatique':'manuel'); try{render();}catch(e){} if(!silent&&typeof toast==='function') toast(m,7000); return done(R); } sgRelancer(x.d.id,true,function(ok){ if(ok) R.relances++; nextR(); }); })(); } sgEnvoyer(r.d.id,true,function(ok){ if(ok) R.env++; nextE(); }); })(); }); };
+  window.sgChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='delaiJ'){ v=parseInt(v,10); if(v>0) c.delaiJ=v; } if(k==='max'){ v=parseInt(v,10); if(v>=0) c.max=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.sgChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.sgChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.sgChaineOuvrir=function(id){ try{ state.dossierId=id; state.selected=id; if(typeof go==='function') go('espace'); }catch(e){} };
+  function auto(){ try{ var c=cfg(); if(!c.auto||!gw()) return; var b=sgChaineBilan(); if(!b.aEnvoyer.length&&!b.aRelancer.length&&!b.enveloppes) return; sgChaineExecuter(true,function(R){ if((R.env+R.relances+R.rel)&&typeof toast==='function') toast('Signatures : '+R.rel+' relevée(s), '+R.env+' lien(s), '+R.relances+' relance(s) automatique(s).',6000); }); }catch(e){} }
+  setTimeout(auto,14000); setInterval(auto,3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="sgc-sec"><div class="sgc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="sgc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  function lig(r,act,info){ return '<div class="sgc-row"><span class="sgc-cli"><b>'+E(r.nom)+'</b> · '+E(r.d.ref||'')+'<small>'+E(r.rest.map(function(a){return a.l;}).join(', ')||'tous les actes signés')+(r.sg&&r.sg.email?(' · '+r.sg.email):' · <em>sans e-mail</em>')+'</small></span><span class="sgc-amt">'+(info||'')+'</span><span class="sgc-act">'+act+'<button class="btn btn-sm btn-ghost" onclick="sgChaineOuvrir(\''+E(r.d.id)+'\')">Ouvrir</button></span></div>'; }
+  window.sgChaineCard=function(){ var b=sgChaineBilan(), c=b.cfg; if(!b.total) return ''; var n=b.aEnvoyer.length+b.aRelancer.length;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — actes à signer (dossiers en cours)</h2><div class="sgc-hb"><span class="sgc-gw'+(b.gw?' on':'')+'">'+(b.gw?('● passerelle : lien de signature e-mail + SMS'+(b.enveloppes?(' · '+b.enveloppes+' enveloppe(s) en cours'):'')):'○ passerelle non configurée : envoi par votre messagerie')+'</span>'+(b.gw&&b.enveloppes?'<button class="btn btn-sm" onclick="sgReleve()">Relever les signatures</button>':'')+'<button class="btn btn-sm btn-ghost" onclick="sgChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="sgChaineExecuter()"'+((n||b.enveloppes)&&b.gw?'':' disabled')+'>Tout exécuter ('+n+')</button></div></div>';
+    if(c.reduit) return '<div class="card sgc-card">'+head+'</div>';
+    var kpi='<div class="sgc-kpis"><div class="sgc-k'+(b.aEnvoyer.length?' warn':'')+'"><b>'+b.aEnvoyer.length+'</b><span>dossier(s) : actes à envoyer</span></div><div class="sgc-k'+(b.aRelancer.length?' warn':'')+'"><b>'+b.aRelancer.length+'</b><span>à relancer (après '+c.delaiJ+' j)</span></div><div class="sgc-k"><b>'+b.attente.length+'</b><span>en attente de signature</span></div><div class="sgc-k'+(b.sansMail.length?' warn':'')+'"><b>'+b.sansMail.length+'</b><span>signataire(s) sans contact</span></div><div class="sgc-k ok"><b>'+b.signes.length+'</b><span>dossier(s) entièrement signé(s)</span></div></div>';
+    var s1=sec('Actes à envoyer pour signature',b.aEnvoyer.concat(b.sansMail),function(r){ return lig(r,(r.sg&&r.sg.email)||cli(r.d).tel?('<button class="btn btn-sm" onclick="sgEnvoyer(\''+E(r.d.id)+'\')">'+(b.gw?'Envoyer le lien':'Envoyer')+'</button>'):'','<span class="sgc-t">'+r.rest.length+' acte(s)</span>'); },'Tous les actes en attente ont été envoyés.');
+    var s2=sec('Relances & attente',b.aRelancer.concat(b.epuisees).concat(b.attente),function(r){ var ep=r.rel>=c.max; var att=r.j<c.delaiJ; return lig(r,ep?('<span class="sgc-tag">'+c.max+' relance(s) — à appeler</span><button class="btn btn-sm btn-ghost" onclick="sgMarquerSigne(\''+E(r.d.id)+'\')">Signé sur papier</button>'):(att?('<span class="sgc-tag">attente</span>'):('<button class="btn btn-sm" onclick="sgRelancer(\''+E(r.d.id)+'\')">Relancer</button>')),E('envoyé il y a '+r.j+' j'+(r.rel?(' · '+r.rel+' relance(s)'):'')+(r.ouvert?' · lien ouvert':''))); },'Aucune signature en attente.');
+    var s3=sec('Dossiers entièrement signés',b.signes.slice(0,8),function(r){ return lig(r,'',E(r.actes.length+' acte(s) signé(s)')); },'Aucun dossier signé pour le moment.');
+    var opts='<div class="sgc-opts"><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="sgChaineSet(\'auto\',this.checked)"> Relevé, envois et relances automatiques (passerelle requise)</label><label>Relance après <input type="number" min="1" max="30" value="'+c.delaiJ+'" onchange="sgChaineSet(\'delaiJ\',this.value)"> j</label><label>Maximum <input type="number" min="0" max="10" value="'+c.max+'" onchange="sgChaineSet(\'max\',this.value)"> relance(s)</label><span class="sgc-note">Le client signe sur son téléphone via le lien ; les signatures reviennent au relevé (toutes les 3 minutes).</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="sgc-journal"><div class="sgc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="sgChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="sgc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card sgc-card">'+head+'<div class="card-b">'+kpi+'<div class="sgc-grid">'+s1+s2+s3+'</div>'+opts+jr+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='services'&&window.__svcView==='signature')) return; var v=document.getElementById('view'); var sub=v&&v.querySelector('.svc-sub'); if(!sub||sub.querySelector('.sgc-card')) return; var html=sgChaineCard(); if(!html) return; var tmp=document.createElement('div'); tmp.innerHTML=html; var card=tmp.firstElementChild; var first=sub.querySelector('.svc-card, .card'); if(first) first.insertAdjacentElement('beforebegin',card); else sub.appendChild(card); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__sgc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__sgc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='sg-chaine-css'; st.textContent=
+    '.sgc-card{margin:0 0 14px}.sgc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sgc-card .card-h h2{margin:0;font-size:15px}.sgc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sgc-gw{font-size:11.5px;opacity:.65}.sgc-gw.on{color:#2fae5f;opacity:1}'
+   +'.sgc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.sgc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.sgc-k b{display:block;font-size:17px}.sgc-k span{font-size:11px;opacity:.65}.sgc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.sgc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.sgc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.sgc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.sgc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.sgc-h span{opacity:.6}.sgc-h .btn{margin-left:auto}'
+   +'.sgc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.sgc-row:first-of-type{border-top:0}.sgc-cli em{font-style:normal;font-size:11px;color:#e0a458}.sgc-cli small{display:block;font-size:11px;opacity:.6;margin-top:1px}.sgc-amt{font-size:11.5px;opacity:.8;white-space:nowrap}.sgc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.sgc-t{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.8}.sgc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
+   +'.sgc-empty{font-size:12px;opacity:.55;padding:2px 0}'
+   +'.sgc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.sgc-opts label{display:inline-flex;align-items:center;gap:6px}.sgc-opts input[type=number]{width:56px;padding:3px 6px}.sgc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.sgc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.sgc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.sgc-jl span{opacity:.55;min-width:130px}.sgc-jl.ko b{color:#e0a458}.sgc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
