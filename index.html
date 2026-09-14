@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=649;
+var LAST_VER=650;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -25572,7 +25572,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
     if(mF)four=mF[1];
     if(!four){ var lines=raw.split(/[\r\n]+/).map(function(x){return x.trim();}).filter(Boolean);
       for(var i=0;i<Math.min(lines.length,8)&&!four;i++){ var L=lines[i]; if(/facture|devis|invoice/i.test(L))continue; if(/(sarl|sas|sasu|eurl|\bsa\b|sci|\bei\b|entreprise|soci[ée]t[ée])/i.test(L)&&L.length<=48)four=L; }
-      if(!four){ for(var j=0;j<Math.min(lines.length,4)&&!four;j++){ var Lj=lines[j]; if(/^[\d\W]+$/.test(Lj)||/facture|devis/i.test(Lj))continue; if(Lj.length>=3&&Lj.length<=42)four=Lj; } }
+      if(!four){ for(var j=0;j<Math.min(lines.length,4)&&!four;j++){ var Lj=lines[j]; if(/^[\d\W]+$/.test(Lj)||/facture|devis/i.test(Lj))continue; if(/^(date|total|tva|ht|ttc|montant|n[°º]|num[ée]ro|[ée]ch[ée]ance|r[ée]f[ée]rence|client|adresse|tel|t[ée]l[ée]phone|e-?mail|siret|siren)\b/i.test(Lj))continue; /* v650 : une ligne « Date : … » ou « Total : … » n'est pas un fournisseur */ if(Lj.length>=3&&Lj.length<=42)four=Lj; } }
     }
     if(!four){ var mC=flat.match(/([A-ZÀ-Þ][A-Za-zÀ-ÿ'’&\.\- ]{2,40}?\s+(?:SARL|SAS|SASU|EURL|SA|SCI))/); if(mC)four=mC[1]; }
     if(four)out.fournisseur=four.replace(/\s+/g,' ').replace(/[\s\-:]+$/,'').slice(0,60);
@@ -26047,7 +26047,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   window.invNew=function(){ if(draft().statut!=='emise'){ if(typeof toast==='function')toast('Émettez d’abord la facture en cours pour en créer une nouvelle.'); return; } newDraft(); ui().tab='new'; render(); };
 
   window.invVoir=function(id){ var f=store().find(function(x){return x.id===id;}); if(!f)return; window.__invDraft=JSON.parse(JSON.stringify(f)); if(!window.__invDraft.lignes||!window.__invDraft.lignes.length)window.__invDraft.lignes=[{des:'',qte:1,pu:0}]; ui().tab='new'; render(); if(typeof toast==='function')toast('Facture '+ (f.numero||'')+' ouverte pour édition.'); };
-  window.invDup=function(id){ var f=store().find(function(x){return x.id===id;}); if(!f)return; var d=JSON.parse(JSON.stringify(f)); d.id=''; d.numero=nextNum(); d.statut='brouillon'; window.__invDraft=d; ui().tab='new'; render(); if(typeof toast==='function')toast('Copie créée : '+d.numero); };
+  window.invDup=function(id){ var f=store().find(function(x){return x.id===id;}); if(!f)return; var d=JSON.parse(JSON.stringify(f)); d.id=''; d.numero=(typeof invNumPourType==='function')?invNumPourType(f.type||'facture'):nextNum(); d.statut='brouillon'; /* v650 : numéro de la série du type copié */ window.__invDraft=d; ui().tab='new'; render(); if(typeof toast==='function')toast('Copie créée : '+d.numero); };
   window.invDel=function(id){ var arr=store(); var i=arr.findIndex(function(x){return x.id===id;}); if(i<0)return; if(typeof confirm==='function'&&!confirm('Supprimer cette facture ?'))return; arr.splice(i,1); try{save();}catch(e){} render(); };
   window.invSetTab=function(t){ ui().tab=t; render(); };
   window.invTogglePreview=function(){ ui().hidePrev=!ui().hidePrev; render(); };
@@ -38261,7 +38261,7 @@ function testLienSignature() {
       +S.map(function(x){ return '<div class="fb-num'+(x.anomalies.length?' ko':' ok')+'"><div class="fb-num-h"><b>'+E(x.serie)+'</b><span>'+x.emis+' émis · '+x.nb+' au total</span></div><div class="fb-num-r">'+E(x.premier)+(x.dernier?(' → '+E(x.dernier)):'')+'</div>'+(x.anomalies.length?('<ul>'+x.anomalies.map(function(a){ return '<li>'+E(a.m)+'</li>'; }).join('')+'</ul>'):'<div class="fb-num-ok">Aucune rupture, aucun doublon, dates cohérentes.</div>')+'</div>'; }).join('')+'</div></div></div>'; }
   /* garde à l'émission : numéro unique, série cohérente, chronologie */
   var _save2=window.invSave;
-  window.invSave=function(status){ if(status==='emise'){ var d=draft(); try{ invRead(); }catch(e){} var t=typeOf(d); var want=(t==='devis')?'DEV':(t==='avoir')?'AV':'FAC'; var m=(''+(d.numero||'')).match(/^([A-Z]+)-(\d{4})-(\d+)$/);
+  window.invSave=function(status){ if(status==='emise'&&!store().some(function(f){ var dd=window.__invDraft||{}; return f.id===dd.id&&f.statut==='emise'&&f.numero===dd.numero; })){ /* v650 : un document déjà émis conserve son numéro */ var d=draft(); try{ invRead(); }catch(e){} var t=typeOf(d); var want=(t==='devis')?'DEV':(t==='avoir')?'AV':'FAC'; var m=(''+(d.numero||'')).match(/^([A-Z]+)-(\d{4})-(\d+)$/);
       var dup=store().filter(function(f){ return f.id!==d.id&&f.statut==='emise'&&f.numero===d.numero; })[0];
       if(!m||m[1]!==want||dup){ var old=d.numero; d.numero=nextNumFor(t); var e=document.getElementById('inv-numero'); if(e) e.value=d.numero; T('Numéro '+(dup?('déjà utilisé ('+old+')'):('hors série ('+old+')'))+' → renuméroté '+d.numero+'.'); }
       else { var em=store().filter(function(f){ return f.id!==d.id&&f.statut==='emise'&&(''+f.numero).indexOf(want+'-'+m[2]+'-')===0; }).map(function(f){ return +(''+f.numero).split('-')[2]; }); var max=em.length?Math.max.apply(null,em):0; if(+m[3]<=max){ var old2=d.numero; d.numero=nextNumFor(t); var e2=document.getElementById('inv-numero'); if(e2) e2.value=d.numero; T('Numéro '+old2+' antérieur au dernier émis → renuméroté '+d.numero+' (continuité).'); }
