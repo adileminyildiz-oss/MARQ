@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=659;
+var LAST_VER=660;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40835,5 +40835,126 @@ function testLienSignature() {
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
+<script>
+/* ============================================================================
+   Mar'q — Factures prestataires : chaîne de la boîte mail à YADA (v660)
+   ----------------------------------------------------------------------------
+   En tête du module Factures prestataires, un panneau « Chaîne d'exécution »
+   réunit : la RELÈVE de la boîte (passerelle Gmail, à la demande ou automatique
+   toutes les N heures), les factures À COMPLÉTER (fournisseur ou montant
+   manquant — étape humaine), les factures PRÊTES dont l'écriture est générée
+   en lot, la TRANSMISSION groupée à YADA (export FEC), le MARQUAGE Gmail des
+   messages importés, et le signalement des DOUBLONS (même fournisseur et même
+   numéro, ou même montant à la même date). Chaque action est consignée dans
+   un journal. 100 % additif : greffe sur pageFactPresta ; fpReleve, fpGenerer,
+   fpExportFEC et fpMarkLue existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__fpChaine) return; window.__fpChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function store(){ var p=P(); p.factPresta=p.factPresta||{}; if(!Array.isArray(p.factPresta.list)) p.factPresta.list=[]; return p.factPresta; }
+  function list(){ return store().list; }
+  function cfg(){ var s=store(); s.chaine=s.chaine||{}; var c=s.chaine; if(c.auto==null) c.auto=false; if(!(c.heures>0)) c.heures=6; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function num(v){ if(v==null) return 0; var s=(''+v).replace(/\s/g,'').replace(',','.'); var x=parseFloat(s); return isNaN(x)?0:x; }
+  function money(n){ n=+n||0; try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function frD(s){ if(!s) return ''; var m=(''+s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):s; }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function attendre(cond,ms,cb){ var t0=Date.now(); (function tick(){ var r=false; try{ r=cond(); }catch(e){} if(r) return cb(true); if(Date.now()-t0>ms) return cb(false); setTimeout(tick,150); })(); }
+  function norm(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  /* ---------- bilan ---------- */
+  function manques(f){ var m=[]; if(!(''+(f.fournisseur||'')).trim()) m.push('fournisseur'); var ht=num(f.ht), ttc=num(f.ttc); if(!(ht>0)&&!(ttc>0)) m.push('montant'); if(!f.dateFact) m.push('date'); return m; }
+  function prete(f){ if(!(f.statut==='traitee'||f.statut==='reperee')) return false; if(manques(f).length) return false; var ht=num(f.ht), tva=num(f.tva), ttc=num(f.ttc); return ht>0 && ttc>0 && Math.abs(ht+tva-ttc)<0.011; }
+  window.fpChaineBilan=function(){
+    var L=list(), c=cfg(), s=store();
+    var inc=[], pret=[], aTrans=[], aMarq=[], dups=[], seen={};
+    L.forEach(function(f){
+      if(f.statut==='reperee'||f.statut==='traitee'){ var m=manques(f); if(m.length||!prete(f)) inc.push({f:f,m:m.length?m:['montants incohérents']}); else pret.push(f); }
+      if(f.statut==='ecriture') aTrans.push(f);
+      if(f.mailId&&!f.gmailLue&&(f.statut==='ecriture'||f.statut==='transmise')) aMarq.push(f);
+    });
+    var ign=c.ignores||{};
+    for(var i=0;i<L.length;i++) for(var j=i+1;j<L.length;j++){ var a=L[i], b=L[j]; var fa=norm(a.fournisseur), fb=norm(b.fournisseur); if(!fa||fa!==fb) continue;
+      var how=''; var na=norm(a.numero), nb=norm(b.numero); if(na&&na===nb) how='même numéro '+(a.numero||''); else if(num(a.ttc)>0&&Math.abs(num(a.ttc)-num(b.ttc))<0.005&&a.dateFact&&a.dateFact===b.dateFact) how='même montant à la même date';
+      if(!how) continue; var k=[a.id,b.id].sort().join('|'); if(ign[k]) continue; dups.push({a:a,b:b,how:how}); }
+    var ttcAtt=0; pret.concat(aTrans).forEach(function(f){ ttcAtt+=num(f.ttc); });
+    var last=s.lastSync?new Date(s.lastSync).getTime():0; var age=last?Math.round((Date.now()-last)/3600000):null;
+    var aRelever=gw()&&(age==null||age>=c.heures);
+    return {inc:inc, pret:pret, aTrans:aTrans, aMarq:aMarq, dups:dups, ttc:ttcAtt, gw:gw(), lastSync:s.lastSync||'', age:age, aRelever:aRelever, cfg:c, total:L.length};
+  };
+
+  /* ---------- actions ---------- */
+  /* Relève de la boîte (fpReleve existant) puis rappel quand le résultat est arrivé. */
+  window.fpChaineRelever=function(cb){ cb=cb||function(){}; if(!gw()){ log('Relève de la boîte',false,'passerelle non configurée','manuel'); if(typeof toast==='function')toast('Configurez d\'abord la boîte (Demandes → ⚙ Configurer la boîte).'); return cb(false,0); }
+    var s=store(); var before=s.lastSync||'', n0=list().length; s.lastErr='';
+    try{ fpReleve(); }catch(e){ log('Relève de la boîte',false,'erreur : '+(e&&e.message||e),'manuel'); return cb(false,0); }
+    attendre(function(){ var st=store(); return (st.lastSync||'')!==before || !!st.lastErr; },20000,function(ok){ var st=store(); var add=Math.max(0,list().length-n0);
+      if(ok&&!st.lastErr){ log('Relève de la boîte',true,add+' facture(s) repérée(s)','manuel'); cb(true,add); }
+      else { log('Relève de la boîte',false,st.lastErr||'sans réponse de la passerelle','manuel'); cb(false,0); } });
+  };
+  /* Génération en lot des écritures prêtes (mêmes règles que fpGenerer). */
+  window.fpChaineGenerer=function(silent){ var b=fpChaineBilan(); var n=0; b.pret.forEach(function(f){ f.statut='ecriture'; f.ecritureLe=new Date().toISOString(); n++; log('Écriture générée',true,money(num(f.ttc))+' TTC · '+(f.numero||'sans n°'),silent?'automatique':'manuel',f.fournisseur||''); });
+    if(n){ try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function')toast(n+' écriture(s) générée(s).'); } } else if(!silent&&typeof toast==='function') toast('Aucune facture prête : complétez d\'abord les fiches.');
+    return n; };
+  /* Transmission groupée à YADA (fpExportFEC existant = un seul fichier FEC). */
+  window.fpChaineTransmettre=function(){ var b=fpChaineBilan(); var n=b.aTrans.length; if(!n){ if(typeof toast==='function')toast('Aucune écriture générée à transmettre.'); return 0; } var ttc=0; b.aTrans.forEach(function(f){ ttc+=num(f.ttc); });
+    try{ fpExportFEC(); }catch(e){ log('Transmission à YADA',false,'erreur : '+(e&&e.message||e),'manuel'); return 0; }
+    log('Transmission à YADA',true,n+' facture(s) · '+money(ttc)+' TTC · fichier FEC téléchargé','manuel'); return n; };
+  /* Marquage Gmail des messages importés (fpMarkLue existant, un à un). */
+  window.fpChaineMarquer=function(cb){ cb=cb||function(){}; var b=fpChaineBilan(); if(!b.gw){ if(typeof toast==='function')toast('Passerelle non configurée — marquage Gmail impossible.'); return cb(0); } var q=b.aMarq.slice(), n=0;
+    (function next(){ var f=q.shift(); if(!f){ if(n) log('Marquage Gmail',true,n+' message(s) marqué(s) comme importés','manuel'); try{render();}catch(e){} return cb(n); }
+      try{ fpMarkLue(f.id); }catch(e){} attendre(function(){ return !!f.gmailLue; },8000,function(ok){ if(ok) n++; else log('Marquage Gmail',false,'sans réponse pour '+(f.fournisseur||f.id),'manuel'); next(); }); })(); };
+  window.fpChaineIgnorer=function(a,b){ var c=cfg(); c.ignores=c.ignores||{}; c.ignores[[a,b].sort().join('|')]=1; log('Doublon écarté',true,'conservé tel quel','manuel'); try{render();}catch(e){} };
+  window.fpChaineVoir=function(id){ try{ window.__fpF=''; window.__fpQ=''; var st=(typeof state!=='undefined')?state:(window.state||{}); st.fpSel=id; render(); var el=document.querySelector('.fp-row.open'); if(el&&el.scrollIntoView) el.scrollIntoView({block:'center'}); }catch(e){} };
+  /* Tout exécuter : relève (si passerelle) → écritures → transmission → marquage Gmail. */
+  window.fpChaineExecuter=function(opts){ opts=opts||{}; var R={releve:0, ecr:0, trans:0, marq:0};
+    function fin(){ var m='Chaîne exécutée : '+R.releve+' repérée(s), '+R.ecr+' écriture(s) générée(s), '+R.trans+' transmise(s) à YADA'+(R.marq?(', '+R.marq+' marquée(s) dans Gmail'):'')+'.'; var b=fpChaineBilan(); if(b.inc.length) m+=' '+b.inc.length+' facture(s) à compléter à la main.'; log('Tout exécuter',true,m,'manuel'); try{render();}catch(e){} if(typeof toast==='function')toast(m,7000); if(typeof opts.done==='function') opts.done(R); }
+    function apres(){ R.ecr=fpChaineGenerer(true); if(opts.transmettre!==false){ R.trans=fpChaineTransmettre(); } if(gw()&&opts.marquer!==false){ fpChaineMarquer(function(n){ R.marq=n; fin(); }); } else fin(); }
+    if(gw()&&opts.relever!==false){ fpChaineRelever(function(ok,add){ R.releve=add; apres(); }); } else apres(); };
+  window.fpChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='heures'){ v=parseInt(v,10); if(v>0) c.heures=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.fpChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.fpChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  /* Automatique : relève + écritures (jamais de téléchargement sans action humaine). */
+  function auto(){ try{ var c=cfg(); if(!c.auto||!gw()) return; var b=fpChaineBilan(); if(!b.aRelever) return; fpChaineRelever(function(ok,add){ var n=fpChaineGenerer(true); if(add||n){ log('Chaîne automatique',true,add+' repérée(s), '+n+' écriture(s)','automatique'); try{render();}catch(e){} if(typeof toast==='function')toast('Factures prestataires : '+add+' repérée(s), '+n+' écriture(s) générée(s) automatiquement.',6000); } }); }catch(e){} }
+  setTimeout(auto,9000); setInterval(auto,3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="fpc-sec"><div class="fpc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="fpc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  function fid(f){ return '<b>'+E(f.fournisseur||'(fournisseur à préciser)')+'</b>'+(f.numero?(' · '+E(f.numero)):'')+(f.dateFact?(' · '+E(frD(f.dateFact))):''); }
+  window.fpChaineCard=function(){ var b=fpChaineBilan(), c=b.cfg;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — de la boîte mail à YADA</h2><div class="fpc-hb">'+(b.gw?('<span class="fpc-gw on">● passerelle'+(b.lastSync?(' · relevée '+(b.age==null?'':(b.age<1?'il y a moins d\'une heure':('il y a '+b.age+' h')))):' · jamais relevée')+'</span>'):'<span class="fpc-gw">○ passerelle non configurée — relève manuelle indisponible</span>')
+      +'<button class="btn btn-sm btn-ghost" onclick="fpChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button>'
+      +'<button class="btn btn-sm btn-pri" onclick="fpChaineExecuter()"'+((b.pret.length||b.aTrans.length||b.aRelever||b.aMarq.length)?'':' disabled')+'>Tout exécuter</button></div></div>';
+    if(c.reduit) return '<div class="card fpc-card"'+(b.total?'':' hidden')+'>'+head+'</div>';
+    var kpi='<div class="fpc-kpis">'
+      +'<div class="fpc-k'+(b.aRelever?' warn':'')+'"><b>'+(b.gw?(b.aRelever?'à relever':'à jour'):'—')+'</b><span>boîte mail'+(b.lastSync?(' · '+E(new Date(b.lastSync).toLocaleString('fr-FR'))):'')+'</span></div>'
+      +'<div class="fpc-k'+(b.inc.length?' warn':'')+'"><b>'+b.inc.length+'</b><span>à compléter (main)</span></div>'
+      +'<div class="fpc-k"><b>'+b.pret.length+'</b><span>prêtes → écriture</span></div>'
+      +'<div class="fpc-k'+(b.aTrans.length?' ok':'')+'"><b>'+b.aTrans.length+'</b><span>à transmettre à YADA · '+E(money(b.ttc))+'</span></div>'
+      +'<div class="fpc-k'+(b.dups.length?' warn':'')+'"><b>'+b.dups.length+'</b><span>doublon(s) possible(s)</span></div></div>';
+    var s1=sec('À compléter à la main',b.inc.slice(0,15),function(it){ return '<div class="fpc-row"><span class="fpc-cli">'+fid(it.f)+' <em>'+E(it.m.join(', '))+'</em></span><span class="fpc-amt">'+(num(it.f.ttc)?E(money(num(it.f.ttc))):'—')+'</span><span class="fpc-act"><button class="btn btn-sm" onclick="fpChaineVoir(\''+E(it.f.id)+'\')">Compléter</button></span></div>'; },'Toutes les factures repérées sont complètes.');
+    var s2=sec('Prêtes : écriture à générer',b.pret.slice(0,15),function(f){ return '<div class="fpc-row"><span class="fpc-cli">'+fid(f)+'</span><span class="fpc-amt">'+E(money(num(f.ttc)))+' TTC</span><span class="fpc-act"><button class="btn btn-sm" onclick="fpGenerer(\''+E(f.id)+'\')">Générer</button></span></div>'; },'Aucune facture prête.')
+      .replace('</div>','</div>'+(b.pret.length>1?('<div class="fpc-lot"><button class="btn btn-sm btn-pri" onclick="fpChaineGenerer()">Générer les '+b.pret.length+' écritures</button></div>'):''));
+    var s3=sec('À transmettre à YADA (export FEC groupé)',b.aTrans.slice(0,15),function(f){ return '<div class="fpc-row"><span class="fpc-cli">'+fid(f)+'</span><span class="fpc-amt">'+E(money(num(f.ttc)))+' TTC · générée le '+E(frD((f.ecritureLe||'').slice(0,10)))+'</span><span class="fpc-act"></span></div>'; },'Aucune écriture en attente de transmission.')
+      +(b.aTrans.length?('<div class="fpc-lot"><button class="btn btn-sm btn-pri" onclick="fpChaineTransmettre()">Transmettre les '+b.aTrans.length+' à YADA</button>'+(b.aMarq.length&&b.gw?('<button class="btn btn-sm" onclick="fpChaineMarquer()">Marquer '+b.aMarq.length+' message(s) dans Gmail</button>'):'')+'</div>'):(b.aMarq.length&&b.gw?('<div class="fpc-lot"><button class="btn btn-sm" onclick="fpChaineMarquer()">Marquer '+b.aMarq.length+' message(s) dans Gmail</button></div>'):''));
+    var s4=sec('Doublons possibles',b.dups.slice(0,10),function(d){ return '<div class="fpc-row"><span class="fpc-cli">'+fid(d.a)+' <em>'+E(d.how)+'</em></span><span class="fpc-amt">'+E(money(num(d.a.ttc)))+' / '+E(money(num(d.b.ttc)))+'</span><span class="fpc-act"><button class="btn btn-sm" onclick="fpChaineVoir(\''+E(d.b.id)+'\')">Voir</button><button class="btn btn-sm btn-ghost" onclick="fpDel(\''+E(d.b.id)+'\')">Retirer</button><button class="btn btn-sm btn-ghost" onclick="fpChaineIgnorer(\''+E(d.a.id)+'\',\''+E(d.b.id)+'\')">Écarter</button></span></div>'; },'Aucun doublon repéré.');
+    var opts='<div class="fpc-opts"><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="fpChaineSet(\'auto\',this.checked)"> Relève et écritures automatiques (passerelle requise)</label><label>toutes les <input type="number" min="1" max="72" value="'+c.heures+'" onchange="fpChaineSet(\'heures\',this.value)"> h</label><span class="fpc-note">La transmission à YADA (téléchargement du FEC) reste une action humaine.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="fpc-journal"><div class="fpc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="fpChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="fpc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card fpc-card">'+head+'<div class="card-b">'+kpi+'<div class="fpc-grid">'+s1+s2+s3+s4+'</div>'+opts+jr+'</div></div>'; };
+  try{ var _pf=window.pageFactPresta; if(typeof _pf==='function'&&!_pf.__fpc){ window.pageFactPresta=function(){ var h=_pf.apply(this,arguments); try{ if(typeof h==='string'&&h.indexOf('<div id="fp-kpis">')>=0) h=h.replace('<div id="fp-kpis">',fpChaineCard()+'<div id="fp-kpis">'); }catch(e){} return h; }; window.pageFactPresta.__fpc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='fp-chaine-css'; st.textContent=
+    '.fpc-card{margin:0}.fpc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.fpc-card .card-h h2{margin:0;font-size:15px}.fpc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fpc-gw{font-size:11.5px;opacity:.65}.fpc-gw.on{color:#2fae5f;opacity:1}'
+   +'.fpc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.fpc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.fpc-k b{display:block;font-size:17px}.fpc-k span{font-size:11px;opacity:.65}.fpc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.fpc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.fpc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.fpc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.fpc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.fpc-h span{opacity:.6}.fpc-h .btn{margin-left:auto}'
+   +'.fpc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.fpc-row:first-of-type{border-top:0}.fpc-cli em{font-style:normal;font-size:11px;color:#e0a458}.fpc-amt{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.8;white-space:nowrap}.fpc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.fpc-empty{font-size:12px;opacity:.55;padding:2px 0}.fpc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
+   +'.fpc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.fpc-opts label{display:inline-flex;align-items:center;gap:6px}.fpc-opts input[type=number]{width:56px;padding:3px 6px}.fpc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.fpc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.fpc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.fpc-jl span{opacity:.55;min-width:130px}.fpc-jl.ko b{color:#e0a458}.fpc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
 </body>
 </html>
