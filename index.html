@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=664;
+var LAST_VER=665;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -39695,6 +39695,8 @@ function testLienSignature() {
   window.infosPreset=function(mode){ var e=entite(ST.id); if(!e) return; var sel=document.getElementById('if-type'); var type=(sel&&sel.value)||typeDe(e); var keys=mode==='questionnaire'?qKeys(type):(mode==='manquants'?manquants(e,type):[]); document.querySelectorAll('.if-grid input[data-k]').forEach(function(b){ b.checked=keys.indexOf(b.getAttribute('data-k'))>=0; }); window.infosMaj(); };
   /* questionnaire en ligne : lien complet de la formalité (toutes les questions) */
   window.infosQuestionnaireLien=function(e,type){ if(!e) return ''; type=type||typeDe(e); return window.infosLien(e,qKeys(type),''); };
+  /* v665 : accès public aux aides du questionnaire (chaîne d'exécution du module Formulaire) */
+  window.infosManquants=function(e,type){ return e?manquants(e,type||typeDe(e)):[]; }; window.infosTypeDe=typeDe; window.infosEmailDe=emailDe; window.infosSocieteDe=societeDe; window.infosLabelOf=function(k){ try{ return labelOf(k); }catch(x){ return k; } };
   /* lien PUBLIC (story, site, SMS) : sans dossier — la réponse crée la demande dans Mar'q */
   window.infosLienPublic=function(){ return baseUrl()+'questionnaire.html'; };
   window.infosType=function(){ var e=entite(ST.id); if(!e) return; var sel=document.getElementById('if-type'); var mq=manquants(e,(sel&&sel.value)||typeDe(e)); document.querySelectorAll('.if-grid input[data-k]').forEach(function(b){ b.checked=mq.indexOf(b.getAttribute('data-k'))>=0; }); window.infosMaj(); };
@@ -41320,6 +41322,90 @@ function testLienSignature() {
    +'.cxc-mod b{display:block}.cxc-last{display:block;font-size:10.5px;opacity:.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cxc-n{text-align:center}.cxc-n b{display:block;font-size:16px}.cxc-n i{font-style:normal;font-size:10px;opacity:.55;text-transform:uppercase;letter-spacing:.06em}.cxc-n.on b{color:#5ab0ff}.cxc-n.hum b{color:#e0a458}.cxc-det{font-size:11.5px;opacity:.75}.cxc-act{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}.cxc-tag{font-size:10.5px;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.7}'
    +'.cxc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.cxc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.cxc-h span{opacity:.6}.cxc-h .btn{margin-left:auto}.cxc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.cxc-jl span{opacity:.55;min-width:130px}.cxc-jl em{font-style:normal;opacity:.7;min-width:120px}.cxc-jl.ko b{color:#e0a458}'
    +'@media(max-width:900px){.cxc-row{grid-template-columns:1fr 60px 60px;grid-auto-rows:auto}.cxc-det,.cxc-act{grid-column:1/-1}}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Formulaire : questionnaire en ligne — envoi, relances, réponses (v665)
+   ----------------------------------------------------------------------------
+   En tête du module Formulaire, un panneau « Chaîne d'exécution » suit, pour
+   chaque demande et chaque dossier en cours, les INFORMATIONS ENCORE MANQUANTES
+   de la formalité : envoi du LIEN PERSONNALISÉ vers le questionnaire en ligne
+   (limité aux champs manquants, passerelle Gmail silencieuse, repli messagerie),
+   RELANCES après un délai réglable (maximum réglable), RÉPONSES reçues (reprises
+   automatiquement dans le dossier par la boîte mail) et fiches complètes.
+   Chaque action est consignée dans un journal. 100 % additif : greffe sur le
+   rendu du module ; infosLien / infosManquants / infosAttacher existants sont
+   réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__fqChaine) return; window.__fqChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.fqChaine=p.fqChaine||{}; var c=p.fqChaine; if(c.auto==null) c.auto=false; if(!(c.delaiJ>0)) c.delaiJ=5; if(!(c.max>=0)) c.max=2; if(!Array.isArray(c.journal)) c.journal=[]; c.envois=c.envois||{}; return c; }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function jours(ts){ return Math.floor((Date.now()-ts)/86400000); }
+  function nomDe(e){ var s=''; try{ s=(typeof infosSocieteDe==='function')?(infosSocieteDe(e)||''):''; }catch(x){} return e.clientNom||s||e.ref||e.numeroDossier||e.id; }
+  function entites(){ var out=[]; try{ (DB.demandes||[]).forEach(function(d){ if(d.archived||d.dossierId) return; out.push({e:d,kind:'demande',page:'demandes'}); }); }catch(x){} try{ (DB.dossiers||[]).forEach(function(d){ if(d.archived||d.statut==='Clôturé') return; out.push({e:d,kind:'dossier',page:'espace'}); }); }catch(x){} return out; }
+  function derniereReponse(e){ var r=(e.infosRecues||[]); var t=0; r.forEach(function(x){ var v=Date.parse(x.ts||'')||0; if(v>t) t=v; }); return t; }
+
+  /* ---------- bilan ---------- */
+  window.fqChaineBilan=function(){ var c=cfg(); var aEnvoyer=[], aRelancer=[], sansMail=[], epuisees=[], attente=[], complets=0, recues=[];
+    entites().forEach(function(it){ var e=it.e; var type='', mq=[], mail=''; try{ type=infosTypeDe(e)||''; mq=infosManquants(e,type)||[]; mail=infosEmailDe(e)||''; }catch(x){}
+      var env=c.envois[e.id]||null; var rep=derniereReponse(e); if((e.infosRecues||[]).length) recues.push({e:e,kind:it.kind,page:it.page,nb:e.infosRecues.length,ts:rep,champs:Object.keys((e.infosRecues[e.infosRecues.length-1]||{}).champs||{}).length});
+      var row={e:e,kind:it.kind,page:it.page,type:type,mq:mq,mail:mail,env:env,nom:nomDe(e)};
+      if(!mq.length){ complets++; return; }
+      if(!mail){ sansMail.push(row); return; }
+      if(!env||(rep&&rep>env.ts)){ aEnvoyer.push(row); return; }
+      var j=jours(env.ts); row.j=j; if(j>=c.delaiJ){ if((env.n||1)-1>=c.max) epuisees.push(row); else aRelancer.push(row); } else attente.push(row); });
+    recues.sort(function(a,b){ return b.ts-a.ts; });
+    return {aEnvoyer:aEnvoyer,aRelancer:aRelancer,sansMail:sansMail,epuisees:epuisees,attente:attente,recues:recues,complets:complets,total:entites().length,gw:gw(),cfg:c}; };
+
+  /* ---------- actions ---------- */
+  function corps(row,relance){ var c=cfg(); var lien=''; try{ lien=infosLien(row.e,row.mq,''); }catch(x){ lien=''; } var lab=row.mq.slice(0,12).map(function(k){ try{ return infosLabelOf(k); }catch(x){ return k; } }); var prenom=(''+(row.e.clientNom||'')).split(/\s+/)[0]||''; var sujet=(relance?'Rappel — ':'')+'Informations à compléter pour votre dossier'+(row.nom?(' — '+row.nom):''); var b='Bonjour'+(prenom?(' '+prenom):'')+',\n\n'+(relance?'Sauf erreur de notre part, nous n\'avons pas encore reçu les informations demandées. ':'')+'Pour finaliser votre dossier, il nous manque encore les éléments suivants :\n'+lab.map(function(l){ return ' • '+l; }).join('\n')+(row.mq.length>12?('\n • … ('+(row.mq.length-12)+' autre(s))'):'')+'\n\nMerci de les renseigner en quelques minutes via votre formulaire en ligne personnalisé :\n'+lien+'\n\nVos réponses reviennent automatiquement dans votre dossier.\n\nBien cordialement,\nAEM CONSEIL'; return {sujet:sujet,corps:b,lien:lien}; }
+  window.fqEnvoyer=function(id,silent,relance){ var b=fqChaineBilan(); var row=b.aEnvoyer.concat(b.aRelancer).concat(b.attente).concat(b.epuisees).filter(function(r){ return r.e.id===id; })[0]; if(!row){ var sm=b.sansMail.filter(function(r){ return r.e.id===id; })[0]; if(sm){ if(!silent&&typeof toast==='function') toast('Aucune adresse e-mail pour '+sm.nom+' : complétez la fiche.'); log('Questionnaire',false,'sans e-mail','manuel',sm.nom); } else if(!silent&&typeof toast==='function') toast('Rien à demander : les informations sont complètes.'); return false; }
+    var m=corps(row,!!relance); var c=cfg(); var prev=c.envois[id]||{n:0}; var mode=silent?'automatique':'manuel';
+    function done(ok){ if(ok){ c.envois[id]={ts:Date.now(),to:row.mail,nb:row.mq.length,n:(prev.n||0)+1,relance:!!relance}; log(relance?'Relance questionnaire':'Questionnaire envoyé',true,row.mq.length+' information(s) demandée(s) à '+row.mail,mode,row.nom); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast((relance?'Relance envoyée à ':'Questionnaire envoyé à ')+row.mail+'.'); } } else { log(relance?'Relance questionnaire':'Questionnaire envoyé',false,'échec de la passerelle pour '+row.mail,mode,row.nom); if(!silent&&typeof toast==='function') toast('Envoi impossible par la passerelle — vérifiez la configuration de la boîte.'); } }
+    if(gw()&&typeof demSendViaScript==='function'){ try{ demSendViaScript(row.mail,m.sujet,m.corps,function(r){ done(r!==false); },{silent:true}); }catch(e){ done(false); } return true; }
+    if(silent){ log('Questionnaire',false,'passerelle non configurée','automatique',row.nom); return false; }
+    try{ window.open('mailto:'+encodeURIComponent(row.mail)+'?subject='+encodeURIComponent(m.sujet)+'&body='+encodeURIComponent(m.corps)); }catch(e){} done(true); return true; };
+  window.fqRelancer=function(id,silent){ return fqEnvoyer(id,silent,true); };
+  window.fqChaineExecuter=function(silent){ var b=fqChaineBilan(); if(!b.gw){ if(!silent&&typeof toast==='function') toast('Passerelle non configurée : envoyez les questionnaires un par un depuis votre messagerie.'); return {env:0,rel:0}; } var env=0, rel=0; b.aEnvoyer.forEach(function(r){ if(fqEnvoyer(r.e.id,true,false)) env++; }); b.aRelancer.forEach(function(r){ if(fqEnvoyer(r.e.id,true,true)) rel++; }); var m='Questionnaires : '+env+' envoi(s), '+rel+' relance(s)'+(b.sansMail.length?(' · '+b.sansMail.length+' sans e-mail'):'')+(b.epuisees.length?(' · '+b.epuisees.length+' relance(s) épuisée(s)'):'')+'.'; log('Tout exécuter',true,m,silent?'automatique':'manuel'); setTimeout(function(){ try{render();}catch(e){} },80); if(!silent&&typeof toast==='function') toast(m,7000); return {env:env,rel:rel}; };
+  window.fqChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='delaiJ'){ v=parseInt(v,10); if(v>0) c.delaiJ=v; } if(k==='max'){ v=parseInt(v,10); if(v>=0) c.max=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.fqChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.fqChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.fqChaineOuvrir=function(page,id){ try{ if(page==='espace'&&id){ state.dossierId=id; state.selected=id; } if(typeof go==='function') go(page); }catch(e){} };
+  function auto(){ try{ var c=cfg(); if(!c.auto||!gw()) return; var b=fqChaineBilan(); if(!b.aEnvoyer.length&&!b.aRelancer.length) return; var r=fqChaineExecuter(true); if((r.env+r.rel)&&typeof toast==='function') toast('Questionnaires : '+r.env+' envoi(s), '+r.rel+' relance(s) automatique(s).',6000); }catch(e){} }
+  setTimeout(auto,12000); setInterval(auto,3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="fqc-sec"><div class="fqc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="fqc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  function lig(r,act){ var lab=r.mq.slice(0,4).map(function(k){ try{ return infosLabelOf(k); }catch(x){ return k; } }).join(', ')+(r.mq.length>4?(' … +'+(r.mq.length-4)):''); return '<div class="fqc-row"><span class="fqc-cli"><b>'+E(r.nom)+'</b> <span class="fqc-t">'+E(r.kind)+'</span>'+(r.mail?(' · '+E(r.mail)):' <em>sans e-mail</em>')+'<small>'+E(r.mq.length+' manquante(s) : '+lab)+'</small></span><span class="fqc-amt">'+(r.env?E('envoyé il y a '+jours(r.env.ts)+' j'+((r.env.n||1)>1?(' · '+((r.env.n||1)-1)+' relance(s)'):'')):'')+'</span><span class="fqc-act">'+act+'<button class="btn btn-sm btn-ghost" onclick="fqChaineOuvrir(\''+E(r.page)+'\',\''+E(r.e.id)+'\')">Ouvrir</button></span></div>'; }
+  window.fqChaineCard=function(){ var b=fqChaineBilan(), c=b.cfg; if(!b.total) return '';
+    var n=b.aEnvoyer.length+b.aRelancer.length;
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — questionnaire en ligne</h2><div class="fqc-hb"><span class="fqc-gw'+(b.gw?' on':'')+'">'+(b.gw?'● passerelle : envois silencieux':'○ passerelle non configurée : envoi par votre messagerie')+'</span><button class="btn btn-sm btn-ghost" onclick="fqChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="fqChaineExecuter()"'+((n&&b.gw)?'':' disabled')+'>Tout exécuter ('+n+')</button></div></div>';
+    if(c.reduit) return '<div class="card fqc-card">'+head+'</div>';
+    var kpi='<div class="fqc-kpis"><div class="fqc-k'+(b.aEnvoyer.length?' warn':'')+'"><b>'+b.aEnvoyer.length+'</b><span>questionnaire(s) à envoyer</span></div><div class="fqc-k'+(b.aRelancer.length?' warn':'')+'"><b>'+b.aRelancer.length+'</b><span>à relancer (après '+c.delaiJ+' j)</span></div><div class="fqc-k"><b>'+b.attente.length+'</b><span>en attente de réponse</span></div><div class="fqc-k ok"><b>'+b.recues.length+'</b><span>réponse(s) reçue(s)</span></div><div class="fqc-k ok"><b>'+b.complets+'</b><span>fiche(s) complète(s) / '+b.total+'</span></div></div>';
+    var s1=sec('Questionnaires à envoyer',b.aEnvoyer.concat(b.sansMail),function(r){ return lig(r,r.mail?('<button class="btn btn-sm" onclick="fqEnvoyer(\''+E(r.e.id)+'\')">Envoyer</button>'):''); },'Toutes les fiches incomplètes ont reçu leur questionnaire.');
+    var s2=sec('Relances',b.aRelancer.concat(b.epuisees).concat(b.attente),function(r){ var ep=(r.env&&((r.env.n||1)-1)>=c.max); var att=(r.j!=null&&r.j<c.delaiJ); return lig(r,ep?('<span class="fqc-tag">'+c.max+' relance(s) — à appeler</span>'):(att?('<span class="fqc-tag">attente</span>'):('<button class="btn btn-sm" onclick="fqRelancer(\''+E(r.e.id)+'\')">Relancer</button>'))); },'Aucune relance à faire.');
+    var s3=sec('Réponses reçues (reprises dans le dossier)',b.recues.slice(0,10),function(r){ return '<div class="fqc-row"><span class="fqc-cli"><b>'+E(nomDe(r.e))+'</b> <span class="fqc-t">'+E(r.kind)+'</span><small>'+r.nb+' réponse(s) · dernière : '+E(r.ts?new Date(r.ts).toLocaleString('fr-FR'):'—')+' · '+r.champs+' champ(s)</small></span><span class="fqc-amt"></span><span class="fqc-act"><button class="btn btn-sm btn-ghost" onclick="fqChaineOuvrir(\''+E(r.page)+'\',\''+E(r.e.id)+'\')">Ouvrir</button></span></div>'; },'Aucune réponse reçue pour le moment.');
+    var opts='<div class="fqc-opts"><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="fqChaineSet(\'auto\',this.checked)"> Envois et relances automatiques (passerelle requise)</label><label>Relance après <input type="number" min="1" max="60" value="'+c.delaiJ+'" onchange="fqChaineSet(\'delaiJ\',this.value)"> j</label><label>Maximum <input type="number" min="0" max="10" value="'+c.max+'" onchange="fqChaineSet(\'max\',this.value)"> relance(s)</label><span class="fqc-note">Le questionnaire ne demande que les informations encore manquantes ; les réponses reviennent par la boîte mail.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="fqc-journal"><div class="fqc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="fqChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="fqc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card fqc-card">'+head+'<div class="card-b">'+kpi+'<div class="fqc-grid">'+s1+s2+s3+'</div>'+opts+jr+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='formulaire')) return; var v=document.getElementById('view'); var w=v&&v.querySelector('.fi-wrap'); if(!w||v.querySelector('.fqc-card')) return; var html=fqChaineCard(); if(!html) return; var tmp=document.createElement('div'); tmp.innerHTML=html; w.insertAdjacentElement('beforebegin',tmp.firstElementChild); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__fqc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__fqc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='fq-chaine-css'; st.textContent=
+    '.fqc-card{margin:0 0 14px}.fqc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.fqc-card .card-h h2{margin:0;font-size:15px}.fqc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fqc-gw{font-size:11.5px;opacity:.65}.fqc-gw.on{color:#2fae5f;opacity:1}'
+   +'.fqc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.fqc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.fqc-k b{display:block;font-size:17px}.fqc-k span{font-size:11px;opacity:.65}.fqc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.fqc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.fqc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.fqc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.fqc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.fqc-h span{opacity:.6}.fqc-h .btn{margin-left:auto}'
+   +'.fqc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.fqc-row:first-of-type{border-top:0}.fqc-cli em{font-style:normal;font-size:11px;color:#e0a458}.fqc-cli small{display:block;font-size:11px;opacity:.6;margin-top:1px}.fqc-amt{font-size:11.5px;opacity:.8;white-space:nowrap}.fqc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.fqc-t{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.8}.fqc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
+   +'.fqc-empty{font-size:12px;opacity:.55;padding:2px 0}'
+   +'.fqc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.fqc-opts label{display:inline-flex;align-items:center;gap:6px}.fqc-opts input[type=number]{width:56px;padding:3px 6px}.fqc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.fqc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.fqc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.fqc-jl span{opacity:.55;min-width:130px}.fqc-jl.ko b{color:#e0a458}.fqc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
