@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=655;
+var LAST_VER=656;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -9658,10 +9658,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     var forme=TF[o.type]||''; if(forme)c.forme=forme;
     var s=o.societe||{},si=o.siege||{},dir=o.direction||{},co=o.contact||{},mo=o.modif||{};
     if(o.type==='modification'){
-      if(mo.denomination)c.denomination=mo.denomination;
+      if(mo.denomination){c.denomination=mo.denomination;c.denom=mo.denomination;} /* v656 : les contrôles de conformité lisent c.denom */
       if(mo.siren)c.siren=mo.siren;
     } else {
-      if(s.denomination)c.denomination=s.denomination;
+      if(s.denomination){c.denomination=s.denomination;c.denom=s.denomination;}
       if(s.sigle)c.nomCommercial=s.sigle;
       var cap=num(s.capital); if(cap!=null)c.capital=cap;
       if(s.objet)c.activites=[s.objet];
@@ -16187,7 +16187,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   /* Marque le client comme société immatriculée (ajout à la liste des clients) / annule si retour en arrière. */
   function inpiMarkClient(d,on){ var c=dosClient(d); if(!c)return; c.immatricule=!!on;
     if(on){ if(!c.dateImmat&&typeof today==='function')c.dateImmat=today();
-      var den=(d.intake&&d.intake.societe&&d.intake.societe.denomination)||''; if(den)c.denomination=den;
+      var den=(d.intake&&d.intake.societe&&d.intake.societe.denomination)||''; if(den){c.denomination=den;c.denom=c.denom||den;}
       var sir=(d.intake&&d.intake.societe&&d.intake.societe.siren)||c.siren||''; if(sir)c.siren=sir;
       if(d.intake&&d.intake.type)c.forme=c.forme||d.intake.type; c.dossierRef=d.ref||c.dossierRef; }
   }
@@ -40448,6 +40448,144 @@ function testLienSignature() {
    +'.fc-empty{font-size:12px;opacity:.55;padding:2px 0}.fc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
    +'.fc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.fc-opts label{display:inline-flex;align-items:center;gap:6px}.fc-opts input[type=number]{width:56px;padding:3px 6px}.fc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.fc-gw.on{color:#2fae5f;opacity:1}'
    +'.fc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.fc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.fc-jl span{opacity:.55;min-width:130px}.fc-jl.ko b{color:#e0a458}.fc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Traitement : exécution assistée du dossier (v656)
+   ----------------------------------------------------------------------------
+   En tête du dossier, un panneau « Exécution assistée » présente les 6 étapes
+   (validée · en cours · à venir), les BLOCAGES de l'étape en cours et ce qui
+   peut être PRÉPARÉ automatiquement sans toucher aux verrous humains :
+   classement et récupération des pièces, génération des actes et contrôles de
+   conformité, contrôles de clôture. Les envois (accusé, rendez-vous de
+   signature, annonce, remise), la facture et la validation de chaque étape
+   restent des actions à déclencher par l'expert. Chaque préparation est
+   consignée dans le journal d'exécution du dossier (partagé avec la chaîne
+   Demandes → dossier) et dans son historique.
+   100 % additif : greffe sur pageEspace ; les validateurs existants
+   (trwValider et ses verrous) sont réutilisés tels quels.
+   ============================================================================ */
+(function(){
+  if(window.__trwPlan) return; window.__trwPlan=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  var WF=[['demande','Demande'],['pieces','Pièces'],['actes','Actes'],['attestations','Attestations'],['immatriculation','Immatriculation'],['cloture','Clôture']];
+  function dos(id){ try{ return (DB.dossiers||[]).filter(function(x){return x.id===id;})[0]||null; }catch(e){ return null; } }
+  function cli(d){ try{ var id=(d.clientIds||[])[0]; return (DB.clients||[]).filter(function(c){return c.id===id;})[0]||{}; }catch(e){ return {}; } }
+  function dem(d){ try{ return (DB.demandes||[]).filter(function(x){return x.dossierId===d.id;})[0]||null; }catch(e){ return null; } }
+  function nz(s){ return (''+(s==null?'':s)).trim(); }
+  function jour(){ try{ return (typeof today==='function')?today():new Date().toISOString().slice(0,10); }catch(e){ return ''; } }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function isModif(d){ try{ if(d.modifDocs&&d.modifDocs.length) return true; if(d.nature==='modification') return true; var k=(d.intake&&d.intake.type)||''; return /^(siege|dirigeant|denomination|objet|capital|transformation|cession|dissolution|radiation|cloture)$/.test(k); }catch(e){ return false; } }
+  function kind(d){ var k=(d.intake&&d.intake.type)||''; if(/capital/.test(k)) return 'capital'; var t=((d.serviceSouhaite||'')+' '+(d.formalite||'')).toLowerCase(); return /capital/.test(t)?'capital':k; }
+  function catKey(a){ try{ return ((typeof demAttCat==='function')?demAttCat(a):{key:'autre'}).key||'autre'; }catch(e){ return 'autre'; } }
+  function atts(d){ var out=[]; try{ out=(typeof e2Pieces==='function')?e2Pieces(d):[].concat(d.attachments||[],(dem(d)||{}).attachments||[]); }catch(e){} return out||[]; }
+  function log(d,step,ok,detail){ var e={ts:Date.now(),step:step,ok:!!ok,detail:detail||''}; (d.execLog=d.execLog||[]).push(e); d.execLogSeen=false; (d.historique=d.historique||[]).unshift({d:jour(),t:step+(ok?'':' (échec)')+(detail?(' — '+detail):'')}); }
+
+  /* ---------- analyse d'une étape ---------- */
+  function etape(d,key){
+    var w=d.wf||{}; var r={key:key,l:WF.filter(function(x){return x[0]===key;})[0][1],validee:!!w[key],bloq:[],preps:[],manuel:[],infos:[]};
+    var c=cli(d);
+    if(key==='demande'){
+      var nom=nz((c.prenom||'')+' '+(c.nom||''))||nz(c.denomination); var mail=nz(c.email)||nz((dem(d)||{}).clientEmail);
+      if(!nom) r.bloq.push('Nom du demandeur absent (fiche client)'); if(!mail) r.bloq.push('E-mail du demandeur absent');
+      if(mail&&!(d.accuse&&d.accuse.le)) r.manuel.push({l:'Accusé de réception au client',fn:'e1OuvrirAccuse',sub:mail}); else if(d.accuse&&d.accuse.le) r.infos.push('Accusé de réception envoyé');
+    }
+    if(key==='pieces'){
+      var A=atts(d); var cats={}; A.forEach(function(a){ cats[catKey(a)]=1; });
+      var aClasser=A.filter(function(a){ return a&&typeof a==='object'&&!a.cat&&catKey(a)!=='autre'; }).length;
+      var aRecup=A.filter(function(a){ return a&&a.msgId&&!a.dataB64; }).length;
+      if(isModif(d)){ var L=[]; try{ L=(typeof enregPieces==='function')?enregPieces(d):[]; }catch(e){} var ALIAS={identite:'cni',domiciliation:'domicile'}; L.filter(function(p){ return p.origine==='client'; }).forEach(function(p){ var k=ALIAS[p.k]||p.k; if(!cats[k]&&!(p.recu||p.ok)) r.bloq.push('Pièce attendue : '+p.l); }); }
+      else { var st=null; try{ st=(typeof e2Etat==='function')?e2Etat(d):null; }catch(e){} if(st){ st.manquants.forEach(function(m){ r.bloq.push('Pièce manquante : '+m.l); }); if(!st.total) r.bloq.push('Aucune pièce reçue'); (st.remarques||[]).forEach(function(x){ r.infos.push(x); }); }
+        var cert=(d.verif&&d.verif.cert)||{}; var keys=Object.keys(cats).filter(function(k){return k!=='autre';}); var nonCert=keys.filter(function(k){ return !(cert[k]&&cert[k].ok); });
+        if(nonCert.length) r.bloq.push(nonCert.length+' pièce(s) à certifier par l\'expert (contrôle visuel)'); }
+      if(aClasser) r.preps.push({id:'classer',l:'Classer '+aClasser+' pièce(s) reconnue(s)'}); if(aRecup) r.preps.push({id:'recuperer',l:'Récupérer '+aRecup+' pièce(s) depuis la boîte',gw:true});
+      if(A.length) r.infos.push(A.length+' pièce(s) au dossier');
+    }
+    if(key==='actes'){
+      var req=[]; try{ req=(typeof espDocsRequis==='function')?espDocsRequis(d):[]; }catch(e){}
+      var gen=req.filter(function(dc){ try{ return !!espDocState(d,dc.k).genere; }catch(e){ return !!(d.docs&&d.docs[dc.k]&&d.docs[dc.k].genere); } });
+      var appr=(d.docFolder&&d.docFolder.approved)||{}; var nonAppr=gen.filter(function(dc){ return appr[dc.k]!==true; });
+      if(gen.length<req.length){ r.bloq.push((req.length-gen.length)+' acte(s) à générer'); r.preps.push({id:'generer',l:'Générer les '+(req.length-gen.length)+' acte(s) manquant(s)'}); }
+      if(nonAppr.length) r.bloq.push(nonAppr.length+' acte(s) à approuver après relecture');
+      var aS=[]; try{ aS=(typeof a3ASigner==='function')?a3ASigner(d):[]; }catch(e){} var s=d.sign||{}; var nonSign=aS.filter(function(a){ return !(s[a.k]&&s[a.k].ok); });
+      if(nonSign.length) r.bloq.push(nonSign.length+' acte(s) à faire signer');
+      var ko=[]; try{ ko=((typeof a3Controles==='function')?a3Controles(d):[]).filter(function(x){return x.s==='ko';}); }catch(e){} ko.forEach(function(x){ r.infos.push('Conformité à revoir : '+x.l+' — '+x.d); });
+      if(gen.length&&!(d.signVoie&&d.signVoie.ts)&&nz(c.email)) r.manuel.push({l:'Proposer le rendez-vous de signature',fn:'a3Rdv',sub:c.email}); if(nonAppr.length) r.manuel.push({l:'Approuver tous les actes (après relecture)',fn:'docApproveAll'});
+      r.infos.push(gen.length+'/'+req.length+' acte(s) généré(s)');
+    }
+    if(key==='attestations'){
+      var need=isModif(d)?(kind(d)==='capital'?['capital','annonce']:['annonce']):['capital','annonce']; var at=d.attest||{};
+      need.forEach(function(t){ var a=at[t]||{}; var lbl=t==='capital'?'Attestation de dépôt des fonds':'Attestation de parution'; if(!a.fichier) r.bloq.push(lbl+' : à déposer au dossier'); else if(!a.verifie) r.bloq.push(lbl+' : à vérifier'); });
+      if(!(at.annonce&&at.annonce.prevenu)&&nz(c.email)) r.manuel.push({l:'Prévenir le client (annonce en cours)',fn:'at4Prevenir',sub:c.email});
+    }
+    if(key==='immatriculation'){
+      var P=[]; try{ P=(typeof im5Pieces==='function')?im5Pieces(d):[]; }catch(e){} P.filter(function(p){return !p.ok;}).forEach(function(p){ r.bloq.push('Dossier de dépôt : '+p.l+(p.src?(' ('+p.src+')'):'')); });
+      var im=d.immat||{}; if(!im.kbis) r.bloq.push('K-bis à déposer au dossier'); else if(!im.verifie) r.bloq.push('K-bis à vérifier');
+      if(im.depose) r.infos.push('Déposé au guichet unique'); else r.manuel.push({l:'Déposer au guichet unique (INPI)',fn:'im5OuvrirDepot'});
+    }
+    if(key==='cloture'){
+      var C=[]; try{ C=(typeof cl6Controles==='function')?cl6Controles(d):[]; }catch(e){} C.filter(function(x){return !x.ok;}).forEach(function(x){ r.bloq.push(x.l+' — '+x.d); });
+      var cc=d.cloture||{}; if(!cc.factureId) r.manuel.push({l:'Établir la facture d\'honoraires',fn:'cl6OuvrirHono'}); if(!cc.remis&&nz(c.email)) r.manuel.push({l:'Remettre le dossier au client',fn:'cl6Remettre',sub:c.email}); if(!cc.compta&&cc.factureId) r.manuel.push({l:'Transmettre à la comptabilité',fn:'cl6Compta'});
+    }
+    r.pret=!r.bloq.length; return r;
+  }
+  window.trwPlan=function(id){ var d=dos(id); if(!d) return null; var out=[]; var cur=null;
+    WF.forEach(function(x){ var e=etape(d,x[0]); if(!cur&&!e.validee){ cur=e; e.courante=true; } out.push(e); });
+    return {dossier:d,etapes:out,courante:cur,terminee:!cur}; };
+
+  /* ---------- préparation automatique de l'étape en cours ---------- */
+  window.trwPreparer=function(id){ var d=dos(id); if(!d) return; var p=trwPlan(id); if(!p||!p.courante){ toast('Toutes les étapes sont validées.'); return; }
+    var e=p.courante; var n=0;
+    if(e.key==='pieces'){
+      var A=atts(d); var k=0; A.forEach(function(a){ if(a&&typeof a==='object'&&!a.cat){ var c=catKey(a); if(c!=='autre'){ a.cat=c; k++; } } }); if(k){ log(d,'Pièces classées automatiquement',true,k+' pièce(s)'); n++; }
+      var rec=A.filter(function(a){ return a&&a.msgId&&!a.dataB64; }).length; if(rec){ if(gw()&&typeof e2Recuperer==='function'){ try{ e2Recuperer(id); log(d,'Récupération des pièces lancée',true,rec+' pièce(s) demandée(s) à la boîte'); n++; }catch(x){ log(d,'Récupération des pièces',false,x.message||''); } } else log(d,'Récupération des pièces',false,'passerelle non configurée'); }
+      var st=null; try{ st=(typeof e2Etat==='function')?e2Etat(d):null; }catch(x){} if(st) log(d,'Contrôle de complétude',st.complet,st.complet?'toutes les pièces exigées sont présentes':('manque : '+st.manquants.map(function(m){return m.l;}).join(', ')));
+    }
+    if(e.key==='actes'){
+      var req=[]; try{ req=(typeof espDocsRequis==='function')?espDocsRequis(d):[]; }catch(x){} var avant=req.filter(function(dc){ try{ return !!espDocState(d,dc.k).genere; }catch(x){ return false; } }).length;
+      if(avant<req.length&&typeof docGenAll==='function'){ try{ docGenAll(id); var apres=req.filter(function(dc){ try{ return !!espDocState(d,dc.k).genere; }catch(x){ return false; } }).length; log(d,'Actes générés',apres>=req.length,apres+'/'+req.length+' acte(s)'); n++; }catch(x){ log(d,'Génération des actes',false,x.message||''); } }
+      var ctl=[]; try{ ctl=(typeof a3Controles==='function')?a3Controles(d):[]; }catch(x){} if(ctl.length){ var ko=ctl.filter(function(x){return x.s==='ko';}); log(d,'Contrôle de conformité des actes',!ko.length,ko.length?ko.map(function(x){return x.l;}).join(', '):(ctl.length+' point(s) vérifié(s)')); n++; }
+    }
+    if(e.key==='cloture'){ var C=[]; try{ C=(typeof cl6Controles==='function')?cl6Controles(d):[]; }catch(x){} if(C.length){ var kko=C.filter(function(x){return !x.ok;}); log(d,'Contrôles de clôture',!kko.length,kko.length?kko.map(function(x){return x.l;}).join(', '):'tout est en ordre'); n++; } }
+    if(!n) log(d,'Préparation de l\'étape « '+e.l+' »',true,'rien à préparer automatiquement — actions de l\'expert requises');
+    try{save();}catch(x){} try{render();}catch(x){}
+    var p2=trwPlan(id); var e2=p2.etapes.filter(function(x){return x.key===e.key;})[0];
+    toast(e2.pret?('Étape « '+e.l+' » prête à être validée.'):('Étape « '+e.l+' » préparée — reste : '+e2.bloq.length+' point(s) à traiter.'),5000,e2.pret?'success':'info');
+  };
+  window.trwPlanCloturer=function(id){ var d=dos(id); if(!d) return; try{ if(typeof cl6Cloturer==='function') cl6Cloturer(id); }catch(e){} try{ if(d.cloture&&d.cloture.le&&!(d.wf&&d.wf.cloture)&&typeof trwValider==='function') trwValider(id,'cloture'); }catch(e){} };
+  /* fiches client issues du questionnaire : la dénomination est lue par les contrôles sous « denom » */
+  try{ (DB.clients||[]).forEach(function(c){ if(c&&c.denomination&&!c.denom) c.denom=c.denomination; }); }catch(e){}
+  window.trwPlanAction=function(id,fn){ try{ if(typeof window[fn]==='function') window[fn](id); else toast('Action indisponible : '+fn); }catch(e){ toast('Action impossible : '+(e.message||'')); } };
+  window.trwPlanToggle=function(){ DB.parametres=DB.parametres||{}; DB.parametres.trwPlanReduit=!DB.parametres.trwPlanReduit; try{save();}catch(e){} try{render();}catch(e){} };
+
+  /* ---------- panneau ---------- */
+  window.trwPlanCard=function(d){ if(!d) return ''; var p=trwPlan(d.id); if(!p) return ''; var red=!!(DB.parametres&&DB.parametres.trwPlanReduit);
+    var steps='<div class="xp-steps">'+p.etapes.map(function(e,i){ var cls=e.validee?'ok':(e.courante?'cur':'todo'); return '<div class="xp-step '+cls+'"><span class="xp-n">'+(e.validee?'✓':(i+1))+'</span><span class="xp-l">'+E(e.l)+'</span>'+(e.courante?('<span class="xp-b">'+(e.pret?'prête':e.bloq.length+' blocage'+(e.bloq.length>1?'s':''))+'</span>'):'')+'</div>'; }).join('')+'</div>';
+    var head='<div class="card-h"><h2>⚙ Exécution assistée</h2>'+(p.terminee?'<span class="xp-done">Dossier terminé — 6/6 étapes validées</span>':'')+'<button class="btn btn-sm btn-ghost xp-tg" onclick="trwPlanToggle()">'+(red?'Afficher':'Réduire')+'</button></div>';
+    if(red||p.terminee) return '<div class="card xp-card">'+head+'<div class="card-b">'+steps+'</div></div>';
+    var e=p.courante;
+    var bl=e.bloq.length?'<div class="xp-sec"><div class="xp-h">Avant validation — '+e.bloq.length+' point(s)</div>'+e.bloq.map(function(b){ return '<div class="xp-row ko"><span class="xp-dot"></span><span>'+E(b)+'</span></div>'; }).join('')+'</div>':'<div class="xp-sec"><div class="xp-row ok"><span class="xp-dot"></span><span>Aucun blocage : l\'étape peut être validée par l\'expert.</span></div></div>';
+    var pr=e.preps.length?'<div class="xp-sec"><div class="xp-h">Préparation automatique</div>'+e.preps.map(function(x){ return '<div class="xp-row prep"><span class="xp-dot"></span><span>'+E(x.l)+(x.gw&&!gw()?' <em>(passerelle requise)</em>':'')+'</span></div>'; }).join('')+'</div>':'';
+    var man=e.manuel.length?'<div class="xp-sec"><div class="xp-h">Actions de l\'expert</div><div class="xp-acts">'+e.manuel.map(function(x){ return '<button class="btn btn-sm" onclick="trwPlanAction(\''+E(d.id)+'\',\''+E(x.fn)+'\')" title="'+E(x.sub||'')+'">'+E(x.l)+'</button>'; }).join('')+'</div></div>':'';
+    var inf=e.infos.length?'<div class="xp-infos">'+e.infos.map(function(x){ return '<span>'+E(x)+'</span>'; }).join('')+'</div>':'';
+    var valid=(e.key==='cloture')?'<button class="btn btn-sm btn-pri" onclick="trwPlanCloturer(\''+E(d.id)+'\')"'+(e.pret?'':' disabled title="Points restants à traiter"')+'>Clôturer le dossier</button>'
+      :'<button class="btn btn-sm btn-pri" onclick="trwValider(\''+E(d.id)+'\',\''+e.key+'\')"'+(e.pret?'':' disabled title="Points restants à traiter"')+'>Valider l\'étape « '+E(e.l)+' »</button>';
+    var bar='<div class="xp-bar"><button class="btn btn-sm" onclick="trwPreparer(\''+E(d.id)+'\')">▶ Préparer l\'étape</button>'+valid+'<span class="xp-hint">La validation reste un acte de l\'expert : la préparation ne coche jamais une étape à sa place.</span></div>';
+    return '<div class="card xp-card">'+head+'<div class="card-b">'+steps+'<div class="xp-cur"><div class="xp-cur-h">Étape en cours : <b>'+E(e.l)+'</b></div>'+inf+bl+pr+man+bar+'</div></div></div>'; };
+
+  try{ var _pe=window.pageEspace; if(typeof _pe==='function'&&!_pe.__tp){ window.pageEspace=function(){ var h=_pe.apply(this,arguments); try{ if(typeof h==='string'&&h.indexOf('esp-main')>=0){ var list=(typeof espDoss==='function')?espDoss().filter(function(x){return !x.archived;}):[]; var id=state.espaceDossier; var d=list.filter(function(x){return x.id===id;})[0]||list[0]; if(d) h=trwPlanCard(d)+h; } }catch(e){} return h; }; window.pageEspace.__tp=1; } }catch(e){}
+
+  try{ var st=document.createElement('style'); st.id='trw-plan-css'; st.textContent=
+    '.xp-card{margin:0 0 14px}.xp-card .card-h{display:flex;align-items:center;gap:10px}.xp-card .card-h h2{margin:0;font-size:15px}.xp-tg{margin-left:auto}.xp-done{font-size:12px;color:#2fae5f}'
+   +'.xp-steps{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.xp-step{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:12.5px;opacity:.6}.xp-step.ok{opacity:.9;border-color:rgba(47,174,95,.4)}.xp-step.cur{opacity:1;border-color:rgba(214,158,62,.7);background:rgba(214,158,62,.08)}'
+   +'.xp-n{flex:none;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:rgba(255,255,255,.1)}.xp-step.ok .xp-n{background:rgba(47,174,95,.25);color:#7ee0a3}.xp-step.cur .xp-n{background:rgba(214,158,62,.3);color:#ffd88a}.xp-l{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.xp-b{font-size:10.5px;padding:1px 7px;border-radius:20px;background:rgba(214,158,62,.18)}'
+   +'.xp-cur{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.xp-cur-h{font-size:13px;margin-bottom:6px}.xp-sec{margin:6px 0}.xp-h{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.65;margin-bottom:4px}'
+   +'.xp-row{display:flex;align-items:flex-start;gap:8px;padding:2px 0;font-size:12.5px}.xp-dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px;background:#d99a3a}.xp-row.ok .xp-dot{background:#2fae5f}.xp-row.prep .xp-dot{background:#4a90e2}.xp-row em{font-style:normal;opacity:.6}'
+   +'.xp-infos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.xp-infos span{font-size:11.5px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.07)}'
+   +'.xp-acts{display:flex;flex-wrap:wrap;gap:6px}.xp-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}.xp-hint{font-size:11px;opacity:.55;margin-left:auto}'
+   +'@media(max-width:900px){.xp-steps{grid-template-columns:repeat(3,1fr)}}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
