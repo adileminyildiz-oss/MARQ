@@ -179,7 +179,8 @@ var DOCS=[
  {k:'domicile',l:'Justificatif de domicile de moins de 3 mois',h:"Facture d'électricité, de gaz, de téléphone, quittance de loyer ou avis d'imposition, à votre nom.",req:true},
  {k:'hebergement',l:"Attestation d'hébergement",h:'Signée par la personne qui vous héberge, datée de moins de 3 mois.',cond:'heberge'},
  {k:'hebergeurId',l:"Pièce d'identité de l'hébergeur",h:'Recto et verso.',cond:'heberge'},
- {k:'assoc',l:"Pièce d'identité de chaque associé",h:'Recto et verso, pour chaque associé autre que vous.',cond:'associes'}
+ {k:'assoc',l:"Pièce d'identité de chaque associé",h:'Recto et verso, pour chaque associé autre que vous.',cond:'associes'},
+ {k:'rib',l:'RIB du compte de dépôt du capital',h:"Relevé d'identité bancaire de la banque où le capital sera déposé, si le compte est déjà ouvert. Facultatif à ce stade."}
 ];
 var FILES={};
 var DEFAUT={sasu:CREATION,eurl:CREATION,sas:CREATION.concat(['associes']),sarl:CREATION.concat(['associes']),sci:CREATION.concat(['associes']),

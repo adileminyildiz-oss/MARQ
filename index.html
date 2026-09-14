@@ -3336,7 +3336,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=643;
+var LAST_VER=644;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -39584,7 +39584,7 @@ function testLienSignature() {
 </script>
 <script>
 /* ============================================================================
-   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640)
+   Mar'q — Formulaire en ligne de récupération d'informations (infos.html) (v635, v640, v644)
    - Lien sécurisé par dossier (numéro + jeton) : le cabinet choisit les
      informations à demander (clés du Formulaire), ajoute un message, et envoie
      le lien au client (mail préparé, copie du lien).
@@ -39598,6 +39598,10 @@ function testLienSignature() {
      dépôt de documents depuis le questionnaire (pièces rattachées au dossier,
      cases « Pièces attendues » cochées), mode LIBRE (lien public partagé : la
      réponse crée la demande dans Mar'q), alias des clés de pièces du portail.
+   - v644 : à l'acceptation d'une demande, le questionnaire (intake) est REPRIS dans
+     le dossier créé (les actes sont pré-remplis sans repasser par le Formulaire),
+     les pièces reçues suivent le dossier, et les fichiers joints du questionnaire
+     sont classés d'office (pièce d'identité, justificatif de domicile…).
    100 % additif : greffes sur demIngest, demInfosCard, render ; correction du
    domaine du formulaire d'ouverture (base = adresse de l'application).
    ========================================================================= */
@@ -39621,7 +39625,9 @@ function testLienSignature() {
   var EXTRA_CREATION=['ape','perePrenom','pereNom','merePrenom','mereNom','secu','telPro','mailPro','typePiece','heberge','hebergeurNom','documents'];
   function qKeys(type){ var k=(typeof formQuestionKeys==='function')?formQuestionKeys(type):Object.keys(MAP); k=(k||[]).slice(); if(CREATION_TYPES.indexOf(type)>=0||!type){ EXTRA_CREATION.forEach(function(x){ if(k.indexOf(x)<0){ var at=k.indexOf('situation'); if(x==='ape'&&k.indexOf('objet')>=0) k.splice(k.indexOf('objet')+1,0,x); else k.push(x); } }); } return k; }
   var ALIAS={identite:'cni',domiciliation:'domicile',cni:'identite',domicile:'domiciliation'};
-  var PIECE_LABELS={cni:"Pièce d'identité du dirigeant",domicile:'Justificatif de domicile (− 3 mois)',hebergement:"Attestation d'hébergement",hebergeurId:"Pièce d'identité de l'hébergeur",assoc:"Pièce d'identité des associés",identite:"Pièce d'identité",domiciliation:'Justificatif de domicile'};
+  var CAT_OF={cni:'cni',identite:'cni',hebergeurId:'cni',assoc:'cni',domicile:'domicile',domiciliation:'domicile',hebergement:'domicile',edf:'domicile',rib:'rib'};
+  function classerAtts(e,pieces){ try{ var atts=e.attachments||[]; Object.keys(pieces||{}).forEach(function(k){ var cat=CAT_OF[k]; if(!cat) return; (pieces[k]||[]).forEach(function(nm){ atts.forEach(function(a){ if(a&&a.name===nm&&!a.cat) a.cat=cat; }); }); }); }catch(x){} }
+  var PIECE_LABELS={cni:"Pièce d'identité du dirigeant",domicile:'Justificatif de domicile (− 3 mois)',hebergement:"Attestation d'hébergement",hebergeurId:"Pièce d'identité de l'hébergeur",assoc:"Pièce d'identité des associés",rib:'RIB du compte de dépôt du capital',identite:"Pièce d'identité",domiciliation:'Justificatif de domicile'};
   var EXTRA_FIELDS=[{key:'iban',label:'IBAN du compte professionnel'},{key:'regime',label:'Régime fiscal souhaité'},{key:'tva',label:'Régime de TVA souhaité'},{key:'effectif',label:'Effectif prévu (salariés)'},{key:'precisions',label:'Précisions demandées'},
     {key:'ape',label:'Code APE choisi (activité principale)'},{key:'perePrenom',label:'Prénom du père du dirigeant'},{key:'pereNom',label:'Nom du père du dirigeant'},{key:'merePrenom',label:'Prénom de la mère du dirigeant'},{key:'mereNom',label:'Nom de naissance de la mère du dirigeant'},
     {key:'secu',label:'Numéro de sécurité sociale du dirigeant'},{key:'telPro',label:'Téléphone professionnel'},{key:'mailPro',label:'E-mail professionnel'},{key:'typePiece',label:"Pièce d'identité présentée (CNI / passeport / titre de séjour)"},{key:'heberge',label:'Hébergé(e) par un tiers ?'},{key:'hebergeurNom',label:"Nom et prénom de l'hébergeur"},
@@ -39730,12 +39736,12 @@ function testLienSignature() {
     var rec={ts:info.ts||new Date().toISOString(),msgId:key,champs:info.champs||{},associes:info.associes||[],pieces:info.pieces||{},message:info.message||'',email:info.email||'',tel:info.tel||'',type:info.type||'',libre:libre,tokenOk:libre?true:(!info.token||info.token===window.infosToken(no))};
     e.infosRecues.push(rec); window.infosAppliquer(e,rec); e.infosPortail={statut:'reçu',ts:Date.now(),nb:e.infosRecues.length};
     /* pièces déposées avec le questionnaire → dossier (mêmes clés que les « Pièces attendues ») */
-    try{ var pk=Object.keys(rec.pieces||{}).filter(function(k){ return (rec.pieces[k]||[]).length; }); if(pk.length){ var pieces={}; pk.forEach(function(k){ pieces[k]=rec.pieces[k].slice(); }); rattacherPieces(e,pieces); var atts=mailAtts(mail); if(atts.length&&demandeById(e.id)){ e.attachments=e.attachments||[]; atts.forEach(function(a){ if(!e.attachments.some(function(x){ return x.name===a.name&&x.msgId===a.msgId; })) e.attachments.push(a); }); e.docsRecus=true; } } }catch(x){}
+    try{ var pk=Object.keys(rec.pieces||{}).filter(function(k){ return (rec.pieces[k]||[]).length; }); if(pk.length){ var pieces={}; pk.forEach(function(k){ pieces[k]=rec.pieces[k].slice(); }); rattacherPieces(e,pieces); var atts=mailAtts(mail); if(atts.length&&demandeById(e.id)){ e.attachments=e.attachments||[]; atts.forEach(function(a){ if(!e.attachments.some(function(x){ return x.name===a.name&&x.msgId===a.msgId; })) e.attachments.push(a); }); e.docsRecus=true; classerAtts(e,pieces); } } }catch(x){}
     try{ save(); }catch(x){} T(libre?('🧾 Nouveau questionnaire reçu — '+(e.clientNom||'')+' ('+typeLabel(info.type)+')'):('🧾 Informations reçues via le formulaire en ligne — dossier '+no+' ('+Object.keys(rec.champs).length+' élément(s))')); return {ok:true,entite:e.id,rec:rec,libre:libre}; };
   function rattacherPieces(e,pieces){ var targets=[e]; try{ if(e.dossierId){ var dos=dossierById(e.dossierId); if(dos&&dos!==e) targets.push(dos); } }catch(x){}
     targets.forEach(function(t){ t.piecesRecues=t.piecesRecues||{}; t.docs=t.docs||{}; t.pieces=t.pieces||{};
       Object.keys(pieces).forEach(function(k){ [k].concat(ALIAS[k]?[ALIAS[k]]:[]).forEach(function(kk){ t.piecesRecues[kk]=true; t.docs[kk]=t.docs[kk]||[]; pieces[k].forEach(function(nm){ if(!t.docs[kk].some(function(x){ return x.name===nm; })) t.docs[kk].push({name:nm,portail:true,questionnaire:true,ts:Date.now()}); }); t.pieces[kk]=Object.assign({},t.pieces[kk]||{},{recu:true,nom:pieces[k].join(', '),date:(typeof today==='function')?today():new Date().toISOString().slice(0,10),origine:'questionnaire'}); }); }); });
-    e.depotPortail={statut:'reçu',ts:Date.now(),keys:Object.keys(pieces),nb:Object.keys(pieces).length}; }
+    e.depotPortail={statut:'reçu',ts:Date.now(),keys:Object.keys(pieces),nb:Object.keys(pieces).length}; classerAtts(e,pieces); }
   /* le portail de dépôt (depot.html) utilise les clés identite / domiciliation : on renseigne aussi cni / domicile (« Pièces attendues ») */
   if(typeof window.depotAttacherAuDossier==='function'){ var _dad=window.depotAttacherAuDossier; window.depotAttacherAuDossier=function(numero,info,mail){ var r=_dad.apply(this,arguments); try{ if(r&&r.ok){ var e=trouverEntite(numero); if(e){ var pieces={}; (r.keys||[]).forEach(function(k){ pieces[k]=((info&&info.pieces&&info.pieces[k])||[]).slice(); if(!pieces[k].length) pieces[k]=['pièce déposée']; }); rattacherPieces(e,pieces); try{ save(); }catch(x){} } } }catch(x){} return r; }; }
   if(typeof demIngest==='function'){ var _di=demIngest; demIngest=window.demIngest=function(mails){ var rest=[]; try{ DB.parametres=DB.parametres||{}; DB.parametres.mailsImportes=DB.parametres.mailsImportes||[]; var seen=DB.parametres.mailsImportes;
@@ -39743,6 +39749,17 @@ function testLienSignature() {
         var fr={email:''}; try{ fr=mailParseFrom(m.from)||fr; }catch(x){} var key=((''+(m.id||'')).trim())||(fr.email+'|'+(m.subject||'')+'|'+(m.date||''));
         if(seen.indexOf(key)>=0) return; var r=window.infosAttacher(info,m); if(r&&r.ok) seen.push(key); else rest.push(m); }); }catch(x){ rest=mails||[]; }
       return _di(rest); }; }
+
+  /* ── acceptation d'une demande → le dossier hérite du questionnaire et des pièces ── */
+  function reprendreDansDossier(d,dos){ if(!d||!dos) return; var n=0;
+    try{ if(d.intake&&!dos.intake){ dos.intake=JSON.parse(JSON.stringify(d.intake)); dos.intake.numeroDossier=dos.numeroDossier||dos.ref||dos.intake.numeroDossier||''; if(!dos.formalite&&dos.intake.type) dos.formalite=dos.intake.type; if(!dos.enregistreLe) dos.enregistreLe=new Date().toISOString(); n++; } }catch(x){}
+    try{ if(d.infosRecues&&d.infosRecues.length&&!dos.infosRecues) dos.infosRecues=d.infosRecues; }catch(x){}
+    try{ var pieces={}; Object.keys(d.docs||{}).forEach(function(k){ var L=(d.docs[k]||[]); if(Array.isArray(L)&&L.length&&L.some(function(x){ return x&&x.portail; })) pieces[k]=L.map(function(x){ return x.name; }); }); if(Object.keys(pieces).length){ rattacherPieces(dos,pieces); classerAtts(dos,pieces); n++; } }catch(x){}
+    if(n){ try{ (dos.historique=dos.historique||[]).push({d:(typeof today==='function')?today():new Date().toISOString().slice(0,10),t:'Questionnaire et pièces du client repris dans le dossier'}); }catch(x){} try{ save(); }catch(x){} } }
+  window.infosReprendreDansDossier=reprendreDansDossier;
+  if(typeof window.creerDossierDepuis==='function'&&!window.creerDossierDepuis.__infos){ var _cdd=window.creerDossierDepuis; window.creerDossierDepuis=function(id,noNav){ var r=_cdd.apply(this,arguments); try{ var d=demandeById(id); var dos=d&&d.dossierId?dossierById(d.dossierId):null; if(dos){ reprendreDansDossier(d,dos); if(!noNav){ try{ render(); }catch(x){} } } }catch(x){} return r; }; window.creerDossierDepuis.__infos=1; }
+  /* dossiers déjà créés avant la v644 : reprise au chargement */
+  setTimeout(function(){ try{ var n=0; (DB.demandes||[]).forEach(function(d){ if(!d.dossierId||!d.intake) return; var dos=dossierById(d.dossierId); if(dos&&!dos.intake){ reprendreDansDossier(d,dos); n++; } }); if(n) T(n+' dossier(s) complété(s) avec le questionnaire de la demande.'); }catch(x){} },900);
 
   /* ── carte « Informations reçues » ── */
   window.infosRecuesCard=function(e){ if(!e||!(e.infosRecues||[]).length) return ''; var F=fields();
