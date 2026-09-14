@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=656;
+var LAST_VER=657;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40586,6 +40586,88 @@ function testLienSignature() {
    +'.xp-infos{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.xp-infos span{font-size:11.5px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.07)}'
    +'.xp-acts{display:flex;flex-wrap:wrap;gap:6px}.xp-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}.xp-hint{font-size:11px;opacity:.55;margin-left:auto}'
    +'@media(max-width:900px){.xp-steps{grid-template-columns:repeat(3,1fr)}}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Agenda : rappels de rendez-vous et suites (v657)
+   ----------------------------------------------------------------------------
+   En tête de l'Agenda, un panneau « Rappels & suites » réunit : les
+   rendez-vous à RAPPELER au client (la veille, délai réglable) par e-mail via
+   la passerelle Gmail (repli messagerie), les rendez-vous PASSÉS à clôturer
+   (terminé, annulé, reporter), et les DEMANDES DE CRÉNEAU en attente. Les
+   rappels peuvent être AUTOMATIQUES (opt-in, passerelle requise : au chargement
+   puis toutes les heures). Chaque action est consignée sur le rendez-vous et
+   dans un journal global. 100 % additif : greffe sur pageAgenda.
+   ============================================================================ */
+(function(){
+  if(window.__agChaine) return; window.__agChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.agChaine=p.agChaine||{}; var c=p.agChaine; if(c.auto==null) c.auto=false; if(!(c.delaiJ>0)) c.delaiJ=1; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function rdvs(){ var p=P(); return Array.isArray(p.rdv)?p.rdv:[]; }
+  function byId(id){ return rdvs().filter(function(x){return x.id===id;})[0]||null; }
+  function iso(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function frD(s){ if(!s) return ''; var m=(''+s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):s; }
+  var TL={rdv:'Rendez-vous',signature:'Signature',depot:'Dépôt / formalité',appel:'Appel',relance:'Relance'};
+  function when(r){ try{ return new Date(r.date+'T'+(r.heure||'09:00')+':00'); }catch(e){ return new Date(r.date); } }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function emailsOf(r){ var out=[]; var raw=''+(r.invites||''); var m=raw.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g); if(m) out=out.concat(m);
+    if(!out.length&&r.clientNom){ var n=(''+r.clientNom).trim().toLowerCase(); try{ (DB.clients||[]).forEach(function(c){ var full=((c.prenom||'')+' '+(c.nom||'')).trim().toLowerCase(); if(c.email&&(full===n||(c.denomination&&(''+c.denomination).toLowerCase()===n))) out.push(c.email); }); }catch(e){} }
+    if(!out.length&&r.email) out.push(r.email); return out.filter(function(x,i,a){ return a.indexOf(x)===i; }); }
+  function log(r,step,ok,detail,mode){ var e={ts:Date.now(),step:step,ok:!!ok,detail:detail||''}; if(r) (r.execLog=r.execLog||[]).push(e); var c=cfg(); c.journal.unshift({ts:e.ts,rdv:r?((r.clientNom||'')+' '+frD(r.date)+(r.heure?(' '+r.heure):'')).trim():'',step:step,ok:!!ok,detail:detail||'',mode:mode||''}); if(c.journal.length>200) c.journal.length=200; }
+  function envoyer(to,sujet,corps,cb){
+    if(gw()&&typeof demSendViaScript==='function'){ try{ demSendViaScript(to,sujet,corps,function(){ cb&&cb(true); },{silent:true}); }catch(e){ cb&&cb(false); } return 'passerelle'; }
+    try{ window.open('mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(sujet)+'&body='+encodeURIComponent(corps)); }catch(e){} cb&&cb(true); return 'messagerie'; }
+  function corpsRappel(r){ var nom=(r.clientNom||'').trim();
+    return 'Bonjour'+(nom?(' '+nom):'')+',\n\nNous vous rappelons votre rendez-vous avec AEM CONSEIL :\n\n• Date : '+frD(r.date)+(r.heure?(' à '+r.heure):'')+'\n• Objet : '+(r.objet||TL[r.type]||'Rendez-vous')+(r.lieu?('\n• Lieu : '+r.lieu):'')
+      +'\n\nEn cas d\'empêchement, merci de nous prévenir au plus tôt afin de convenir d\'un autre créneau.\n\nÀ très bientôt,\nAEM CONSEIL'; }
+
+  window.agRappeler=function(id,silent){ var r=byId(id); if(!r) return false; var to=emailsOf(r); if(!to.length){ log(r,'Rappel',false,'aucune adresse e-mail (participants ou fiche client)'); if(!silent) toast('Aucune adresse e-mail pour ce rendez-vous — ajoutez un participant ou l\'e-mail du client.',5000,'warn'); return false; }
+    var sujet='Rappel de rendez-vous — '+frD(r.date)+(r.heure?(' '+r.heure):'')+' — AEM CONSEIL'; var mode='';
+    to.forEach(function(m){ mode=envoyer(m,sujet,corpsRappel(r),function(ok){ if(!ok){ log(r,'Rappel',false,'échec vers '+m); try{save();}catch(e){} } }); });
+    r.rappelLe=Date.now(); (r.rappels=r.rappels||[]).push({ts:r.rappelLe,to:to.slice(),mode:mode});
+    log(r,'Rappel',true,'→ '+to.join(', '),mode); try{save();}catch(e){}
+    if(!silent){ toast('Rappel '+(mode==='passerelle'?'envoyé à ':'préparé pour ')+to.join(', '),4000,'success'); try{render();}catch(e){} } return true; };
+  window.agTerminer=function(id,statut){ var r=byId(id); if(!r) return; r.statut=statut||'fait'; log(r,statut==='annule'?'Annulé':'Terminé',true,''); try{save();}catch(e){} try{render();}catch(e){} };
+  window.agChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='delaiJ'){ v=parseInt(v,10); if(v>0) c.delaiJ=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.agChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+
+  window.agChaineBilan=function(){ var c=cfg(); var now=new Date(); var limD=new Date(now.getTime()+c.delaiJ*86400000); var lim=iso(limD); var j=iso(now); var L=rdvs();
+    var actifs=L.filter(function(r){ return r.statut!=='annule'&&r.statut!=='fait'; });
+    /* « la veille » : tout rendez-vous à venir dont la date tombe d'ici N jour(s) (jour calendaire) */
+    var aRappeler=actifs.filter(function(r){ var w=when(r); return w>now&&r.date<=lim&&!r.rappelLe; });
+    var sansMail=aRappeler.filter(function(r){ return !emailsOf(r).length; }); aRappeler=aRappeler.filter(function(r){ return emailsOf(r).length; });
+    var passes=actifs.filter(function(r){ return when(r)<now; }).sort(function(a,b){ return (b.date+(b.heure||'')).localeCompare(a.date+(a.heure||'')); });
+    var d7=new Date(now.getTime()+7*86400000); var aVenir=actifs.filter(function(r){ var w=when(r); return w>now&&w<=d7; });
+    var dem=[]; try{ dem=((P().agendaGw||{}).demandes||[]).filter(function(x){ return x.statut==='attente'; }); }catch(e){}
+    return {aRappeler:aRappeler,sansMail:sansMail,passes:passes,aVenir:aVenir,demandes:dem,gw:gw(),cfg:c,today:j}; };
+  window.agChaineExecuter=function(opts){ opts=opts||{}; var b=agChaineBilan(); var n=0,ko=0; b.aRappeler.forEach(function(r){ if(agRappeler(r.id,true)) n++; else ko++; });
+    log(null,'Chaîne',ko===0,n+' rappel(s)'+(ko?(', '+ko+' échec(s)'):''),opts.auto?'automatique':'manuel'); try{save();}catch(e){}
+    if(!opts.silent){ toast(n?('Rappels envoyés : '+n+(ko?(' — '+ko+' échec(s)'):'')):'Aucun rappel à envoyer.',4000,ko?'warn':'success'); try{render();}catch(e){} } return {n:n,ko:ko}; };
+  function auto(){ try{ var c=cfg(); if(!c.auto||!gw()) return; var b=agChaineBilan(); if(!b.aRappeler.length) return; var r=agChaineExecuter({auto:true,silent:true}); if(r.n) toast('Agenda : '+r.n+' rappel(s) de rendez-vous envoyé(s) automatiquement.',6000); }catch(e){} }
+  setTimeout(auto,7000); setInterval(auto,3600*1000);
+
+  function row(r,acts){ var m=emailsOf(r); return '<div class="agc-row"><span class="agc-dt">'+E(frD(r.date))+(r.heure?(' '+E(r.heure)):'')+'</span><span class="agc-cli"><b>'+E(r.clientNom||'—')+'</b> · '+E(r.objet||TL[r.type]||'')+(m.length?'':' <em>sans e-mail</em>')+((r.rappels||[]).length?(' <i>rappelé</i>'):'')+'</span><span class="agc-act">'+acts+'</span></div>'; }
+  window.agChaineCard=function(){ var b=agChaineBilan(); var c=b.cfg;
+    var kpi='<div class="agc-kpis"><div class="agc-k"><b>'+b.aVenir.length+'</b><span>rendez-vous sous 7 jours</span></div><div class="agc-k'+(b.aRappeler.length?' warn':'')+'"><b>'+b.aRappeler.length+'</b><span>rappels à envoyer (J-'+c.delaiJ+')</span></div><div class="agc-k'+(b.passes.length?' warn':'')+'"><b>'+b.passes.length+'</b><span>passés à clôturer</span></div><div class="agc-k'+(b.demandes.length?' warn':'')+'"><b>'+b.demandes.length+'</b><span>demandes de créneau en attente</span></div></div>';
+    var sec=function(t,list,fn){ return '<div class="agc-sec"><div class="agc-h">'+t+' <span>'+list.length+'</span></div>'+(list.length?list.map(fn).join(''):'<div class="agc-empty">Rien en attente.</div>')+'</div>'; };
+    var s1=sec('À rappeler au client',b.aRappeler.concat(b.sansMail),function(r){ return row(r,emailsOf(r).length?('<button class="btn btn-sm" onclick="agRappeler(\''+E(r.id)+'\')">Rappeler</button>'):('<button class="btn btn-sm btn-ghost" onclick="agEdit(\''+E(r.id)+'\')">Ajouter un e-mail</button>')); });
+    var s2=sec('Rendez-vous passés à clôturer',b.passes.slice(0,12),function(r){ return row(r,'<button class="btn btn-sm" onclick="agTerminer(\''+E(r.id)+'\',\'fait\')">Terminé</button><button class="btn btn-sm btn-ghost" onclick="agEdit(\''+E(r.id)+'\')">Reporter</button><button class="btn btn-sm btn-ghost" onclick="agTerminer(\''+E(r.id)+'\',\'annule\')">Annulé</button>'); });
+    var s3=b.demandes.length?('<div class="agc-sec"><div class="agc-h">Demandes de créneau en attente <span>'+b.demandes.length+'</span></div>'+b.demandes.slice(0,8).map(function(x){ return '<div class="agc-row"><span class="agc-dt">'+E(frD(x.date))+(x.heure?(' '+E(x.heure)):'')+'</span><span class="agc-cli"><b>'+E(x.nom||'')+'</b> · '+E(x.objet||'')+'</span><span class="agc-act">'+(typeof agwAccepter==='function'?('<button class="btn btn-sm" onclick="agwAccepter(\''+E(x.t||'')+'\')">Accepter</button>'):'')+'</span></div>'; }).join('')+'</div>'):'';
+    var opts='<div class="agc-opts"><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="agChaineSet(\'auto\',this.checked)"> Rappels automatiques (au chargement puis toutes les heures)</label><label>Rappeler <input type="number" min="1" max="30" value="'+c.delaiJ+'" onchange="agChaineSet(\'delaiJ\',this.value)"> jour(s) avant</label><span class="agc-gw '+(b.gw?'on':'')+'">'+(b.gw?'Passerelle Gmail reliée : envois silencieux':'Passerelle non configurée : les rappels s\'ouvrent dans votre messagerie')+'</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="agc-journal"><div class="agc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="agChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="agc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.rdv?(' '+E(x.rdv)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card agc-card"><div class="card-h"><h2>⏰ Rappels & suites</h2><div class="agc-hb"><button class="btn btn-sm btn-pri" onclick="agChaineExecuter({})"'+(b.aRappeler.length?'':' disabled')+'>Envoyer les rappels ('+b.aRappeler.length+')</button></div></div><div class="card-b">'+kpi+'<div class="agc-grid">'+s1+s2+'</div>'+s3+opts+jr+'</div></div>'; };
+
+  try{ var _pa=window.pageAgenda; if(typeof _pa==='function'&&!_pa.__agc){ window.pageAgenda=function(){ var h=_pa.apply(this,arguments); try{ if(typeof h==='string') h=agChaineCard()+h; }catch(e){} return h; }; window.pageAgenda.__agc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='ag-chaine-css'; st.textContent=
+    '.agc-card{margin:0 0 14px}.agc-card .card-h{display:flex;align-items:center;gap:10px}.agc-card .card-h h2{margin:0;font-size:15px}.agc-hb{margin-left:auto}'
+   +'.agc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.agc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.agc-k b{display:block;font-size:17px}.agc-k span{font-size:11px;opacity:.65}.agc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}'
+   +'.agc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.agc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px;margin-top:0}.agc-sec+.agc-sec{margin-top:10px}.agc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.agc-h span{opacity:.6}.agc-h .btn{margin-left:auto}'
+   +'.agc-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.agc-row:first-of-type{border-top:0}.agc-dt{font-variant-numeric:tabular-nums;white-space:nowrap}.agc-cli em{font-style:normal;font-size:11px;color:#e0a458}.agc-cli i{font-style:normal;font-size:11px;opacity:.6}.agc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.agc-empty{font-size:12px;opacity:.55;padding:2px 0}.agc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.agc-opts label{display:inline-flex;align-items:center;gap:6px}.agc-opts input[type=number]{width:56px;padding:3px 6px}.agc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.agc-gw.on{color:#2fae5f;opacity:1}'
+   +'.agc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.agc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.agc-jl span{opacity:.55;min-width:130px}.agc-jl.ko b{color:#e0a458}.agc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
