@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=668;
+var LAST_VER=669;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41255,7 +41255,7 @@ function testLienSignature() {
    Sous l'en-tête du Tableau de bord, un panneau « Centre d'exécution » réunit
    les chaînes d'exécution de tous les modules (Demandes, Traitement,
    Facturation, Agenda, Fiscal, Clients, Factures prestataires, Export YADA,
-   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier, Signatures, Veille) : pour chacune, ce qui est en
+   Remboursement TVA, Justificatifs du cabinet, Questionnaire en ligne, Échéancier, Signatures, Veille, Coffre) : pour chacune, ce qui est en
    attente, ce qui demande une action humaine, la dernière action journalisée,
    un bouton « Exécuter » (les actions sûres : envois, rappels, relances,
    écritures, récupérations — jamais de téléchargement ni de création de
@@ -41307,13 +41307,15 @@ function testLienSignature() {
     if(fn('sgChaineBilan')){ var b11=safe(sgChaineBilan,null); if(b11&&b11.total){ var n11=b11.aEnvoyer.length+b11.aRelancer.length; L.push({key:'sg',lbl:'Signatures des actes',page:'services',openJs:"try{svcGo('signature')}catch(e){}",attente:n11+b11.attente.length,humain:b11.sansMail.length+b11.epuisees.length,detail:b11.aEnvoyer.length+' à envoyer · '+b11.aRelancer.length+' à relancer · '+b11.attente.length+' en attente · '+b11.signes.length+' dossier(s) signé(s)'+(b11.enveloppes?(' · '+b11.enveloppes+' enveloppe(s) à relever'):''),exec:null,execLbl:(n11||b11.enveloppes)?(b11.gw?'Circuit asynchrone : ouvrir':'Passerelle requise'):'Rien à faire',last:jr('sgChaine')}); } }
     /* Veille réglementaire (Services) */
     if(fn('veChaineBilan')){ var b12=safe(veChaineBilan,null); if(b12&&b12.total){ var n12=b12.aDiffuser.length; L.push({key:'ve',lbl:'Veille réglementaire',page:'services',openJs:"try{svcGo('veille')}catch(e){}",attente:n12,humain:b12.sansDate+(b12.dest.length?0:(n12?1:0)),detail:n12+' changement(s) à diffuser · '+b12.diffuses.length+' diffusé(s) · '+b12.aVenir.length+' à venir · '+b12.dest.length+' destinataire(s)',exec:(n12&&b12.gw&&b12.dest.length)?function(){ veChaineExecuter(true); return n12+' diffusion(s) lancée(s) à '+b12.dest.length+' destinataire(s)'; }:null,execLbl:n12?(b12.gw?(b12.dest.length?'Exécuter':'Aucun destinataire'):'Passerelle requise'):'Rien à faire',last:jr('veChaine')}); } }
+    /* Coffre-fort & portail client (Services) */
+    if(fn('coChaineBilan')){ var b13=safe(coChaineBilan,null); if(b13&&(b13.aVerser.length||b13.sansClient.length||b13.items||b13.verses)){ var n13=b13.aVerser.length+b13.aPartager.length; L.push({key:'cof',lbl:'Coffre-fort & portail',page:'services',openJs:"try{svcGo('coffre')}catch(e){}",attente:n13,humain:b13.sansClient.length,detail:b13.nbDocs+' document(s) à verser ('+b13.aVerser.length+' dossier(s)) · '+b13.aPartager.length+' à partager · '+b13.partages+' partagé(s)'+(b13.sansClient.length?(' · '+b13.sansClient.length+' sans client'):''),exec:n13?function(){ coChaineExecuter(true); return b13.nbDocs+' document(s) à verser, '+b13.aPartager.length+' partage(s) lancés'; }:null,execLbl:n13?'Exécuter':'Rien à faire',last:jr('coChaine')}); } }
     return L; };
   window.cxChaineExecuter=function(key){ var L=cxChaineLignes(); var l=L.filter(function(x){return x.key===key;})[0]; if(!l||!l.exec){ if(typeof toast==='function') toast('Rien à exécuter automatiquement pour ce module.'); return null; } var r=null; try{ r=l.exec(); log(l.lbl,true,''+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); r=null; } try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast(l.lbl+' : '+(r==null?'échec':r)+'.',6000); return r; };
   window.cxChaineTout=function(){ var L=cxChaineLignes().filter(function(x){return !!x.exec;}); if(!L.length){ if(typeof toast==='function') toast('Aucune chaîne exécutable automatiquement : tout demande une action humaine ou est à jour.'); return 0; } var out=[]; L.forEach(function(l){ try{ var r=l.exec(); log(l.lbl,true,''+r); out.push(l.lbl+' : '+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); out.push(l.lbl+' : échec'); } }); log('Tout exécuter',true,out.join(' · ')); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast('Centre d\'exécution — '+out.join(' · ')+'.',8000); return L.length; };
   window.cxChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
   window.cxChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
   /* journal consolidé : dix dernières actions, tous modules */
-  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
+  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',coChaine:'Coffre',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
 
   /* ---------- panneau ---------- */
   window.cxChaineCard=function(){ var L=cxChaineLignes(), c=cfg(); if(!L.length) return ''; var att=0, hum=0, ex=0; L.forEach(function(l){ att+=l.attente; hum+=l.humain; if(l.exec) ex++; });
@@ -41666,6 +41668,91 @@ function testLienSignature() {
    +'.vcc-empty{font-size:12px;opacity:.55;padding:2px 0}'
    +'.vcc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.vcc-opts label{display:inline-flex;align-items:center;gap:6px}.vcc-opts input[type=number]{width:56px;padding:3px 6px}.vcc-opts select{padding:3px 6px}'
    +'.vcc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.vcc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.vcc-jl span{opacity:.55;min-width:130px}.vcc-jl.ko b{color:#e0a458}.vcc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Services / Coffre-fort & portail client : versement & partage (v669)
+   ----------------------------------------------------------------------------
+   Dans le Coffre-fort (module Services), un panneau « Chaîne d'exécution »
+   suit, pour tous les dossiers, les DOCUMENTS générés et approuvés (ou actes
+   signés) qui ne sont pas encore VERSÉS au coffre du client → versement
+   automatique sous le nom du client (fichier HTML du document, catégorie
+   déduite), les documents du coffre NON PARTAGÉS au portail → partage en un
+   clic ou en lot, les dossiers SANS CLIENT identifiable, et la synchronisation
+   du portail lorsqu'un serveur est configuré. Chaque action est consignée dans
+   un journal. 100 % additif : greffe sur le rendu de la vue ; cofAddFilesFor,
+   espDocsRequis / espDocState / espDocHTML / espDocRender existants réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__coChaine) return; window.__coChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.coChaine=p.coChaine||{}; var c=p.coChaine; if(c.auto==null) c.auto=false; if(c.partage==null) c.partage=true; if(!Array.isArray(c.journal)) c.journal=[]; c.verses=c.verses||{}; return c; }
+  function svc(){ try{ return JSON.parse(localStorage.getItem('last-svc')||'{}')||{}; }catch(e){ return {}; } }
+  function svcSave(o){ try{ localStorage.setItem('last-svc',JSON.stringify(o)); }catch(e){} }
+  function coffre(){ var o=svc(); return (o.coffre&&Array.isArray(o.coffre.items))?o.coffre.items:[]; }
+  function ckey(c){ return (''+(c||'')).trim().toLowerCase(); }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function attendre(cond,ms,cb){ var t0=Date.now(); (function tick(){ var r=false; try{ r=cond(); }catch(e){} if(r) return cb(true); if(Date.now()-t0>ms) return cb(false); setTimeout(tick,120); })(); }
+  function dossiers(){ try{ return (DB.dossiers||[]).filter(function(d){ return !d.archived; }); }catch(e){ return []; } }
+  function clientNom(d){ try{ var c=(typeof clientById==='function')?clientById((d.clientIds||[])[0]):null; if(!c) return ''; return (c.denomination||c.denom||((c.prenom||'')+' '+(c.nom||'')).trim()||'').trim(); }catch(e){ return ''; } }
+  function docsDe(d){ var out=[]; try{ var L=(typeof espDocsRequis==='function')?espDocsRequis(d):[]; var appr=(d.docFolder&&d.docFolder.approved)||{}; L.forEach(function(dc){ var st=(typeof espDocState==='function')?espDocState(d,dc.k):{genere:false}; var sig=!!(d.sign&&d.sign[dc.k]&&d.sign[dc.k].ok); if(!(st&&st.genere)) return; if(!(appr[dc.k]===true||sig)) return; out.push({k:dc.k,l:dc.l,signe:sig}); }); }catch(e){} return out; }
+  var CSS='<style>body{margin:0;background:#fff;color:#111;font:13px/1.5 Georgia,serif}.doc-gen{max-width:820px;margin:24px auto;padding:28px 34px}h1,h2,h3{font-family:Georgia,serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px 6px}</style>';
+  function html(d,dc){ var inner=''; try{ inner=dc.signe&&typeof espDocRender==='function'?(espDocRender(d,dc.k)||''):''; if(!inner&&typeof espDocHTML==='function') inner=espDocHTML(d,{k:dc.k,l:dc.l})||''; }catch(e){ inner=''; } if(!inner) inner='<p>Document indisponible.</p>'; return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>'+E(dc.l)+'</title>'+CSS+'</head><body><div class="doc-gen">'+inner+'</div></body></html>'; }
+  function safe(s){ return (''+(s||'')).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w.-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,80)||'document'; }
+
+  /* ---------- bilan ---------- */
+  window.coChaineBilan=function(){ var c=cfg(); var aVerser=[], sansClient=[], verses=0; var items=coffre();
+    dossiers().forEach(function(d){ var D=docsDe(d); if(!D.length) return; var nom=clientNom(d); var V=c.verses[d.id]||{}; var rest=D.filter(function(dc){ return !V[dc.k]; }); verses+=D.length-rest.length; if(!rest.length) return; var row={d:d,nom:nom,docs:rest,total:D.length}; if(!nom) sansClient.push(row); else aVerser.push(row); });
+    var aPartager=[]; items.forEach(function(it,i){ if(it.fileId&&!it.shared&&it.client) aPartager.push({it:it,i:i}); });
+    var partages=items.filter(function(it){ return it.shared&&it.fileId; }).length;
+    var nbDocs=0; aVerser.forEach(function(r){ nbDocs+=r.docs.length; });
+    var clients={}; items.forEach(function(it){ if(it.client) clients[ckey(it.client)]=1; });
+    return {aVerser:aVerser,nbDocs:nbDocs,sansClient:sansClient,aPartager:aPartager,partages:partages,verses:verses,items:items.length,clients:Object.keys(clients).length,cfg:c,serveur:(function(){ try{ var o=svc(); var s=(o.portail&&o.portail.srv)||{}; return !!(s.url&&s.token); }catch(e){ return false; } })()}; };
+
+  /* ---------- actions ---------- */
+  window.coVerser=function(id,silent,cb){ cb=cb||function(){}; var b=coChaineBilan(); var row=b.aVerser.filter(function(r){ return r.d.id===id; })[0]; if(!row){ var sc=b.sansClient.filter(function(r){ return r.d.id===id; })[0]; if(sc){ if(!silent&&typeof toast==='function') toast('Client non identifié pour le dossier '+(sc.d.ref||id)+' : rattachez une fiche client.'); log('Versement',false,'client non identifié','manuel',sc.d.ref||id); } else if(!silent&&typeof toast==='function') toast('Rien à verser pour ce dossier.'); return cb(0); }
+    if(typeof cofAddFilesFor!=='function'||typeof File==='undefined'){ log('Versement',false,'coffre indisponible','manuel',row.nom); return cb(0); }
+    var files=row.docs.map(function(dc){ var name=safe(dc.l)+(dc.signe?'-signe':'')+'.html'; try{ return new File([html(row.d,dc)],name,{type:'text/html'}); }catch(e){ return null; } }).filter(Boolean); if(!files.length) return cb(0);
+    var n0=coffre().length; var mode=silent?'automatique':'manuel';
+    try{ cofAddFilesFor(row.nom,files); }catch(e){ log('Versement',false,'erreur : '+(e&&e.message||e),mode,row.nom); return cb(0); }
+    attendre(function(){ return coffre().length>=n0+files.length; },8000,function(ok){ var n=Math.max(0,coffre().length-n0); var c=cfg(); c.verses[id]=c.verses[id]||{}; if(ok){ row.docs.forEach(function(dc){ c.verses[id][dc.k]=Date.now(); }); }
+      if(ok&&c.partage){ try{ var o=svc(); var ck=ckey(row.nom); var names={}; files.forEach(function(f){ names[f.name]=1; }); (o.coffre.items||[]).forEach(function(it){ if(ckey(it.client)===ck&&names[it.nom]&&!it.shared) it.shared=true; }); svcSave(o); }catch(e){} }
+      log('Versement au coffre',ok,n+' document(s) → coffre « '+row.nom+' »'+(ok&&c.partage?' · partagés au portail':''),mode,row.d.ref||row.nom); try{save();}catch(e){} if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast(n+' document(s) versé(s) au coffre de '+row.nom+'.'); } cb(n); }); };
+  window.coPartager=function(i){ try{ var o=svc(); var it=o.coffre&&o.coffre.items&&o.coffre.items[i]; if(!it) return false; it.shared=true; svcSave(o); log('Partage au portail',true,it.nom,'manuel',it.client); try{ if(typeof svcPortSyncNow==='function') svcPortSyncNow(true); }catch(e){} try{render();}catch(e){} return true; }catch(e){ return false; } };
+  window.coPartagerTout=function(silent){ var o=svc(); var n=0; try{ (o.coffre&&o.coffre.items||[]).forEach(function(it){ if(it.fileId&&!it.shared&&it.client){ it.shared=true; n++; } }); if(n) svcSave(o); }catch(e){} if(n){ log('Partage au portail',true,n+' document(s) partagé(s)',silent?'automatique':'manuel'); try{ if(typeof svcPortSyncNow==='function') svcPortSyncNow(true); }catch(e){} } if(!silent){ try{render();}catch(e){} if(typeof toast==='function') toast(n?(n+' document(s) partagé(s) au portail.'):'Tout est déjà partagé.'); } return n; };
+  window.coChaineExecuter=function(silent,done){ done=done||function(){}; var b=coChaineBilan(); var q=b.aVerser.slice(); var R={verses:0,dossiers:0,partages:0}; (function next(){ var r=q.shift(); if(!r){ R.partages=coPartagerTout(true); var m='Coffre : '+R.verses+' document(s) versé(s) pour '+R.dossiers+' dossier(s), '+R.partages+' partagé(s) au portail'+(b.sansClient.length?(' · '+b.sansClient.length+' dossier(s) sans client'):'')+'.'; log('Tout exécuter',true,m,silent?'automatique':'manuel'); try{render();}catch(e){} if(!silent&&typeof toast==='function') toast(m,7000); return done(R); } coVerser(r.d.id,true,function(n){ if(n){ R.verses+=n; R.dossiers++; } next(); }); })(); };
+  window.coChaineSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; if(k==='partage') c.partage=!!v; try{save();}catch(e){} try{render();}catch(e){} };
+  window.coChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.coChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  window.coChaineOuvrir=function(id){ try{ state.dossierId=id; state.selected=id; if(typeof go==='function') go('espace'); }catch(e){} };
+  function auto(){ try{ var c=cfg(); if(!c.auto) return; var b=coChaineBilan(); if(!b.aVerser.length&&!(c.partage&&b.aPartager.length)) return; coChaineExecuter(true,function(R){ if((R.verses+R.partages)&&typeof toast==='function') toast('Coffre : '+R.verses+' document(s) versé(s), '+R.partages+' partagé(s) automatiquement.',6000); }); }catch(e){} }
+  setTimeout(auto,16000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,arr,fn,empty){ return '<div class="coc-sec"><div class="coc-h">'+t+' <span>'+arr.length+'</span></div>'+(arr.length?arr.map(fn).join(''):'<div class="coc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  window.coChaineCard=function(){ var b=coChaineBilan(), c=b.cfg; if(!b.aVerser.length&&!b.sansClient.length&&!b.items&&!b.verses) return ''; var n=b.aVerser.length+(b.aPartager.length?1:0);
+    var head='<div class="card-h"><h2>⚡ Chaîne d\'exécution — versement & partage des documents</h2><div class="coc-hb"><span class="coc-gw'+(b.serveur?' on':'')+'">'+(b.serveur?'● portail : serveur configuré, synchronisation automatique':'○ portail : serveur non configuré (partage local, codes clients)')+'</span><button class="btn btn-sm btn-ghost" onclick="coChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="coChaineExecuter()"'+(n?'':' disabled')+'>Tout exécuter</button></div></div>';
+    if(c.reduit) return '<div class="card coc-card">'+head+'</div>';
+    var kpi='<div class="coc-kpis"><div class="coc-k'+(b.aVerser.length?' warn':'')+'"><b>'+b.nbDocs+'</b><span>document(s) à verser · '+b.aVerser.length+' dossier(s)</span></div><div class="coc-k'+(b.aPartager.length?' warn':'')+'"><b>'+b.aPartager.length+'</b><span>à partager au portail</span></div><div class="coc-k ok"><b>'+b.partages+'</b><span>partagé(s) · '+b.items+' pièce(s) · '+b.clients+' client(s)</span></div><div class="coc-k'+(b.sansClient.length?' warn':'')+'"><b>'+b.sansClient.length+'</b><span>dossier(s) sans client identifié</span></div></div>';
+    var s1=sec('Documents approuvés / actes signés à verser',b.aVerser.concat(b.sansClient),function(r){ return '<div class="coc-row"><span class="coc-cli"><b>'+E(r.nom||'(client non identifié)')+'</b> · '+E(r.d.ref||'')+'<small>'+E(r.docs.map(function(x){ return x.l+(x.signe?' (signé)':''); }).join(', '))+'</small></span><span class="coc-amt">'+r.docs.length+' / '+r.total+'</span><span class="coc-act">'+(r.nom?('<button class="btn btn-sm btn-pri" onclick="coVerser(\''+E(r.d.id)+'\')">Verser</button>'):'<span class="coc-tag">client à rattacher</span>')+'<button class="btn btn-sm btn-ghost" onclick="coChaineOuvrir(\''+E(r.d.id)+'\')">Ouvrir</button></span></div>'; },'Tous les documents approuvés sont au coffre.');
+    var s2=sec('Pièces du coffre non partagées au portail',b.aPartager.slice(0,15),function(x){ return '<div class="coc-row"><span class="coc-cli"><b>'+E(x.it.client)+'</b><small>'+E(x.it.nom)+' · '+E(x.it.cat||'')+' · '+E(x.it.date||'')+'</small></span><span class="coc-amt"></span><span class="coc-act"><button class="btn btn-sm" onclick="coPartager('+x.i+')">Partager</button></span></div>'; },'Toutes les pièces du coffre sont partagées.')+(b.aPartager.length>1?('<div class="coc-lot"><button class="btn btn-sm btn-pri" onclick="coPartagerTout()">Partager les '+b.aPartager.length+' pièces</button></div>'):'');
+    var opts='<div class="coc-opts"><label><input type="checkbox" '+(c.partage?'checked':'')+' onchange="coChaineSet(\'partage\',this.checked)"> Partager automatiquement au portail les documents versés</label><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="coChaineSet(\'auto\',this.checked)"> Versement automatique (à l\'ouverture puis toutes les 6 h)</label><span class="coc-note">Le client consulte ses documents sur le portail avec son code.</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="coc-journal"><div class="coc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="coChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="coc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card coc-card">'+head+'<div class="card-b">'+kpi+'<div class="coc-grid">'+s1+s2+'</div>'+opts+jr+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='services'&&window.__svcView==='coffre')) return; var v=document.getElementById('view'); var sub=v&&v.querySelector('.svc-sub'); if(!sub||sub.querySelector('.coc-card')) return; var h=coChaineCard(); if(!h) return; var tmp=document.createElement('div'); tmp.innerHTML=h; var card=tmp.firstElementChild; var first=sub.querySelector('.card'); if(first) first.insertAdjacentElement('beforebegin',card); else sub.appendChild(card); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__coc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__coc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='co-chaine-css'; st.textContent=
+    '.coc-card{margin:0 0 14px}.coc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.coc-card .card-h h2{margin:0;font-size:15px}.coc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.coc-gw{font-size:11.5px;opacity:.65}.coc-gw.on{color:#2fae5f;opacity:1}'
+   +'.coc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.coc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.coc-k b{display:block;font-size:17px}.coc-k span{font-size:11px;opacity:.65}.coc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.coc-k.ok{border-color:rgba(47,174,95,.5);background:rgba(47,174,95,.08)}'
+   +'.coc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.coc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.coc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.coc-h span{opacity:.6}.coc-h .btn{margin-left:auto}'
+   +'.coc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.coc-row:first-of-type{border-top:0}.coc-cli small{display:block;font-size:11px;opacity:.6;margin-top:1px}.coc-amt{font-size:11.5px;opacity:.8;white-space:nowrap}.coc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.coc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
+   +'.coc-empty{font-size:12px;opacity:.55;padding:2px 0}.coc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
+   +'.coc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.coc-opts label{display:inline-flex;align-items:center;gap:6px}.coc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
+   +'.coc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.coc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.coc-jl span{opacity:.55;min-width:130px}.coc-jl.ko b{color:#e0a458}.coc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
