@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=663;
+var LAST_VER=664;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -41242,6 +41242,84 @@ function testLienSignature() {
    +'.jcc-empty{font-size:12px;opacity:.55;padding:2px 0}.jcc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
    +'.jcc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.jcc-opts label{display:inline-flex;align-items:center;gap:6px}.jcc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.jcc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.jcc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.jcc-jl span{opacity:.55;min-width:130px}.jcc-jl.ko b{color:#e0a458}.jcc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Tableau de bord : centre d'exécution (v664)
+   ----------------------------------------------------------------------------
+   Sous l'en-tête du Tableau de bord, un panneau « Centre d'exécution » réunit
+   les chaînes d'exécution de tous les modules (Demandes, Traitement,
+   Facturation, Agenda, Fiscal, Clients, Factures prestataires, Export YADA,
+   Remboursement TVA, Justificatifs du cabinet) : pour chacune, ce qui est en
+   attente, ce qui demande une action humaine, la dernière action journalisée,
+   un bouton « Exécuter » (les actions sûres : envois, rappels, relances,
+   écritures, récupérations — jamais de téléchargement ni de création de
+   dossier sans contrôle) et un bouton « Ouvrir ». « Tout exécuter » enchaîne
+   toutes les chaînes exécutables et consolide le journal des dix dernières
+   actions, tous modules confondus. 100 % additif : greffe sur le rendu du
+   Tableau de bord ; seules les fonctions publiques des chaînes sont appelées.
+   ============================================================================ */
+(function(){
+  if(window.__cxChaine) return; window.__cxChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.cxChaine=p.cxChaine||{}; var c=p.cxChaine; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function fn(n){ return typeof window[n]==='function'; }
+  function safe(f,dflt){ try{ return f(); }catch(e){ return dflt; } }
+  function log(step,ok,detail){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||''}); if(c.journal.length>40) c.journal.length=40; try{save();}catch(e){} }
+  function money(n){ n=Math.round((+n||0)*100)/100; try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function jr(key){ var p=P(); var j=(p[key]&&Array.isArray(p[key].journal))?p[key].journal:[]; return j[0]||null; }
+  function demandes(){ return safe(function(){ return (DB.demandes||[]).filter(function(d){return !d.archived&&!d.dossierId;}); },[]); }
+  function dossiers(){ return safe(function(){ return (DB.dossiers||[]).filter(function(d){return !d.archived&&d.statut!=='Clôturé';}); },[]); }
+
+  /* ---------- une ligne par module : {key,lbl,page,attente(n),humain(n),detail,exec:function|null,last} ---------- */
+  window.cxChaineLignes=function(){ var L=[];
+    /* Demandes → dossier automatique */
+    if(fn('demAutoBilan')){ var D=demandes(), pretes=0, manq=0; D.forEach(function(d){ var b=safe(function(){ return demAutoBilan(d.id); },null); if(!b) return; if((b.manques||[]).length) manq++; else pretes++; }); L.push({key:'dem',lbl:'Demandes → dossier',page:'demandes',attente:D.length,humain:D.length,detail:pretes+' prête(s) à créer · '+manq+' avec pièces manquantes',exec:null,execLbl:'Contrôle humain',last:null}); }
+    /* Traitement */
+    if(fn('trwPlan')){ var Ds=dossiers(), bl=0, pr=0, fin=0; Ds.forEach(function(d){ var p=safe(function(){ return trwPlan(d.id); },null); if(!p) return; if(p.terminee){ fin++; return; } var c=p.courante||{}; if((c.bloq||[]).length) bl++; else pr++; }); L.push({key:'trw',lbl:'Traitement des dossiers',page:'espace',attente:Ds.length,humain:bl,detail:pr+' dossier(s) à préparer · '+bl+' bloqué(s) · '+fin+' à clôturer',exec:null,execLbl:'Par dossier',last:null}); }
+    /* Facturation */
+    if(fn('factChaineBilan')){ var b1=safe(factChaineBilan,null); if(b1){ var n1=b1.aEnvoyer.length+b1.aRelancer.length; L.push({key:'fact',lbl:'Facturation',page:'facturier',attente:n1+b1.devisAFacturer.length+b1.yada.length,humain:b1.sansMail.length+b1.devisAFacturer.length,detail:b1.aEnvoyer.length+' à envoyer · '+b1.aRelancer.length+' à relancer · '+b1.devisAFacturer.length+' devis à facturer · '+money(b1.duRetard)+' en retard',exec:n1&&b1.gw?function(){ var r=factChaineExecuter({silent:true,yada:false}); return (r?(r.envois+r.relances):0)+' envoi(s)/relance(s)'; }:null,execLbl:n1?(b1.gw?'Exécuter':'Passerelle requise'):'Rien à faire',last:jr('factChaine')}); } }
+    /* Agenda */
+    if(fn('agChaineBilan')){ var b2=safe(agChaineBilan,null); if(b2){ var n2=b2.aRappeler.length; L.push({key:'ag',lbl:'Agenda',page:'agenda',attente:n2+b2.passes.length+b2.demandes.length,humain:b2.sansMail.length+b2.passes.length+b2.demandes.length,detail:n2+' rappel(s) à envoyer · '+b2.passes.length+' rendez-vous passé(s) à clôturer · '+b2.demandes.length+' demande(s) de créneau',exec:n2&&b2.gw?function(){ var r=agChaineExecuter({silent:true}); return (r&&r.n!=null?r.n:'')+' rappel(s)'; }:null,execLbl:n2?(b2.gw?'Exécuter':'Passerelle requise'):'Rien à faire',last:jr('agChaine')}); } }
+    /* Fiscal */
+    if(fn('cfChaineBilan')){ var b3=safe(cfChaineBilan,null); if(b3&&b3.nbAbo){ var n3=b3.mens.length+(b3.gw?b3.rel.length:0); L.push({key:'cf',lbl:'Fiscal — abonnés',page:'conformite',attente:b3.mens.length+b3.rel.length+b3.obl.length,humain:b3.obl.length+b3.sansMail.length,detail:b3.mens.length+' mensualité(s) à générer · '+b3.rel.length+' relance(s) · '+b3.obl.length+' obligation(s) à échéance · '+money(b3.duRetard)+' en retard',exec:n3?function(){ var n=cfChaineMensualites(true); var r=(b3.gw&&fn('cfChaineRelances'))?cfChaineRelances(true,true):{n:0}; return n+' mensualité(s), '+(r&&r.n||0)+' relance(s)'; }:null,execLbl:n3?'Exécuter':'Rien à faire',last:jr('cfChaine')}); } }
+    /* Clients */
+    if(fn('cliChaineBilan')){ var b4=safe(cliChaineBilan,null); if(b4&&b4.total){ var aDem=b4.inc.filter(function(x){ return x.c&&x.c.email&&!x.c.infosDemandeLe; }).length; L.push({key:'cli',lbl:'Clients',page:'clients',attente:b4.inc.length+b4.dups.length+b4.rat.length,humain:b4.dups.length+b4.rat.length+(b4.inc.length-aDem),detail:b4.inc.length+' fiche(s) incomplète(s) ('+aDem+' demande(s) d\'informations à envoyer) · '+b4.dups.length+' doublon(s) · '+b4.rat.length+' rattachement(s) · '+b4.sync.length+' fiche(s) reportée(s) aux dossiers',exec:(aDem&&b4.gw)?function(){ cliChaineExecuter(); return aDem+' demande(s) d\'informations, '+b4.sync.length+' fiche(s) synchronisée(s)'; }:null,execLbl:aDem?(b4.gw?'Exécuter':'Passerelle requise'):'Rien à faire',last:jr('cliChaine')}); } }
+    /* Factures prestataires */
+    if(fn('fpChaineBilan')){ var b5=safe(fpChaineBilan,null); if(b5){ var n5=b5.pret.length+(b5.aRelever?1:0); L.push({key:'fp',lbl:'Factures prestataires',page:'factpresta',attente:b5.inc.length+b5.pret.length+b5.aTrans.length,humain:b5.inc.length+b5.aTrans.length+b5.dups.length,detail:(b5.gw?(b5.aRelever?'boîte à relever · ':'boîte à jour · '):'')+b5.inc.length+' à compléter · '+b5.pret.length+' prête(s) → écriture · '+b5.aTrans.length+' à transmettre à YADA'+(b5.dups.length?(' · '+b5.dups.length+' doublon(s)'):''),exec:n5?function(){ var n=fpChaineGenerer(true); return n+' écriture(s) générée(s)'+(b5.aRelever?' (relève : ouvrir le module)':''); }:null,execLbl:n5?'Exécuter':'Rien à faire',last:jr('factPresta')}); } }
+    /* Export YADA */
+    if(fn('yadaControle')){ var b6=safe(yadaControle,null); if(b6){ L.push({key:'yd',lbl:'Export YADA',page:'yada',attente:b6.total,humain:b6.ko.length+b6.ok.length,detail:b6.ok.length+' conforme(s) à transmettre ('+money(b6.montant)+') · '+b6.ko.length+' anomalie(s)',exec:null,execLbl:b6.ok.length?'Fichier à télécharger':'Rien à faire',last:jr('ydChaine')}); } }
+    /* Remboursement TVA */
+    if(fn('tvrChaineBilan')){ var b7=safe(tvrChaineBilan,null); if(b7&&(b7.total||b7.cand.length)){ L.push({key:'tvr',lbl:'Remboursement TVA',page:'tvarembours',attente:b7.cand.length+b7.inc.length,humain:b7.inc.length+b7.dups.length+(b7.eligible?1:0),detail:'crédit '+money(b7.credit)+(b7.eligible?' · recevable':' · non recevable')+' · '+b7.cand.length+' à récupérer · '+b7.inc.length+' anomalie(s)',exec:b7.cand.length?function(){ return tvrChaineImporter(true)+' facture(s) récupérée(s)'; }:null,execLbl:b7.cand.length?'Exécuter':'Rien à faire',last:jr('tvrChaine')}); } }
+    /* Justificatifs du cabinet */
+    if(fn('jcChaineBilan')){ var b8=safe(jcChaineBilan,null); if(b8&&(b8.total||b8.cand.length)){ L.push({key:'jc',lbl:'Justificatifs du cabinet',page:'prestataires',attente:b8.cand.length+b8.inc.length,humain:b8.inc.length+(b8.clot?0:1),detail:b8.cand.length+' paiement(s) à récupérer · '+b8.inc.length+' pièce(s) à compléter · mois '+(b8.clot?'clôturé':'ouvert'),exec:b8.cand.length?function(){ return jcRapprocher(true)+' paiement(s) récupéré(s)'; }:null,execLbl:b8.cand.length?'Exécuter':'Rien à faire',last:jr('jcChaine')}); } }
+    return L; };
+  window.cxChaineExecuter=function(key){ var L=cxChaineLignes(); var l=L.filter(function(x){return x.key===key;})[0]; if(!l||!l.exec){ if(typeof toast==='function') toast('Rien à exécuter automatiquement pour ce module.'); return null; } var r=null; try{ r=l.exec(); log(l.lbl,true,''+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); r=null; } try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast(l.lbl+' : '+(r==null?'échec':r)+'.',6000); return r; };
+  window.cxChaineTout=function(){ var L=cxChaineLignes().filter(function(x){return !!x.exec;}); if(!L.length){ if(typeof toast==='function') toast('Aucune chaîne exécutable automatiquement : tout demande une action humaine ou est à jour.'); return 0; } var out=[]; L.forEach(function(l){ try{ var r=l.exec(); log(l.lbl,true,''+r); out.push(l.lbl+' : '+r); }catch(e){ log(l.lbl,false,'erreur : '+(e&&e.message||e)); out.push(l.lbl+' : échec'); } }); log('Tout exécuter',true,out.join(' · ')); try{save();}catch(e){} try{render();}catch(e){} if(typeof toast==='function') toast('Centre d\'exécution — '+out.join(' · ')+'.',8000); return L.length; };
+  window.cxChaineToggle=function(){ var c=cfg(); c.reduit=!c.reduit; try{save();}catch(e){} try{render();}catch(e){} };
+  window.cxChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  /* journal consolidé : dix dernières actions, tous modules */
+  window.cxChaineJournal=function(){ var p=P(); var out=[]; var K={factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',factPresta:'Factures prestataires',ydChaine:'Export YADA',tvrChaine:'Remboursement TVA',jcChaine:'Justificatifs',cxChaine:'Centre'}; Object.keys(K).forEach(function(k){ var o=p[k]; var j=(k==='factPresta')?(o&&o.chaine&&o.chaine.journal):(o&&o.journal); (Array.isArray(j)?j:[]).slice(0,10).forEach(function(x){ out.push({mod:K[k],ts:x.ts,step:x.step,ok:x.ok!==false,detail:x.detail||'',qui:x.qui||''}); }); }); return out.sort(function(a,b){ return b.ts-a.ts; }).slice(0,10); };
+
+  /* ---------- panneau ---------- */
+  window.cxChaineCard=function(){ var L=cxChaineLignes(), c=cfg(); if(!L.length) return ''; var att=0, hum=0, ex=0; L.forEach(function(l){ att+=l.attente; hum+=l.humain; if(l.exec) ex++; });
+    var head='<div class="card-h"><h2>⚡ Centre d\'exécution — toutes les chaînes</h2><div class="cxc-hb"><span class="cxc-sum">'+att+' en attente · '+hum+' action(s) humaine(s) · '+ex+' chaîne(s) exécutable(s)</span><button class="btn btn-sm btn-ghost" onclick="cxChaineToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-pri" onclick="cxChaineTout()"'+(ex?'':' disabled')+'>Tout exécuter ('+ex+')</button></div></div>';
+    if(c.reduit) return '<div class="card cxc-card">'+head+'</div>';
+    var rows=L.map(function(l){ var last=l.last?('<span class="cxc-last">'+E(new Date(l.last.ts).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))+' · '+E(l.last.step)+(l.last.qui?(' '+E(l.last.qui)):'')+'</span>'):'<span class="cxc-last">aucune action journalisée</span>'; return '<div class="cxc-row'+(l.attente?'':' idle')+'"><span class="cxc-mod"><b>'+E(l.lbl)+'</b>'+last+'</span><span class="cxc-n'+(l.attente?' on':'')+'"><b>'+l.attente+'</b><i>en attente</i></span><span class="cxc-n'+(l.humain?' hum':'')+'"><b>'+l.humain+'</b><i>humain</i></span><span class="cxc-det">'+E(l.detail)+'</span><span class="cxc-act">'+(l.exec?('<button class="btn btn-sm btn-pri" onclick="cxChaineExecuter(\''+l.key+'\')">Exécuter</button>'):('<span class="cxc-tag">'+E(l.execLbl)+'</span>'))+'<button class="btn btn-sm btn-ghost" onclick="try{go(\''+l.page+'\')}catch(e){}">Ouvrir</button></span></div>'; }).join('');
+    var J=cxChaineJournal(); var jh=J.length?('<div class="cxc-journal"><div class="cxc-h">Dernières actions — tous modules <span>'+J.length+'</span>'+(c.journal.length?('<button class="btn btn-sm btn-ghost" onclick="cxChaineJournalVider()">Vider le journal du centre</button>'):'')+'</div>'+J.map(function(x){ return '<div class="cxc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><em>'+E(x.mod)+'</em><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="card cxc-card">'+head+'<div class="card-b"><div class="cxc-list">'+rows+'</div>'+jh+'</div></div>'; };
+  function inject(){ try{ if(!(typeof state!=='undefined'&&state.page==='cockpit')) return; var w=document.querySelector('#view .ckp'); if(!w||w.querySelector('.cxc-card')) return; var html=cxChaineCard(); if(!html) return; var tmp=document.createElement('div'); tmp.innerHTML=html; var card=tmp.firstElementChild; var head=w.querySelector('.ckp-head'); if(head&&head.parentNode===w) head.insertAdjacentElement('afterend',card); else w.insertAdjacentElement('afterbegin',card); }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__cxc){ window.render=function(){ var r=_rd.apply(this,arguments); inject(); return r; }; window.render.__cxc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='cx-chaine-css'; st.textContent=
+    '.cxc-card{margin:12px 0 14px}.cxc-card .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cxc-card .card-h h2{margin:0;font-size:15px}.cxc-hb{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.cxc-sum{font-size:11.5px;opacity:.7}'
+   +'.cxc-list{display:flex;flex-direction:column}.cxc-row{display:grid;grid-template-columns:200px 78px 78px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid rgba(255,255,255,.07);font-size:12.5px}.cxc-row:first-child{border-top:0}.cxc-row.idle{opacity:.6}'
+   +'.cxc-mod b{display:block}.cxc-last{display:block;font-size:10.5px;opacity:.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cxc-n{text-align:center}.cxc-n b{display:block;font-size:16px}.cxc-n i{font-style:normal;font-size:10px;opacity:.55;text-transform:uppercase;letter-spacing:.06em}.cxc-n.on b{color:#5ab0ff}.cxc-n.hum b{color:#e0a458}.cxc-det{font-size:11.5px;opacity:.75}.cxc-act{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}.cxc-tag{font-size:10.5px;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.14);opacity:.7}'
+   +'.cxc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.cxc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.cxc-h span{opacity:.6}.cxc-h .btn{margin-left:auto}.cxc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.cxc-jl span{opacity:.55;min-width:130px}.cxc-jl em{font-style:normal;opacity:.7;min-width:120px}.cxc-jl.ko b{color:#e0a458}'
+   +'@media(max-width:900px){.cxc-row{grid-template-columns:1fr 60px 60px;grid-auto-rows:auto}.cxc-det,.cxc-act{grid-column:1/-1}}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
