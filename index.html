@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=657;
+var LAST_VER=658;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -40668,6 +40668,94 @@ function testLienSignature() {
    +'.agc-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.agc-row:first-of-type{border-top:0}.agc-dt{font-variant-numeric:tabular-nums;white-space:nowrap}.agc-cli em{font-style:normal;font-size:11px;color:#e0a458}.agc-cli i{font-style:normal;font-size:11px;opacity:.6}.agc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
    +'.agc-empty{font-size:12px;opacity:.55;padding:2px 0}.agc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.agc-opts label{display:inline-flex;align-items:center;gap:6px}.agc-opts input[type=number]{width:56px;padding:3px 6px}.agc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.agc-gw.on{color:#2fae5f;opacity:1}'
    +'.agc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.agc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.agc-jl span{opacity:.55;min-width:130px}.agc-jl.ko b{color:#e0a458}.agc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================================
+   Mar'q — Fiscal : exécution mensuelle des abonnés (v658)
+   ----------------------------------------------------------------------------
+   En tête du module Fiscal, un panneau « Exécution mensuelle » réunit : les
+   MENSUALITÉS du mois à générer pour les abonnés actifs (à l'unité, en lot ou
+   automatiquement au chargement), les FACTURES ÉCHUES à relancer par e-mail
+   (passerelle Gmail, repli messagerie ; délai et maximum réglables, relances
+   automatiques opt-in), les OBLIGATIONS déclaratives en retard ou à échéance
+   sous 15 jours (à marquer faites), et les ATTESTATIONS disponibles pour les
+   abonnés à jour. Chaque action est consignée dans un journal global.
+   100 % additif : greffe sur pageConformite ; cfGenMensualite (idempotent par
+   mois), cfMarquer et cfAttestation existants sont réutilisés.
+   ============================================================================ */
+(function(){
+  if(window.__cfChaine) return; window.__cfChaine=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function cfg(){ var p=P(); p.cfChaine=p.cfChaine||{}; var c=p.cfChaine; if(c.autoMens==null) c.autoMens=false; if(c.autoRel==null) c.autoRel=false; if(!(c.delai>0)) c.delai=7; if(!(c.max>0)) c.max=3; if(!Array.isArray(c.journal)) c.journal=[]; return c; }
+  function abos(){ return Array.isArray(DB.abonnes)?DB.abonnes:[]; }
+  function byId(id){ return abos().filter(function(x){return x.id===id;})[0]||null; }
+  function iso(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function frD(s){ if(!s) return ''; var m=(''+s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):s; }
+  function money(n){ n=+n||0; try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }catch(e){ return n.toFixed(2)+' €'; } }
+  function gw(){ try{ var c=(typeof demSyncCfg==='function')?demSyncCfg():null; return !!(c&&c.url); }catch(e){ return false; } }
+  function mkey(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  function actif(a){ try{ return (typeof aboAbonnementStatut==='function')?aboAbonnementStatut(a)!=='inactif':(a.abonnementActif!==false); }catch(e){ return a.abonnementActif!==false; } }
+  function emailOf(a){ if(a.email) return a.email; var r=(''+(a.raison||'')).trim().toLowerCase(), s=(''+(a.siren||'')).replace(/\s/g,''); var out='';
+    try{ (DB.clients||[]).forEach(function(c){ if(out) return; var den=(''+(c.denomination||'')).trim().toLowerCase(); var full=((c.prenom||'')+' '+(c.nom||'')).trim().toLowerCase(); var cs=(''+(c.siren||'')).replace(/\s/g,''); if(c.email&&((s&&cs&&cs===s)||(r&&(den===r||full===r)))) out=c.email; }); }catch(e){} return out; }
+  function jours(a,b){ try{ return Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000); }catch(e){ return 0; } }
+  function log(step,ok,detail,mode,qui){ var c=cfg(); c.journal.unshift({ts:Date.now(),step:step,ok:!!ok,detail:detail||'',mode:mode||'',qui:qui||''}); if(c.journal.length>200) c.journal.length=200; }
+  function envoyer(to,sujet,corps,cb){ if(gw()&&typeof demSendViaScript==='function'){ try{ demSendViaScript(to,sujet,corps,function(){ cb&&cb(true); },{silent:true}); }catch(e){ cb&&cb(false); } return 'passerelle'; } try{ window.open('mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(sujet)+'&body='+encodeURIComponent(corps)); }catch(e){} cb&&cb(true); return 'messagerie'; }
+
+  /* ---------- bilan ---------- */
+  window.cfChaineBilan=function(){ var c=cfg(); var j=iso(); var mk=mkey(); var A=abos();
+    var mens=A.filter(function(a){ return actif(a)&&(+a.aboMensualite||0)>0&&!(a.factures||[]).some(function(f){ return f.type==='abonnement'&&(f.date||'').slice(0,7)===mk; }); });
+    var rel=[], epuisees=[], sansMail=[];
+    A.forEach(function(a){ (a.factures||[]).forEach(function(f){ if(f.statut==='payee') return; if(!(f.echeance&&f.echeance<j)) return; var r=f.relances||[]; var item={a:a,f:f,retard:jours(j,f.echeance),n:r.length};
+      if(r.length>=c.max){ epuisees.push(item); return; } var last=r.length?r[r.length-1]:f.echeance; if(jours(j,last)<(r.length?c.delai:0)) return; if(!emailOf(a)){ sansMail.push(item); return; } rel.push(item); }); });
+    var obl=[]; A.forEach(function(a){ if(!actif(a)) return; (a.obligations||[]).forEach(function(o){ if(!o.prochaine||o.code==='facturation') return; /* la facturation est suivie par les relances */ var d=jours(o.prochaine,j); if(d<0) obl.push({a:a,o:o,d:d,etat:'retard'}); else if(d<=15) obl.push({a:a,o:o,d:d,etat:'avenir'}); }); });
+    obl.sort(function(x,y){ return x.d-y.d; });
+    var att=A.filter(function(a){ if(!actif(a)) return false; try{ return (typeof aboStatut==='function')?aboStatut(a)==='ajour':false; }catch(e){ return false; } });
+    var du=0, duRetard=0; A.forEach(function(a){ (a.factures||[]).forEach(function(f){ if(f.statut==='payee') return; du+=(+f.ttc||0); if(f.echeance&&f.echeance<j) duRetard+=(+f.ttc||0); }); });
+    return {mens:mens,rel:rel,epuisees:epuisees,sansMail:sansMail,obl:obl,att:att,du:du,duRetard:duRetard,gw:gw(),cfg:c,mois:mk,nbAbo:A.length}; };
+
+  /* ---------- actions ---------- */
+  window.cfChaineMensualites=function(silent){ var b=cfChaineBilan(); var n=0; b.mens.forEach(function(a){ var k=(a.factures||[]).length, err=null; try{ cfGenMensualite(a.id); }catch(e){ err=e; } if((a.factures||[]).length>k){ n++; var f=a.factures[a.factures.length-1]; log('Mensualité',true,f.numero+' — '+money(f.ttc)+' TTC','',a.raison||''); } else log('Mensualité',false,(err&&err.message)||'non générée','',a.raison||''); });
+    try{ closeModal(); }catch(e){} try{save();}catch(e){} if(!silent){ toast(n?(n+' mensualité(s) générée(s) pour '+b.mois+'.'):'Toutes les mensualités du mois sont déjà générées.',4000,'success'); try{render();}catch(e){} } return n; };
+  window.cfRelancerMail=function(id,fid,silent){ var a=byId(id); if(!a) return false; var f=(a.factures||[]).filter(function(x){return x.id===fid;})[0]; if(!f) return false; var to=emailOf(a); if(!to){ log('Relance',false,'aucune adresse e-mail (fiche client)','',a.raison||''); if(!silent) toast('Aucune adresse e-mail connue pour '+(a.raison||'cet abonné')+' — renseignez-la sur la fiche client.',5000,'warn'); return false; }
+    f.relances=f.relances||[]; var n=f.relances.length+1; var j=iso(); var ret=jours(j,f.echeance);
+    var sujet='Relance '+(n>1?('n° '+n+' '):'')+'— facture '+(f.numero||'')+' — AEM CONSEIL';
+    var corps='Bonjour,\n\n'+(n>=3?'Malgré nos précédentes relances, ':(n===2?'Sauf erreur de notre part, et malgré notre premier rappel, ':'Sauf erreur de notre part, '))+'la facture n° '+(f.numero||'')+(f.libelle?(' ('+f.libelle+')'):'')+' du '+frD(f.date)+' d\'un montant de '+money(f.ttc)+' TTC, échue le '+frD(f.echeance)+(ret>0?(' ('+ret+' jour'+(ret>1?'s':'')+' de retard)'):'')+' reste impayée à ce jour.\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais'+(n>=3?', faute de quoi nous serions contraints de suspendre l\'abonnement et d\'engager une procédure de recouvrement':'')+'.\n\nSi ce règlement a déjà été effectué, nous vous prions de ne pas tenir compte de ce message.\n\nBien cordialement,\nAEM CONSEIL';
+    var mode=envoyer(to,sujet,corps,function(ok){ if(!ok){ log('Relance',false,'échec vers '+to,mode,a.raison||''); try{save();}catch(e){} } });
+    f.relances.push(j); (f.relanceLog=f.relanceLog||[]).push({ts:Date.now(),n:n,to:to,mode:mode});
+    log('Relance',true,(f.numero||'')+' n° '+n+' → '+to+' ('+ret+' j de retard)',mode,a.raison||''); try{save();}catch(e){}
+    if(!silent){ toast('Relance n° '+n+(mode==='passerelle'?' envoyée à ':' préparée pour ')+to,4000,'success'); try{render();}catch(e){} } return true; };
+  window.cfChaineRelances=function(silent,auto){ var b=cfChaineBilan(); var n=0,ko=0; b.rel.forEach(function(it){ if(cfRelancerMail(it.a.id,it.f.id,true)) n++; else ko++; }); log('Chaîne relances',ko===0,n+' relance(s)'+(ko?(', '+ko+' échec(s)'):''),auto?'automatique':'manuel'); try{save();}catch(e){} if(!silent){ toast(n?('Relances envoyées : '+n):'Aucune relance à envoyer.',4000,ko?'warn':'success'); try{render();}catch(e){} } return {n:n,ko:ko}; };
+  window.cfChaineExecuter=function(){ var n1=cfChaineMensualites(true); var r=cfChaineRelances(true); toast('Exécution du mois : '+n1+' mensualité(s), '+r.n+' relance(s)'+(r.ko?(', '+r.ko+' échec(s)'):'')+'.',5000,r.ko?'warn':'success'); try{render();}catch(e){} };
+  window.cfChaineMarquer=function(id,code){ try{ cfMarquer(id,code); }catch(e){} var a=byId(id); log('Obligation faite',true,code,'',a?(a.raison||''):''); try{ closeModal(); }catch(e){} try{save();}catch(e){} try{render();}catch(e){} };
+  window.cfChaineSet=function(k,v){ var c=cfg(); if(k==='autoMens') c.autoMens=!!v; if(k==='autoRel') c.autoRel=!!v; if(k==='delai'){ v=parseInt(v,10); if(v>0) c.delai=v; } if(k==='max'){ v=parseInt(v,10); if(v>=0) c.max=v; } try{save();}catch(e){} try{render();}catch(e){} };
+  window.cfChaineJournalVider=function(){ cfg().journal=[]; try{save();}catch(e){} try{render();}catch(e){} };
+  function auto(){ try{ var c=cfg(); var did=0; if(c.autoMens){ var n=cfChaineMensualites(true); if(n){ did+=n; log('Chaîne mensualités',true,n+' mensualité(s) générée(s)','automatique'); } } if(c.autoRel&&gw()){ var r=cfChaineRelances(true,true); did+=r.n; } if(did&&typeof toast==='function') toast('Fiscal : '+did+' action(s) automatique(s) exécutée(s) (mensualités / relances).',6000); if(did){ try{render();}catch(e){} } }catch(e){} }
+  setTimeout(auto,8000); setInterval(auto,6*3600*1000);
+
+  /* ---------- panneau ---------- */
+  function sec(t,list,fn,empty){ return '<div class="cfc-sec"><div class="cfc-h">'+t+' <span>'+list.length+'</span></div>'+(list.length?list.map(fn).join(''):'<div class="cfc-empty">'+(empty||'Rien en attente.')+'</div>')+'</div>'; }
+  window.cfChaineCard=function(){ var b=cfChaineBilan(); var c=b.cfg; if(!b.nbAbo) return '';
+    var kpi='<div class="cfc-kpis"><div class="cfc-k'+(b.mens.length?' warn':'')+'"><b>'+b.mens.length+'</b><span>mensualités à générer ('+b.mois+')</span></div><div class="cfc-k"><b>'+E(money(b.du))+'</b><span>à encaisser</span></div><div class="cfc-k'+(b.rel.length?' warn':'')+'"><b>'+E(money(b.duRetard))+'</b><span>en retard · '+b.rel.length+' à relancer</span></div><div class="cfc-k'+(b.obl.some(function(x){return x.etat==='retard';})?' warn':'')+'"><b>'+b.obl.length+'</b><span>obligations en retard ou sous 15 j</span></div><div class="cfc-k"><b>'+b.att.length+'</b><span>attestations disponibles</span></div></div>';
+    var s1=sec('Mensualités du mois à générer',b.mens,function(a){ return '<div class="cfc-row"><span class="cfc-cli"><b>'+E(a.raison||'')+'</b> · '+E(a.aboFormule||'')+'</span><span class="cfc-amt">'+E(money((+a.aboMensualite||0)*1.2))+' TTC</span><span class="cfc-act"><button class="btn btn-sm" onclick="cfGenMensualite(\''+E(a.id)+'\');try{closeModal()}catch(e){}">Générer</button></span></div>'; },'Toutes les mensualités du mois sont générées.');
+    var s2=sec('Factures échues à relancer',b.rel.concat(b.sansMail).concat(b.epuisees),function(it){ var f=it.f,a=it.a; var ep=it.n>=c.max; var sm=!emailOf(a); return '<div class="cfc-row"><span class="cfc-cli"><b>'+E(a.raison||'')+'</b> · '+E(f.numero||'')+(sm?' <em>sans e-mail</em>':'')+'</span><span class="cfc-amt">'+E(money(f.ttc))+' · <b>'+it.retard+' j</b>'+(it.n?(' · '+it.n+' relance(s)'):'')+'</span><span class="cfc-act">'+(ep?('<span class="cfc-tag">'+c.max+' relances — suspension / recouvrement</span>'):(sm?('<button class="btn btn-sm btn-ghost" onclick="go(\'clients\')">Fiche client</button>'):('<button class="btn btn-sm" onclick="cfRelancerMail(\''+E(a.id)+'\',\''+E(f.id)+'\')">Relancer</button>')))+'<button class="btn btn-sm btn-ghost" onclick="cfFactPayer(\''+E(a.id)+'\',\''+E(f.id)+'\');try{closeModal()}catch(e){}">Payée</button></span></div>'; });
+    var s3=sec('Obligations déclaratives (en retard ou sous 15 jours)',b.obl.slice(0,12),function(it){ return '<div class="cfc-row '+(it.etat==='retard'?'ko':'')+'"><span class="cfc-cli"><b>'+E(it.a.raison||'')+'</b> · '+E(it.o.label||it.o.code)+'</span><span class="cfc-amt">'+E(frD(it.o.prochaine))+' · '+(it.d<0?('<b>'+(-it.d)+' j de retard</b>'):('dans '+it.d+' j'))+'</span><span class="cfc-act"><button class="btn btn-sm" onclick="cfChaineMarquer(\''+E(it.a.id)+'\',\''+E(it.o.code)+'\')">Marquer faite</button></span></div>'; });
+    var s4=sec('Attestations de régularité disponibles',b.att.slice(0,12),function(a){ return '<div class="cfc-row"><span class="cfc-cli"><b>'+E(a.raison||'')+'</b> · tout à jour</span><span class="cfc-amt"></span><span class="cfc-act"><button class="btn btn-sm btn-ghost" onclick="cfAttestation(\''+E(a.id)+'\')">Attestation</button></span></div>'; },'Aucun abonné entièrement à jour.');
+    var opts='<div class="cfc-opts"><label><input type="checkbox" '+(c.autoMens?'checked':'')+' onchange="cfChaineSet(\'autoMens\',this.checked)"> Générer les mensualités automatiquement (au chargement)</label><label><input type="checkbox" '+(c.autoRel?'checked':'')+' onchange="cfChaineSet(\'autoRel\',this.checked)"> Relances automatiques (passerelle requise)</label><label>Délai <input type="number" min="1" max="60" value="'+c.delai+'" onchange="cfChaineSet(\'delai\',this.value)"> j</label><label>Maximum <input type="number" min="0" max="9" value="'+c.max+'" onchange="cfChaineSet(\'max\',this.value)"> relances</label><span class="cfc-gw '+(b.gw?'on':'')+'">'+(b.gw?'Passerelle Gmail reliée : envois silencieux':'Passerelle non configurée : les relances s\'ouvrent dans votre messagerie')+'</span></div>';
+    var J=c.journal.slice(0,6); var jr=J.length?('<div class="cfc-journal"><div class="cfc-h">Journal <span>'+c.journal.length+'</span><button class="btn btn-sm btn-ghost" onclick="cfChaineJournalVider()">Vider</button></div>'+J.map(function(x){ return '<div class="cfc-jl '+(x.ok?'ok':'ko')+'"><span>'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><b>'+E(x.step)+'</b>'+(x.qui?(' '+E(x.qui)):'')+(x.detail?(' — '+E(x.detail)):'')+(x.mode?(' <i>'+E(x.mode)+'</i>'):'')+'</div>'; }).join('')+'</div>'):'';
+    var n=b.mens.length+b.rel.length;
+    return '<div class="card cfc-card"><div class="card-h"><h2>⚡ Exécution mensuelle — abonnés</h2><div class="cfc-hb"><button class="btn btn-sm btn-pri" onclick="cfChaineExecuter()"'+(n?'':' disabled')+'>Tout exécuter ('+n+')</button></div></div><div class="card-b">'+kpi+'<div class="cfc-grid">'+s1+s2+s3+s4+'</div>'+opts+jr+'</div></div>'; };
+  try{ var _pc=window.pageConformite; if(typeof _pc==='function'&&!_pc.__cfc){ window.pageConformite=function(){ var h=_pc.apply(this,arguments); try{ if(typeof h==='string') h=cfChaineCard()+h; }catch(e){} return h; }; window.pageConformite.__cfc=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='cf-chaine-css'; st.textContent=
+    '.cfc-card{margin:0 0 14px}.cfc-card .card-h{display:flex;align-items:center;gap:10px}.cfc-card .card-h h2{margin:0;font-size:15px}.cfc-hb{margin-left:auto}'
+   +'.cfc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.cfc-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.cfc-k b{display:block;font-size:17px}.cfc-k span{font-size:11px;opacity:.65}.cfc-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}'
+   +'.cfc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.cfc-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.cfc-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.cfc-h span{opacity:.6}.cfc-h .btn{margin-left:auto}'
+   +'.cfc-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.cfc-row:first-of-type{border-top:0}.cfc-row.ko .cfc-amt b{color:#e0a458}.cfc-cli em{font-style:normal;font-size:11px;color:#e0a458}.cfc-amt{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.8;white-space:nowrap}.cfc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+   +'.cfc-empty{font-size:12px;opacity:.55;padding:2px 0}.cfc-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(217,154,58,.14);border:1px solid rgba(217,154,58,.4)}'
+   +'.cfc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.cfc-opts label{display:inline-flex;align-items:center;gap:6px}.cfc-opts input[type=number]{width:56px;padding:3px 6px}.cfc-gw{font-size:11.5px;opacity:.65;margin-left:auto}.cfc-gw.on{color:#2fae5f;opacity:1}'
+   +'.cfc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.cfc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.cfc-jl span{opacity:.55;min-width:130px}.cfc-jl.ko b{color:#e0a458}.cfc-jl i{opacity:.6}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
