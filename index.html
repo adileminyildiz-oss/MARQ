@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=685;
+var LAST_VER=686;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42609,7 +42609,7 @@ function testLienSignature() {
   function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Demandes → dossier',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -42652,6 +42652,37 @@ function testLienSignature() {
    +'.au-filt{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center}.au-filt select{min-width:150px}.au-filt input[type=search]{flex:1;min-width:200px}.au-filt label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}'
    +'.au-wrap{overflow:auto;max-height:520px}.au-tbl{width:100%;border-collapse:collapse;font-size:12.5px}.au-tbl th{text-align:left;font-weight:600;color:var(--muted,#8a8a93);padding:6px 8px;border-bottom:1px solid var(--line,#2a2a2e);white-space:nowrap;position:sticky;top:0;background:var(--card,#1a1a1f)}'
    +'.au-tbl td{padding:6px 8px;border-bottom:1px solid var(--line,#2a2a2e);vertical-align:top;white-space:nowrap}.au-tbl td.au-det{white-space:normal;max-width:380px;overflow:hidden;text-overflow:ellipsis}.au-tbl tr.au-ko td{background:rgba(209,109,99,.08)}.au-ok{color:#6fae8a}.au-err{color:#d16d63;font-weight:600}.au-empty{padding:10px 0}';
+  document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Dernière exécution automatique par module (v686)
+   Lue dans le journal d'audit : affichée sous chaque module de la carte
+   « Modules en pause » et sous chaque ligne du tableau des automatisations
+   de la Prévoyance (date, action, résultat). 100 % additif, lecture seule.
+   ============================================================ */
+(function(){
+  if(window.__modLast) return; window.__modLast=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  /* module (page) → sources du journal, avec filtre facultatif sur le contenu */
+  var MAP={demandes:[['cxChaine',/demande/i]],espace:[['cxChaine',/traitement|dossier/i]],conformite:[['cfChaine'],['echChaine']],formulaire:[['fqChaine']],editions:[['edChaine']],agenda:[['agChaine']],clients:[['cliChaine']],facturier:[['factChaine'],['factPresta']],services:[['jcChaine'],['sgChaine'],['veChaine'],['emChaine'],['tvrChaine'],['ydChaine'],['coChaine']]};
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function ageTxt(ts){ var h=Math.floor((Date.now()-ts)/3600000); if(h<1) return 'il y a moins d\'une heure'; if(h<24) return 'il y a '+h+' h'; var j=Math.floor(h/24); return 'il y a '+j+' j'; }
+  function entrees(){ try{ return (typeof auditEntrees==='function')?auditEntrees():[]; }catch(e){ return []; } }
+  function match(o,rules){ for(var i=0;i<rules.length;i++){ var r=rules[i]; if(o.src!==r[0]) continue; if(!r[1]) return true; if(r[1].test(o.action+' '+o.detail)) return true; } return false; }
+  function derniere(rules,autoSeul){ var L=entrees(); for(var i=0;i<L.length;i++){ var o=L[i]; if(!match(o,rules)) continue; if(autoSeul&&o.mode&&o.mode!=='automatique') continue; return o; } return null; }
+  window.modDerniereExec=function(page){ var rules=MAP[page]; if(!rules) return null; return derniere(rules,true)||derniere(rules,false); };
+  window.autoDerniereExec=function(obj){ var src=(''+(obj||'')).split('.')[0]; var rules=src==='demChaine'?MAP.demandes:[[src]]; return derniere(rules,true)||derniere(rules,false); };
+  function ligne(o){ if(!o) return '<small class="mp-last mp-none">aucune exécution enregistrée</small>'; return '<small class="mp-last'+(o.ok?'':' mp-ko')+'" title="'+E(frDT(o.ts))+'">'+(o.mode==='automatique'?'dernière exécution auto ':'dernière action ')+E(ageTxt(o.ts))+' · '+E(o.action||'')+' · '+(o.ok?'ok':'échec')+'</small>'; }
+  function decorate(){ try{ if(typeof state==='undefined'||state.page!=='params'&&state.page!=='cockpit') return;
+      document.querySelectorAll('.mod-pause-it').forEach(function(el){ if(el.querySelector('.mp-last')) return; var inp=el.querySelector('input[onchange]'); var m=(inp&&inp.getAttribute('onchange')||'').match(/modPauseSet\('([^']+)'/); if(!m) return; var tmp=document.createElement('span'); tmp.innerHTML=ligne(window.modDerniereExec(m[1])); el.appendChild(tmp.firstChild); el.classList.add('mp-has'); });
+      document.querySelectorAll('.pv-auto').forEach(function(el){ if(el.querySelector('.mp-last')) return; var inp=el.querySelector('input[onchange]'); var m=(inp&&inp.getAttribute('onchange')||'').match(/prevAutoSet\('([^']+)'/); if(!m) return; var box=el.querySelector('.pv-auto-l')||el; var tmp=document.createElement('span'); tmp.innerHTML=ligne(window.autoDerniereExec(m[1])); box.appendChild(tmp.firstChild); }); }catch(e){} }
+  try{ var _r=window.render; if(typeof _r==='function'&&!_r.__ml){ window.render=function(){ var out=_r.apply(this,arguments); try{ decorate(); }catch(e){} return out; }; window.render.__ml=1; } }catch(e){}
+  try{ var busy=false; var mo=new MutationObserver(function(){ if(busy) return; busy=true; setTimeout(function(){ try{ decorate(); }finally{ busy=false; } },60); }); var host=document.getElementById('view')||document.body; mo.observe(host,{childList:true,subtree:true}); }catch(e){}
+  window.__modLastDecorate=decorate;
+  var css=document.createElement('style'); css.id='mod-last-mod'; css.textContent='.mod-pause-it.mp-has{flex-wrap:wrap}.mod-pause-it .mp-last{flex-basis:100%;margin-left:26px}.mp-last{display:block;font-size:11px;color:var(--muted,#8a8a93);margin-top:3px;line-height:1.35}.mp-last.mp-ko{color:#d16d63}.mp-last.mp-none{font-style:italic}.pv-auto-l .mp-last{margin-top:2px}';
   document.head.appendChild(css);
 })();
 </script>
