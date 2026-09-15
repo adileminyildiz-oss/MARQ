@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=683;
+var LAST_VER=684;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42545,6 +42545,52 @@ function testLienSignature() {
   try{ var _lc=window.liensEnvoyesCard; if(typeof _lc==='function'&&!_lc.__ls){ window.liensEnvoyesCard=function(){ var h=_lc.apply(this,arguments); try{ var i=h.indexOf('<div class="le-filt">'); if(i>0&&h.indexOf('ls-cfg')<0) h=h.slice(0,i)+liensSuiviHTML()+h.slice(i); }catch(e){} return h; }; window.liensEnvoyesCard.__ls=1; } }catch(e){}
   var css=document.createElement('style'); css.id='liens-suivi-mod'; css.textContent='.ls-cfg{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line,#2a2a2e);border-radius:8px}.ls-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;font-size:12.5px}.ls-row label{display:inline-flex;align-items:center;gap:6px}.ls-row input[type=number]{width:58px;padding:3px 6px}.ls-etat{margin-top:8px}.ls-ko{color:#d16d63}';
   document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Rappel de lien par SMS + liens en attente dans le
+   récapitulatif quotidien (v684)
+   Second canal de rappel : quand le client n'a pas d'adresse e-mail
+   (ou que l'envoi e-mail échoue) et que la passerelle SMS est active,
+   le rappel part par SMS avec le lien. Le récapitulatif quotidien de
+   Prévoyance reçoit une section « Liens en attente de réponse ».
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__liensSms) return; window.__liensSms=1;
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function cfg(){ var c=P().liensSuivi=P().liensSuivi||{}; if(c.sms==null) c.sms=true; c.journal=c.journal||[]; return c; }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function telDe(e,g){ var d=(g&&g.dest)||''; var t=''; if(d&&!/@/.test(d)) t=d; if(!t){ try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(!c&&e.clientEmail){ var lo=(''+e.clientEmail).toLowerCase(); c=(B().clients||[]).filter(function(x){ return ((x.email||'')+'').toLowerCase()===lo; })[0]; } t=(c&&(c.tel||c.telephone||c.mobile))||e.clientTel||e.tel||(e.intake&&e.intake.contact&&e.intake.contact.tel)||''; }catch(x){} }
+    t=(''+t).replace(/[^\d+]/g,''); if(/^0[67]\d{8}$/.test(t)) t='+33'+t.slice(1); else if(/^33[67]\d{8}$/.test(t)) t='+'+t; return /^\+33[67]\d{8}$/.test(t)?t:''; }
+  function smsOk(){ try{ return typeof smsActif==='function'&&smsActif()&&typeof sendSmsViaScript==='function'; }catch(e){ return false; } }
+  function texte(g){ var cab='AEM CONSEIL'; try{ cab=(P().cabinet&&P().cabinet.nom)||cab; }catch(e){} var quoi=g.type==='depot'?'vos pieces justificatives':'les informations demandees'; return cab+' : nous attendons encore '+quoi+' pour votre dossier '+(g.numero||'')+'. Lien : '+g.url; }
+  function journal(g,to,ok,mode,detail,canal){ var c=cfg(); c.journal.unshift({ts:Date.now(),numero:g.numero,type:g.type,to:to,ok:!!ok,mode:mode,canal:canal||'SMS',detail:detail||''}); if(c.journal.length>60) c.journal.length=60;
+    if(ok){ P().partagesLien=P().partagesLien||[]; P().partagesLien.unshift({ts:Date.now(),canal:'SMS',dest:to,url:g.url,numero:g.numero,relance:true}); } try{ save(); }catch(e){} }
+  /* rappel par SMS d'un groupe (utilisé en second canal) */
+  window.liensRappelerSMS=function(key,silent){ var g=(typeof liensGroupes==='function'?liensGroupes():[]).filter(function(x){ return x.key===key; })[0]; if(!g||!g.e) return false;
+    var to=telDe(g.e,g); if(!to){ journal(g,'',false,silent?'automatique':'manuel','aucun numéro de mobile'); return false; }
+    if(!smsOk()){ journal(g,to,false,silent?'automatique':'manuel','passerelle SMS inactive'); if(!silent){ try{ window.location.href='sms:'+to+'?body='+encodeURIComponent(texte(g)); }catch(e){} } return false; }
+    try{ sendSmsViaScript(to,texte(g),function(j){ try{ if(j&&(j.ok||j.sent||j.status==='ok')) return; var c=cfg(); var it=c.journal.filter(function(x){ return x.numero===g.numero&&x.canal==='SMS'; })[0]; if(it){ it.confirm=false; it.detail='envoi non confirmé par la passerelle'; save(); } }catch(e){} }); }catch(e){ journal(g,to,false,silent?'automatique':'manuel',''+e.message); return false; }
+    journal(g,to,true,silent?'automatique':'manuel','',''); if(!silent) T('Rappel envoyé par SMS au '+to+'.','success'); return true; };
+  /* second canal : e-mail absent ou échec → SMS */
+  try{ var _lr=window.liensRappeler; if(typeof _lr==='function'&&!_lr.__sms){ window.liensRappeler=function(key,silent){ var c=cfg(); var before=(c.journal||[]).length; var ok=_lr.apply(this,arguments); if(ok||!c.sms) return ok;
+        var last=(c.journal||[])[0]; var sansMail=!!(last&&(c.journal.length>before)&&/aucune adresse/.test(last.detail||'')); var echec=!!(last&&(c.journal.length>before)&&!last.ok);
+        if(!(sansMail||echec)) return ok; var r=window.liensRappelerSMS(key,true); if(r&&!silent) T('Client sans e-mail : rappel envoyé par SMS.','success'); return r; }; window.liensRappeler.__sms=1; } }catch(e){}
+  /* réglage dans la carte Liens envoyés */
+  try{ var _lh=window.liensSuiviHTML; if(typeof _lh==='function'&&!_lh.__sms){ window.liensSuiviHTML=function(){ var h=_lh.apply(this,arguments); try{ var c=cfg(); var on=smsOk(); var lab='<label><input type="checkbox" '+(c.sms?'checked':'')+' onchange="liensSuiviSet(\'sms\',this.checked)"> SMS si le client n\'a pas d\'e-mail'+(on?'':' <i>(passerelle SMS inactive)</i>')+'</label>'; var i=h.indexOf('<button type="button" class="btn btn-sm'); if(i>0&&h.indexOf('liensSuiviSet(\'sms\'')<0) h=h.slice(0,i)+lab+h.slice(i); }catch(e){} return h; }; window.liensSuiviHTML.__sms=1; } }catch(e){}
+  try{ var _ss=window.liensSuiviSet; if(typeof _ss==='function'&&!_ss.__sms){ window.liensSuiviSet=function(k,v){ if(k==='sms'){ cfg().sms=!!v; try{ save(); }catch(e){} try{ render(); }catch(e){} return; } return _ss.apply(this,arguments); }; window.liensSuiviSet.__sms=1; } }catch(e){}
+  /* récapitulatif quotidien : section « Liens en attente de réponse » */
+  function section(){ try{ if(typeof liensSansReponse!=='function') return ''; var r=liensSansReponse(); var all=r.due.concat(r.epuises).concat(r.attente); if(!all.length) return ''; var lbl={depot:'dépôt de pièces',infos:'questionnaire'};
+      var nom=function(g){ var e=g.e||{}; if(e.clientNom) return e.clientNom; try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c) return ((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination; }catch(x){} return g.numero; };
+      var lines=all.map(function(g){ var st=r.epuises.indexOf(g)>=0?'SANS RÉPONSE APRÈS '+g.relances+' RAPPEL(S)':(r.due.indexOf(g)>=0?'À RAPPELER':'en attente'); return '- '+nom(g)+' · '+(lbl[g.type]||g.type)+' · '+g.numero+' · envoyé il y a '+g.ageTotal+' j'+(g.relances?(' · '+g.relances+' rappel(s)'):'')+' · '+st; });
+      return '\n\nLIENS EN ATTENTE DE RÉPONSE ('+all.length+') :\n'+lines.join('\n'); }catch(e){ return ''; } }
+  try{ var _pd=window.prevDigest; if(typeof _pd==='function'&&!_pd.__sms){ window.prevDigest=function(){ var _send=window.demSendViaScript; var restored=false; function restore(){ if(!restored){ restored=true; window.demSendViaScript=_send; } }
+        try{ if(typeof _send==='function'){ window.demSendViaScript=function(to,subject,body,cb,opts){ var b=body; try{ if(/à prévoir aujourd/.test(subject||'')){ var sec=section(); if(sec) b=(''+body).replace(/\n\nOuvrir le tableau de bord/, sec+'\n\nOuvrir le tableau de bord'); if(sec&&b===body) b=body+sec; } }catch(e){} restore(); return _send.call(this,to,subject,b,cb,opts); }; } }catch(e){}
+        try{ return _pd.apply(this,arguments); } finally{ restore(); } }; window.prevDigest.__sms=1; } }catch(e){}
 })();
 </script>
 
