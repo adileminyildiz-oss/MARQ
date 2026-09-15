@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=689;
+var LAST_VER=690;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42317,7 +42317,7 @@ function testLienSignature() {
 (function(){
   if(window.__partageLien) return; window.__partageLien=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function cabName(){ try{ return (DB&&DB.parametres&&DB.parametres.cabinet&&DB.parametres.cabinet.nom)||'AEM CONSEIL'; }catch(e){ return 'AEM CONSEIL'; } }
   function corpsDefaut(o){ var pre=(o.prenom||'').trim(); return 'Bonjour'+(pre?(' '+pre):'')+',\n\n'+(o.intro||'Voici votre lien personnalisé pour compléter votre dossier en ligne. Quelques minutes suffisent, aucun compte à créer.')+'\n\n'+o.url+'\n\nVos réponses reviennent directement dans votre dossier.\n\nBien cordialement,\n'+cabName(); }
   function tel(o){ return (''+(o.tel||'')).replace(/[^\d+]/g,''); }
@@ -42442,7 +42442,7 @@ function testLienSignature() {
 (function(){
   if(window.__liensEnvoyes) return; window.__liensEnvoyes=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function L(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres.partagesLien=b.parametres.partagesLien||[]; }
   var ST={canal:'',q:''};
@@ -42490,7 +42490,7 @@ function testLienSignature() {
 (function(){
   if(window.__liensSuivi) return; window.__liensSuivi=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
   function cfg(){ var p=P(); var c=p.liensSuivi=p.liensSuivi||{}; if(!(c.relanceJ>0)) c.relanceJ=4; if(c.auto==null) c.auto=false; if(!(c.max>=0)) c.max=2; c.journal=c.journal||[]; return c; }
@@ -42563,7 +42563,7 @@ function testLienSignature() {
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
   function cfg(){ var c=P().liensSuivi=P().liensSuivi||{}; if(c.sms==null) c.sms=true; c.journal=c.journal||[]; return c; }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function telDe(e,g){ var d=(g&&g.dest)||''; var t=''; if(d&&!/@/.test(d)) t=d; if(!t){ try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(!c&&e.clientEmail){ var lo=(''+e.clientEmail).toLowerCase(); c=(B().clients||[]).filter(function(x){ return ((x.email||'')+'').toLowerCase()===lo; })[0]; } t=(c&&(c.tel||c.telephone||c.mobile))||e.clientTel||e.tel||(e.intake&&e.intake.contact&&e.intake.contact.tel)||''; }catch(x){} }
     t=(''+t).replace(/[^\d+]/g,''); if(/^0[67]\d{8}$/.test(t)) t='+33'+t.slice(1); else if(/^33[67]\d{8}$/.test(t)) t='+'+t; return /^\+33[67]\d{8}$/.test(t)?t:''; }
   function smsOk(){ try{ return typeof smsActif==='function'&&smsActif()&&typeof sendSmsViaScript==='function'; }catch(e){ return false; } }
@@ -42606,10 +42606,10 @@ function testLienSignature() {
 (function(){
   if(window.__auditJournal) return; window.__auditJournal=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -42698,7 +42698,7 @@ function testLienSignature() {
 (function(){
   if(window.__notesJ) return; window.__notesJ=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function doss(id){ return (B().dossiers||[]).filter(function(x){ return x.id===id; })[0]; }
   function qui(){ try{ return (typeof auditUser==='function'?auditUser():'')||''; }catch(e){ return ''; } }
@@ -42765,7 +42765,7 @@ function testLienSignature() {
 (function(){
   if(window.__synthese) return; window.__synthese=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
   function today(){ return new Date().toISOString().slice(0,10); }
@@ -42911,7 +42911,7 @@ function testLienSignature() {
 (function(){
   if(window.__conseils) return; window.__conseils=1;
   function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
   function today(){ return new Date().toISOString().slice(0,10); }
@@ -43051,5 +43051,364 @@ function testLienSignature() {
 })();
 </script>
 
+<script>
+/* ============================================================
+   Mar'q — Pré-remplissage généralisé (v690)
+   Un référentiel unique par société (fiche client + dossier +
+   questionnaire) alimente TOUS les formulaires du logiciel :
+   identité, siège, dirigeant, contacts, régime, dossier.
+   Reconnaissance des champs par leur clé, leur libellé ou leur
+   invite ; seuls les champs VIDES sont complétés, après contrôle
+   à l'écran, avec la provenance de chaque valeur et une annulation
+   immédiate. Journalisé (Paramètres › Journal d'audit).
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__prefill) return; window.__prefill=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function safe(fn,d){ try{ return fn(); }catch(e){ return d; } }
+  function S_(v){ return (''+(v==null?'':v)).trim(); }
+  function nz(s){ return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,''); }
+  function cfg(){ var p=P(); p.prefChaine=p.prefChaine||{}; var c=p.prefChaine; if(c.actif==null) c.actif=true; c.journal=c.journal||[]; return c; }
+  function jrn(o){ try{ var c=cfg(); c.journal.unshift(o); c.journal=c.journal.slice(0,300); if(typeof saveDB==='function') saveDB(); else if(typeof save==='function') save(); }catch(e){} }
+  function clientDe(id){ return (B().clients||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function dossierDe(id){ return (B().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function nomClient(c){ if(!c) return ''; return c.denomination||((c.prenom||'')+' '+(c.nom||'')).trim()||''; }
+
+  /* ======================= 1) RÉFÉRENTIEL ======================= */
+  /* Chaque entrée : cle -> {v:valeur, lbl:libellé lisible, src:provenance} */
+  window.prefValeurs=function(cid,did){
+    var c=(typeof cid==='object'&&cid)?cid:clientDe(cid); var M={};
+    var d=did?dossierDe(did):null;
+    if(!c&&d) c=clientDe((d.clientIds||[])[0]);
+    if(!c&&!d) return M;
+    if(!d&&c){ d=(B().dossiers||[]).filter(function(x){ return !x.archived&&(x.clientIds||[]).indexOf(c.id)>=0; })[0]||null; }
+    var it=(d&&d.intake)||{}; var so=it.societe||{}, si=it.siege||{}, dir=it.direction||{}, ct=it.contact||{};
+    var srcC='fiche client', srcD=d?('dossier '+(d.ref||d.numeroDossier||'')).trim():'dossier', srcQ='questionnaire';
+    c=c||{};
+    var g=c.gerant||c.dirigeant||{}; if(typeof g==='string') g={nom:g};
+    function put(k,v,lbl,src){ v=S_(v); if(!v) return; if(M[k]) return; M[k]={v:v,lbl:lbl,src:src}; }
+    var part=safe(function(){ return typeof cliIsPart==='function'?cliIsPart(c):(c.clientType==='particulier'); },c.clientType==='particulier');
+    var acts=Array.isArray(c.activites)?c.activites.filter(Boolean).join(', '):S_(c.activites);
+
+    /* identité de la société */
+    put('denomination',c.denomination,'Dénomination',srcC); put('denomination',so.denomination,'Dénomination',srcQ);
+    put('forme',(c.forme||'').toUpperCase(),'Forme juridique',srcC); put('forme',(it.type||'').toUpperCase(),'Forme juridique',srcQ);
+    put('siren',c.siren,'N° SIREN',srcC); put('siren',so.siren,'N° SIREN',srcQ);
+    put('siret',c.siret,'N° SIRET',srcC); put('siret',so.siret,'N° SIRET',srcQ);
+    put('capital',c.capital,'Capital social',srcC); put('capital',so.capital,'Capital social',srcQ);
+    put('nominal',c.nominal,'Valeur nominale',srcC);
+    put('ape',c.ape,'Code APE',srcC); put('ape',so.ape,'Code APE',srcQ);
+    put('tva',c.tva,'N° de TVA intracommunautaire',srcC);
+    put('objet',c.objet||acts,'Objet / activité',srcC); put('objet',so.objet,'Objet / activité',srcQ);
+    put('regime',c.regime,'Régime fiscal',srcC); put('regime',so.regime,'Régime fiscal',srcQ);
+    put('datedebut',c.dateDebut||c.dateCreation,'Date de début d’activité',srcC); put('datedebut',so.debut,'Date de début d’activité',srcQ);
+    put('rcsville',c.rcsVille,'Ville du greffe (RCS)',srcC);
+    put('effectif',(c.salaries||[]).length?String((c.salaries||[]).length):'','Effectif',srcC);
+
+    /* siège & adresse */
+    var siege=S_(c.siege)||[si.rue,si.cp,si.ville].filter(Boolean).join(' ');
+    put('siege',siege,'Siège social',c.siege?srcC:srcQ);
+    put('adresse',part?(c.adresse||siege):(siege||c.adresse),'Adresse',srcC);
+    put('cp',c.cp||si.cp,'Code postal',c.cp?srcC:srcQ);
+    put('ville',c.ville||si.ville,'Ville',c.ville?srcC:srcQ);
+    put('pays',c.pays||'France','Pays',srcC);
+    put('villesignature',c.villeSignature||c.ville||si.ville,'Ville de signature',srcC);
+
+    /* dirigeant */
+    var dirNom=S_(c.president)||S_(((g.civilite||'')+' '+(g.prenom||'')+' '+(g.nom||'')).trim())||S_(((dir.civilite||'')+' '+(dir.prenom||'')+' '+(dir.nom||'')).trim());
+    if(part) dirNom=S_(((c.civilite?c.civilite+' ':'')+(c.prenom||'')+' '+(c.nom||'')).trim())||dirNom;
+    put('president',dirNom,'Dirigeant',c.president?srcC:srcQ);
+    put('fonction',c.presidentFonction||g.fonction||dir.fonction,'Fonction du dirigeant',srcC);
+    put('civilite',c.dirCivilite||c.civilite||g.civilite||dir.civilite,'Civilité',srcC);
+    put('nationalite',c.dirNationalite||c.nationalite||dir.nationalite,'Nationalité',srcC);
+    put('naissance',c.dirNaissance||c.dateNaissance||dir.naissance,'Date de naissance',srcC);
+    put('lieunaissance',c.dirLieuNaissance||c.lieuNaissance||dir.lieuNaissance,'Lieu de naissance',srcC);
+    put('diradresse',c.dirAdresse||(part?c.adresse:''),'Adresse personnelle du dirigeant',srcC);
+    put('dircp',c.dirCp||(part?c.cp:''),'Code postal du dirigeant',srcC);
+    put('dirville',c.dirVille||(part?c.ville:''),'Ville du dirigeant',srcC);
+    put('dirpays',c.dirPays||'France','Pays du dirigeant',srcC);
+    put('dirtel',c.dirTel,'Téléphone du dirigeant',srcC);
+    put('diremail',c.dirEmail,'E-mail du dirigeant',srcC);
+    if(part){ put('nom',c.nom,'Nom',srcC); put('prenom',c.prenom,'Prénom',srcC); }
+
+    /* contacts */
+    put('email',c.email||ct.email,'E-mail',c.email?srcC:srcQ);
+    put('tel',c.tel||ct.tel,'Téléphone',c.tel?srcC:srcQ);
+
+    /* dossier */
+    if(d){ put('ref',d.ref||d.numeroDossier,'N° de dossier',srcD);
+      put('formalite',safe(function(){ return templateOf(d).label; },'')||d.formalite,'Formalité',srcD); }
+
+    /* nom affichable, utile aux e-mails et aux documents */
+    put('client',nomClient(c),'Client',srcC);
+    return M;
+  };
+
+  /* ======================= 2) DICTIONNAIRE ======================= */
+  var ALIAS={};
+  function al(k,list){ list.forEach(function(t){ ALIAS[nz(t)]=k; }); }
+  al('denomination',['denomination','raison','raisonsociale','societe','nomsociete','nomdelasociete','nomentreprise','nomdelentreprise','entreprise','denominationsociale','nomcommercial']);
+  al('forme',['forme','formejuridique','statutjuridique','typedesociete','formesociale']);
+  al('siren',['siren','nsiren','numerosiren','numerodesiren','nodesiren']);
+  al('siret',['siret','nsiret','numerosiret','numerodesiret','nodesiret']);
+  al('capital',['capital','capitalsocial','montantducapital','montantcapital']);
+  al('nominal',['nominal','valeurnominale','nominalpart','valeurnominaledespartssociales']);
+  al('ape',['ape','codeape','naf','codenaf','apenaf','codeapenaf']);
+  al('tva',['tva','tvaintra','ntva','numerotva','numerodetva','tvaintracommunautaire','numerodetvaintracommunautaire']);
+  al('objet',['objet','objetsocial','activite','activites','activiteprincipale','natureactivite','naturedelactivite','descriptionactivite']);
+  al('siege',['siege','siegesocial','adressesiege','adressedusiege','adressedusiegesocial']);
+  al('adresse',['adresse','adressecomplete','rue','voie','adresse1','adressepostale']);
+  al('cp',['cp','codepostal','codepost','cpostal']);
+  al('ville',['ville','commune','localite']);
+  al('pays',['pays']);
+  al('villesignature',['villesignature','villesig','faita','villedesignature','lieudesignature']);
+  al('president',['president','dirigeant','gerant','representant','representantlegal','signataire','mandataire','nomdudirigeant','nomprenomdudirigeant','nometprenomdudirigeant','nomdugerant','nomdupresident','responsablelegal']);
+  al('fonction',['fonction','qualite','presidentfonction','fonctiondudirigeant','qualitedusignataire']);
+  al('civilite',['civilite','dircivilite']);
+  al('nationalite',['nationalite','dirnationalite']);
+  al('naissance',['naissance','datenaissance','datedenaissance','dirnaissance','nele','datedenaissancedudirigeant']);
+  al('lieunaissance',['lieunaissance','lieudenaissance','dirlieunaissance','villedenaissance','communedenaissance']);
+  al('diradresse',['diradresse','adressedir','adressepersonnelle','adressedudirigeant','adressepersonnelledudirigeant']);
+  al('dircp',['dircp','codepostaldudirigeant']);
+  al('dirville',['dirville','villedudirigeant']);
+  al('dirpays',['dirpays','paysdudirigeant']);
+  al('dirtel',['dirtel','telephonedudirigeant']);
+  al('diremail',['diremail','emaildudirigeant','maildudirigeant']);
+  al('email',['email','mail','courriel','adresseemail','adressemail','emailclient','contactemail','mailclient','adressedecourriel']);
+  al('tel',['tel','telephone','tel1','portable','mobile','numerodetelephone','telephoneclient','numerotelephone']);
+  al('regime',['regime','regimefiscal','regimedimposition','regimeimposition']);
+  al('datedebut',['datedebut','datededebut','debutactivite','datededebutdactivite','datedecreation','datecreation','datedimmatriculation','dateimmatriculation']);
+  al('rcsville',['rcsville','villercs','villedugreffe','greffe','rcs']);
+  al('effectif',['effectif','nombredesalaries','nbsalaries','effectifsalarie']);
+  al('nom',['nom','nomdefamille','nomclient']);
+  al('prenom',['prenom','prenoms']);
+  al('ref',['ref','refdossier','numerodossier','ndossier','numerodedossier','referencedossier']);
+  al('formalite',['formalite','typedeformalite','naturedelaformalite']);
+  al('client',['client','nomduclient','clientnom','beneficiaire']);
+
+  /* champs d'une AUTRE entité : jamais complétés depuis la société */
+  var EXCL=/(fournisseur|salarie|associe|conjoint|enfant|banque|expert|soustrait|prestataire|destinataire|emetteur|cabinet|partenaire|apporteur|acquereur|cedant|vendeur|acheteur|locataire|bailleur|caution|mandant|notaire|avocat|huissier|assureur)/;
+  /* conteneurs à ne jamais parcourir */
+  function interdit(el){
+    var n=el; while(n&&n!==document.body){
+      if(n.id&&/^(pf-|sy-|hb-|ov-)/.test(n.id)) return true;
+      var cl=' '+(n.className&&n.className.baseVal!==undefined?n.className.baseVal:(n.className||''))+' ';
+      if(/\s(pf-panel|inv-lines|cli-prod-rows|cli-sal-rows|modal-foot)\s/.test(cl)) return true;
+      if(n.hasAttribute&&n.hasAttribute('data-pf-skip')) return true;
+      n=n.parentNode;
+    }
+    return false;
+  }
+  function libelle(el){
+    var lab=el.closest?el.closest('label'):null;
+    if(lab){ var sp=lab.querySelector('span'); if(sp&&S_(sp.textContent)) return S_(sp.textContent); var t=S_(lab.textContent); if(t) return t; }
+    if(el.getAttribute('aria-label')) return S_(el.getAttribute('aria-label'));
+    if(el.getAttribute('title')) return S_(el.getAttribute('title'));
+    var p=el.previousElementSibling; if(p&&/^(LABEL|SPAN|B|STRONG|DIV)$/.test(p.tagName)){ var s=S_(p.textContent); if(s&&s.length<60) return s; }
+    return S_(el.getAttribute('placeholder'));
+  }
+  function jetons(el){
+    var out=[];
+    ['oninput','onchange','onblur'].forEach(function(a){ var v=el.getAttribute&&el.getAttribute(a); if(!v) return;
+      (v.match(/'([^']{1,40})'|"([^"]{1,40})"/g)||[]).forEach(function(q){ out.push(q.slice(1,-1)); }); });
+    if(el.id) out.push(el.id);
+    if(el.name) out.push(el.name);
+    if(el.getAttribute&&el.getAttribute('data-k')) out.push(el.getAttribute('data-k'));
+    var l=libelle(el); if(l) out.push(l);
+    var ph=el.getAttribute&&el.getAttribute('placeholder'); if(ph) out.push(ph);
+    return out;
+  }
+  function cleDe(el){
+    var js=jetons(el); var lib=libelle(el);
+    if(EXCL.test(nz(lib))) return '';
+    for(var i=0;i<js.length;i++){
+      var raw=js[i]; var t=nz(raw); if(!t||t.length<2) continue;
+      if(EXCL.test(t)) continue;
+      if(ALIAS[t]) return ALIAS[t];
+      /* clé composée : « societe.siren », « intake-siren » */
+      var parts=(''+raw).split(/[^A-Za-z0-9À-ſ]+/);
+      for(var j=parts.length-1;j>=0;j--){ var pt=nz(parts[j]); if(pt.length>2&&ALIAS[pt]&&!EXCL.test(pt)) return ALIAS[pt]; }
+    }
+    return '';
+  }
+  function vide(el){
+    if(el.tagName==='SELECT'){ var v=S_(el.value); return !v; }
+    return !S_(el.value);
+  }
+  function remplissable(el){
+    if(!el||el.disabled||el.readOnly) return false;
+    if(el.tagName==='INPUT'){ var t=(el.type||'text').toLowerCase();
+      if(['password','file','hidden','checkbox','radio','button','submit','range','color','image','reset'].indexOf(t)>=0) return false; }
+    else if(el.tagName!=='TEXTAREA'&&el.tagName!=='SELECT') return false;
+    if(el.offsetParent===null&&el.type!=='hidden') return false;
+    return true;
+  }
+  function pourChamp(el,val){
+    var v=val;
+    if(el.tagName==='SELECT'){
+      var opt=null; var n=nz(v);
+      for(var i=0;i<el.options.length;i++){ var o=el.options[i]; if(nz(o.value)===n||nz(o.text)===n){ opt=o; break; } }
+      return opt?opt.value:null;
+    }
+    var t=(el.type||'').toLowerCase();
+    if(t==='date'){ var m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v); if(m) return m[3]+'-'+m[2]+'-'+m[1];
+      if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.slice(0,10); return null; }
+    if(t==='number'){ var x=(''+v).replace(/[^0-9,.\-]/g,'').replace(',','.'); return x&&!isNaN(+x)?x:null; }
+    if(t==='email'&&v.indexOf('@')<0) return null;
+    return v;
+  }
+
+  /* ======================= 3) CONTEXTE ======================= */
+  window.prefContexte=function(){
+    var st=(typeof state!=='undefined'&&state)||{}; var d=null,c=null;
+    if(st.espaceDossier) d=dossierDe(st.espaceDossier);
+    if(!d&&st.dossierId) d=dossierDe(st.dossierId);
+    if(d) c=clientDe((d.clientIds||[])[0]);
+    if(!c&&st.cliSel) c=clientDe(st.cliSel);
+    if(!c&&st.edLibId){ var ed=(B().editionsLibres||[]).filter(function(x){ return x.id===st.edLibId; })[0];
+      if(ed&&ed.clientId) c=clientDe(ed.clientId); }
+    if(!c&&st.demSel){ var q=(B().demandes||[]).filter(function(x){ return x.id===st.demSel; })[0];
+      if(q){ if(q.dossierId&&!d) d=dossierDe(q.dossierId); if(d&&!c) c=clientDe((d.clientIds||[])[0]);
+        if(!c&&q.clientNom){ var n=nz(q.clientNom); c=(B().clients||[]).filter(function(x){ return nz(nomClient(x))===n; })[0]||null; } } }
+    if(!c&&d){ var so=((d.intake||{}).societe||{}).denomination; if(so){ var n2=nz(so); c=(B().clients||[]).filter(function(x){ return nz(nomClient(x))===n2; })[0]||null; } }
+    if(!c&&!d) return null;
+    return {client:c,dossier:d,nom:nomClient(c)||((d&&d.intake&&d.intake.societe&&d.intake.societe.denomination)||'')||(d?(d.ref||''):'')};
+  };
+
+  /* ======================= 4) ANALYSE & REMPLISSAGE ======================= */
+  var DERNIER=[];
+  window.prefScan=function(root){
+    var cx=window.prefContexte(); if(!cx) return [];
+    var M=window.prefValeurs(cx.client,cx.dossier&&cx.dossier.id); if(!M||!Object.keys(M).length) return [];
+    root=root||document.getElementById('view')||document.body;
+    var out=[]; var els=root.querySelectorAll('input,textarea,select');
+    for(var i=0;i<els.length;i++){ var el=els[i];
+      if(!remplissable(el)||!vide(el)||interdit(el)) continue;
+      var k=cleDe(el); if(!k||!M[k]) continue;
+      var v=pourChamp(el,M[k].v); if(v==null||v==='') continue;
+      out.push({el:el,cle:k,lbl:M[k].lbl,val:v,aff:M[k].v,src:M[k].src,champ:libelle(el)||k});
+    }
+    return out;
+  };
+  function poser(it){
+    var el=it.el; try{
+      el.value=it.val;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+      if(typeof el.onblur==='function'){ try{ el.onblur({target:el}); }catch(e){} }
+      el.classList.add('pf-flash'); setTimeout(function(){ try{ el.classList.remove('pf-flash'); }catch(e){} },1600);
+      return true;
+    }catch(e){ return false; }
+  }
+  window.prefRemplir=function(cles){
+    var L=window.prefScan(); if(!L.length){ T('Aucun champ vide à compléter sur cet écran.','warn'); return 0; }
+    if(cles&&cles.length){ var s={}; cles.forEach(function(k){ s[k]=1; }); L=L.filter(function(x){ return s[x.cle]; }); }
+    var cx=window.prefContexte(); var n=0; DERNIER=[];
+    L.forEach(function(it){ DERNIER.push({el:it.el,avant:it.el.value,champ:it.champ}); if(poser(it)) n++; });
+    if(n){
+      jrn({ts:Date.now(),action:'pré-remplissage',ok:true,ref:(cx&&cx.nom)||'',
+        detail:n+' champ(s) · '+((typeof state!=='undefined'&&state.page)||'')+' · '+L.slice(0,6).map(function(x){ return x.lbl; }).join(', ')+(L.length>6?'…':'')});
+      T(n+' champ(s) complété(s) depuis le dossier.','ok');
+    }
+    try{ closeModal(); }catch(e){}
+    setTimeout(barre,60); return n;
+  };
+  window.prefAnnuler=function(){
+    if(!DERNIER.length){ T('Rien à annuler.','warn'); return; }
+    var n=0; DERNIER.forEach(function(r){ try{ if(!document.body.contains(r.el)) return; r.el.value=r.avant;
+      r.el.dispatchEvent(new Event('input',{bubbles:true})); r.el.dispatchEvent(new Event('change',{bubbles:true})); n++; }catch(e){} });
+    DERNIER=[]; jrn({ts:Date.now(),action:'annulation du pré-remplissage',ok:true,detail:n+' champ(s) remis à vide'});
+    T(n+' champ(s) remis à leur état initial.','ok'); setTimeout(barre,60);
+  };
+
+  /* ======================= 5) CONTRÔLE À L'ÉCRAN ======================= */
+  window.prefApercu=function(){
+    var cx=window.prefContexte();
+    if(!cx){ T('Ouvrez un dossier ou une fiche client pour utiliser le pré-remplissage.','warn'); return; }
+    var L=window.prefScan();
+    if(!L.length){ T('Aucun champ vide à compléter sur cet écran.','warn'); return; }
+    var vu={}; var rows=L.filter(function(x){ if(vu[x.cle]) return false; vu[x.cle]=1; return true; }).map(function(x){
+      var nb=L.filter(function(y){ return y.cle===x.cle; }).length;
+      return '<tr><td><label class="pf-ck"><input type="checkbox" checked data-cle="'+E(x.cle)+'"> '+E(x.lbl)+'</label>'
+        +(nb>1?'<span class="pf-nb">'+nb+' champs</span>':'')+'</td>'
+        +'<td class="pf-v">'+E(x.aff)+'</td><td class="pf-s">'+E(x.src)+'</td></tr>'; }).join('');
+    var body='<div class="pf-panel">'
+      +'<div class="pf-intro">Société : <b>'+E(cx.nom||'—')+'</b>'+(cx.dossier?(' · dossier '+E(cx.dossier.ref||cx.dossier.numeroDossier||'')):'')
+      +'<br><span class="pf-hint">Seuls les champs vides de cet écran sont complétés. Les champs déjà saisis ne sont jamais modifiés.</span></div>'
+      +'<table class="pf-t"><thead><tr><th>Information</th><th>Valeur</th><th>Provenance</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var foot='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>'
+      +'<button class="btn" onclick="prefToutCocher()">Tout cocher / décocher</button>'
+      +'<button class="btn btn-pri" onclick="prefValider()">Compléter '+L.length+' champ(s)</button>';
+    try{ openModal('Compléter depuis le dossier',body,foot); }catch(e){ T('Affichage impossible.','warn'); }
+  };
+  window.prefToutCocher=function(){ var b=document.querySelectorAll('.pf-panel input[type=checkbox]'); var tout=true;
+    for(var i=0;i<b.length;i++){ if(!b[i].checked){ tout=false; break; } }
+    for(var j=0;j<b.length;j++) b[j].checked=!tout; };
+  window.prefValider=function(){ var b=document.querySelectorAll('.pf-panel input[type=checkbox]'); var k=[];
+    for(var i=0;i<b.length;i++){ if(b[i].checked) k.push(b[i].getAttribute('data-cle')); }
+    if(!k.length){ T('Aucune information sélectionnée.','warn'); return; }
+    window.prefRemplir(k); };
+
+  /* ======================= 6) BOUTON CONTEXTUEL ======================= */
+  function barre(){
+    try{
+      var old=document.getElementById('pf-bar');
+      if(!cfg().actif){ if(old) old.remove(); return; }
+      var L=safe(function(){ return window.prefScan(); },[]);
+      var n=L.length, undo=DERNIER.length;
+      if(!n&&!undo){ if(old) old.remove(); return; }
+      var h='';
+      if(n) h+='<button type="button" class="btn btn-sm btn-pri" onclick="prefApercu()">Compléter depuis le dossier · '+n+'</button>';
+      if(undo) h+='<button type="button" class="btn btn-sm btn-ghost" onclick="prefAnnuler()">Annuler le remplissage</button>';
+      if(!old){ old=document.createElement('div'); old.id='pf-bar'; document.body.appendChild(old); }
+      if(old.innerHTML!==h) old.innerHTML=h;
+    }catch(e){}
+  }
+  window.prefBarre=barre;
+
+  /* ======================= 7) RÉGLAGE ======================= */
+  window.prefSet=function(k,v){ var c=cfg(); if(k==='actif') c.actif=!!v;
+    try{ if(typeof saveDB==='function') saveDB(); else if(typeof save==='function') save(); }catch(e){}
+    barre(); try{ if(typeof render==='function') render(); }catch(e){} };
+  window.prefParamsCard=function(){ var c=cfg();
+    var der=(c.journal||[]).slice(0,6).map(function(j){ var d=new Date(j.ts);
+      return '<tr><td>'+E(d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))+'</td><td>'+E(j.ref||'')+'</td><td>'+E(j.detail||'')+'</td></tr>'; }).join('');
+    return '<div class="card pf-params"><div class="card-h"><h2>Pré-remplissage des formulaires</h2>'
+      +'<span class="sub" style="margin-left:auto">'+(c.journal||[]).length+' remplissage(s) enregistré(s)</span></div><div class="card-b">'
+      +'<div class="pf-opts"><label><input type="checkbox" '+(c.actif?'checked':'')+' onchange="prefSet(\'actif\',this.checked)"> Proposer le pré-remplissage sur les écrans de saisie</label></div>'
+      +'<div class="pf-note">Les informations proviennent de la fiche client, du dossier en cours et du questionnaire. Seuls les champs vides sont complétés, après contrôle à l’écran ; les champs déjà saisis ne sont jamais modifiés et chaque remplissage peut être annulé.</div>'
+      +(der?('<table class="pf-t pf-jr"><thead><tr><th>Date</th><th>Société</th><th>Détail</th></tr></thead><tbody>'+der+'</tbody></table>'):'')
+      +'</div></div>'; };
+
+  /* ======================= 8) STYLE ======================= */
+  var CSS='#pf-bar{position:fixed;right:14px;bottom:14px;z-index:64;display:flex;gap:8px;align-items:center}'
+    +'#pf-bar .btn{box-shadow:0 6px 18px rgba(0,0,0,.45)}'
+    +'.pf-flash{animation:pfFl 1.5s ease-out}'
+    +'@keyframes pfFl{0%{box-shadow:0 0 0 2px rgba(120,190,255,.9) inset}100%{box-shadow:0 0 0 2px rgba(120,190,255,0) inset}}'
+    +'.pf-panel{font-size:12.5px}.pf-intro{margin:0 0 10px;line-height:1.55}'
+    +'.pf-hint{opacity:.7;font-size:11.5px}'
+    +'.pf-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.pf-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.65;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.pf-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top}'
+    +'.pf-ck{display:inline-flex;gap:6px;align-items:center;cursor:pointer}'
+    +'.pf-nb{margin-left:8px;font-size:10.5px;opacity:.6}'
+    +'.pf-v{font-weight:600}.pf-s{opacity:.62;font-size:11.5px;white-space:nowrap}'
+    +'.pf-opts label{display:inline-flex;gap:6px;align-items:center;font-size:12.5px}'
+    +'.pf-note{margin:8px 0 0;font-size:11.5px;opacity:.72;line-height:1.55}'
+    +'.pf-jr{margin-top:10px}';
+  try{ var st=document.createElement('style'); st.id='pf-css'; st.textContent=CSS; document.head.appendChild(st); }catch(e){}
+
+  /* ======================= 9) GREFFES ======================= */
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__pf){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(barre,90); return r; }; window.render.__pf=1; } }catch(e){}
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__pf){ window.pageParams=function(){ var h=_pp.apply(this,arguments); try{ if((''+h).indexOf('pf-params')<0) h+=prefParamsCard(); }catch(e){} return h; }; window.pageParams.__pf=1; } }catch(e){}
+  try{ var v=document.getElementById('view'); if(v&&window.MutationObserver){ var tm=null;
+    new MutationObserver(function(){ clearTimeout(tm); tm=setTimeout(barre,180); }).observe(v,{childList:true,subtree:true}); } }catch(e){}
+  try{ setTimeout(barre,1200); }catch(e){}
+})();
+</script>
 </body>
 </html>
