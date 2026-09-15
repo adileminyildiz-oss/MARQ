@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=692;
+var LAST_VER=696;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42609,7 +42609,7 @@ function testLienSignature() {
   function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',rapproChaine:'Rapprochement',tempsChaine:'Temps passé',etapeCourrier:'Courriers d\'étape',repriseChaine:'Reprise de dossier',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -44468,6 +44468,813 @@ function testLienSignature() {
     +'.kb-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}'
     +'.kb-ex{margin:6px 0 0;padding-left:18px;font-size:11.5px;opacity:.65;line-height:1.7}';
   try{ if(M.style) M.style('kb-css',CSS); else { var st=document.createElement('style'); st.id='kb-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Rapprochement des encaissements (v693)
+   Un relevé bancaire déposé en CSV est confronté aux factures non
+   réglées : numéro trouvé dans le libellé, montant identique, nom
+   du client, proximité de l'échéance. Chaque rapprochement est
+   proposé avec son motif, jamais appliqué sans accord. Les lignes
+   sans correspondance restent visibles et se rattachent à la main.
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__rappro) return; window.__rappro=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function nz(v){ return (''+(v==null?'':v)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+  function eur(v){ return M.eur?M.eur(v):((+v||0).toFixed(2)+' €'); }
+  function frD(v){ if(M.jour) return M.jour(v); return S(v); }
+  function cfg(){ var p=P(); p.rapproChaine=p.rapproChaine||{}; var c=p.rapproChaine;
+    c.journal=c.journal||[]; c.releve=c.releve||null; if(c.seuil==null) c.seuil=3; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+  function factures(){ var p=P(); return (p.facturier||[]); }
+  function montantDu(f){ try{ if(typeof window.invCalc==='function'){ var c=window.invCalc(f); if(c&&c.net!=null) return +c.net||0; } }catch(e){}
+    return +f.ttc||0; }
+  function ouvertes(){ return factures().filter(function(f){
+    return f.type!=='devis'&&!f.paye&&f.statut!=='brouillon'&&f.statut!=='annulee'&&montantDu(f)>0; }); }
+
+  /* ---------- lecture du relevé ---------- */
+  function nombre(s){ s=S(s); if(!s) return null;
+    var neg=/^\(.*\)$/.test(s)||/-\s*$/.test(s); s=s.replace(/[()]/g,'');
+    s=s.replace(/\s| | /g,'').replace(/[€$]/g,'');
+    if(/,\d{1,2}$/.test(s)) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+    var n=parseFloat(s); if(isNaN(n)) return null; return neg&&n>0?-n:n; }
+  function date(s){ s=S(s); var m=/(\d{2})[\/.-](\d{2})[\/.-](\d{2,4})/.exec(s);
+    if(m){ var a=m[3].length===2?('20'+m[3]):m[3]; return a+'-'+m[2]+'-'+m[1]; }
+    m=/(\d{4})-(\d{2})-(\d{2})/.exec(s); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+    return ''; }
+  function cellules(l,sep){ var out=[],cur='',q=false;
+    for(var i=0;i<l.length;i++){ var c=l[i];
+      if(c==='"'){ if(q&&l[i+1]==='"'){ cur+='"'; i++; } else q=!q; continue; }
+      if(c===sep&&!q){ out.push(cur); cur=''; continue; }
+      cur+=c; }
+    out.push(cur); return out.map(function(x){ return S(x); }); }
+
+  window.rapproLire=function(txt){
+    txt=(''+(txt||'')).replace(/\r/g,'');
+    var lignes=txt.split('\n').filter(function(l){ return S(l); });
+    if(!lignes.length) return {ok:false,motif:'fichier vide',lignes:[]};
+    var seps=[';','\t',',','|']; var sep=';', best=0;
+    seps.forEach(function(s){ var n=(lignes[0].split(s).length+ (lignes[1]||'').split(s).length);
+      if(n>best){ best=n; sep=s; } });
+    if(best<4) return {ok:false,motif:'colonnes introuvables',lignes:[]};
+    var tete=cellules(lignes[0],sep); var entete=tete.some(function(c){ return /date|libell|montant|credit|débit|debit|operation|opération/i.test(c); });
+    var iD=-1,iL=-1,iM=-1,iC=-1,iDeb=-1;
+    if(entete){ tete.forEach(function(c,k){ var n=nz(c);
+      if(iD<0&&/date/.test(n)) iD=k;
+      if(iL<0&&/libell|intitul|operation|motif|description|nature/.test(n)) iL=k;
+      if(iC<0&&/credit/.test(n)) iC=k;
+      if(iDeb<0&&/debit/.test(n)) iDeb=k;
+      if(iM<0&&/montant|somme/.test(n)) iM=k; }); }
+    var corps=lignes.slice(entete?1:0);
+    var out=[];
+    corps.forEach(function(l,k){ var c=cellules(l,sep); if(c.length<2) return;
+      var d='',lib='',mt=null;
+      if(iD>=0) d=date(c[iD]); if(iL>=0) lib=c[iL];
+      if(iC>=0&&nombre(c[iC])!=null) mt=nombre(c[iC]);
+      else if(iM>=0) mt=nombre(c[iM]);
+      else if(iDeb>=0&&nombre(c[iDeb])!=null) mt=-Math.abs(nombre(c[iDeb]));
+      if(!d){ for(var x=0;x<c.length;x++){ var dd=date(c[x]); if(dd){ d=dd; break; } } }
+      if(mt==null){ for(var y=c.length-1;y>=0;y--){ var nn=nombre(c[y]); if(nn!=null&&Math.abs(nn)>0){ mt=nn; break; } } }
+      if(!lib){ var cand=c.filter(function(v){ return v&&!date(v)&&nombre(v)===null; });
+        lib=cand.sort(function(a,b){ return b.length-a.length; })[0]||''; }
+      if(mt==null) return;
+      out.push({i:k,date:d,lib:S(lib),montant:mt}); });
+    var enc=out.filter(function(x){ return x.montant>0; });
+    return {ok:true,sep:sep,entete:entete,total:out.length,lignes:enc,sorties:out.length-enc.length}; };
+
+  /* ---------- rapprochement ---------- */
+  function ecartJours(a,b){ if(!a||!b) return 999;
+    var ta=Date.parse(a), tb=Date.parse(b); if(isNaN(ta)||isNaN(tb)) return 999;
+    return Math.abs(Math.round((ta-tb)/86400000)); }
+
+  window.rapproProposer=function(lignes){
+    var F=ouvertes(); var pris={};
+    return (lignes||[]).map(function(l){
+      var lib=nz(l.lib); var best=null;
+      F.forEach(function(f){ if(pris[f.id]) return;
+        var m=montantDu(f), sc=0, motifs=[];
+        var num=nz(f.numero);
+        if(num&&num.length>=4&&lib.replace(/ /g,'').indexOf(num.replace(/ /g,''))>=0){ sc+=5; motifs.push('numéro de facture dans le libellé'); }
+        var d=Math.abs(m-l.montant);
+        if(d<0.005){ sc+=3; motifs.push('montant identique'); }
+        else if(d<=Math.max(1,m*0.01)){ sc+=1; motifs.push('montant proche'); }
+        else if(sc===0) return;                     /* ni numéro ni montant : on abandonne */
+        else motifs.push('montant différent de la facture');
+        var cl=nz(f.clNom||f.clientNom||'');
+        if(cl){ var mots=cl.split(' ').filter(function(w){ return w.length>=4; });
+          if(mots.length&&mots.every(function(w){ return lib.indexOf(w)>=0; })){ sc+=2; motifs.push('nom du client dans le libellé'); }
+          else if(mots.some(function(w){ return lib.indexOf(w)>=0; })){ sc+=1; motifs.push('nom du client approchant'); } }
+        var ej=ecartJours(l.date,f.echeance||f.dateEmise);
+        if(ej<=45){ sc+=1; motifs.push('date cohérente'); }
+        if(!best||sc>best.score){ best={facture:f,score:sc,motifs:motifs,ecart:d}; } });
+      if(best&&best.score>=cfg().seuil){ pris[best.facture.id]=1;
+        return {ligne:l,factureId:best.facture.id,numero:best.facture.numero,client:best.facture.clNom||best.facture.clientNom||'',
+          du:montantDu(best.facture),score:best.score,motifs:best.motifs,retenu:true}; }
+      return {ligne:l,factureId:'',score:best?best.score:0,motifs:[],retenu:false}; }); };
+
+  /* ---------- dépôt ---------- */
+  function poser(txt,nom){
+    var r=window.rapproLire(txt);
+    if(!r.ok){ T('Relevé illisible : '+r.motif+'.','warn'); return 0; }
+    if(!r.lignes.length){ T('Aucun encaissement dans ce relevé.','warn'); return 0; }
+    var c=cfg();
+    c.releve={nom:nom||'relevé',ts:Date.now(),total:r.total,sorties:r.sorties,
+      props:window.rapproProposer(r.lignes)};
+    jrn({action:'relevé déposé',ref:nom||'',detail:r.lignes.length+' encaissement(s) lu(s) sur '+r.total+' ligne(s)'});
+    enr(); rd();
+    var n=c.releve.props.filter(function(x){ return x.factureId; }).length;
+    T(r.lignes.length+' encaissement(s) lu(s), '+n+' rapprochement(s) proposé(s).','ok');
+    return r.lignes.length; }
+  window.rapproPoserTexte=poser;
+  window.rapproDepotPick=function(){ var i=document.getElementById('rp-file'); if(i) i.click(); };
+  window.rapproDepot=function(input){ var f=input&&input.files&&input.files[0]; if(!f) return;
+    var r=new FileReader(); r.onload=function(){ poser(''+r.result,f.name); input.value=''; };
+    r.readAsText(f,'utf-8'); };
+  window.rapproColler=function(){ var t=document.getElementById('rp-coller'); if(!t) return;
+    var v=S(t.value); if(!v){ T('Collez d’abord les lignes du relevé.','warn'); return; }
+    if(poser(v,'collé')) t.value=''; };
+  window.rapproVider=function(){ var c=cfg(); c.releve=null; enr(); rd(); T('Relevé retiré.','ok'); };
+
+  window.rapproToggle=function(i){ var c=cfg(); if(!c.releve) return;
+    var p=c.releve.props[i]; if(!p||!p.factureId) return; p.retenu=!p.retenu; enr(); rd(); };
+  window.rapproManuel=function(i,fid){ var c=cfg(); if(!c.releve) return;
+    var p=c.releve.props[i]; if(!p) return;
+    var f=factures().filter(function(x){ return x.id===fid; })[0];
+    if(!f){ p.factureId=''; p.retenu=false; }
+    else { p.factureId=f.id; p.numero=f.numero; p.client=f.clNom||f.clientNom||'';
+      p.du=montantDu(f); p.motifs=['rattaché à la main']; p.score=9; p.retenu=true; }
+    enr(); rd(); };
+
+  window.rapproPointer=function(){ var c=cfg(); if(!c.releve){ T('Aucun relevé déposé.','warn'); return 0; }
+    var L=c.releve.props.filter(function(x){ return x.retenu&&x.factureId; });
+    if(!L.length){ T('Aucun encaissement retenu.','warn'); return 0; }
+    var n=0;
+    L.forEach(function(p){ var f=factures().filter(function(x){ return x.id===p.factureId; })[0];
+      if(!f||f.paye) return;
+      f.paye={date:p.ligne.date||new Date().toISOString().slice(0,10),montant:p.ligne.montant,
+        mode:'Virement',releve:{lib:p.ligne.lib,date:p.ligne.date,fichier:c.releve.nom}};
+      n++; jrn({action:'encaissement pointé',ref:f.numero||'',
+        detail:eur(p.ligne.montant)+' · '+(p.motifs||[]).join(', ')}); });
+    c.releve.props=c.releve.props.filter(function(x){ return !(x.retenu&&x.factureId); });
+    if(!c.releve.props.length) c.releve=null;
+    enr(); rd(); T(n+' facture(s) pointée(s) comme encaissée(s).','ok'); return n; };
+
+  /* ---------- carte ---------- */
+  function optFactures(sel){ var F=ouvertes();
+    return '<option value="">— aucune —</option>'+F.map(function(f){
+      return '<option value="'+E(f.id)+'"'+(f.id===sel?' selected':'')+'>'+E((f.numero||'')+' · '+(f.clNom||f.clientNom||'')+' · '+eur(montantDu(f)))+'</option>'; }).join(''); }
+
+  window.rapproCard=function(){ var c=cfg(); var F=ouvertes();
+    var head='<div class="card-h"><h2>Rapprochement des encaissements</h2>'
+      +'<span class="sub" style="margin-left:auto">'+F.length+' facture(s) en attente de règlement</span>'
+      +(c.releve?'<button class="btn btn-sm btn-ghost" onclick="rapproVider()">Retirer le relevé</button>':'')
+      +'</div>';
+    if(!c.releve){
+      return '<div class="card rp-card">'+head+'<div class="card-b">'
+        +'<div class="rp-note">Déposez le relevé bancaire au format CSV, ou collez les lignes. Mar’q cherche la facture correspondante '
+        +'par le numéro trouvé dans le libellé, le montant, le nom du client et la date, puis vous propose le pointage.</div>'
+        +'<div class="rp-acts"><input type="file" id="rp-file" accept=".csv,text/csv,text/plain" style="display:none" onchange="rapproDepot(this)">'
+        +'<button class="btn btn-pri" onclick="rapproDepotPick()">Déposer un relevé CSV</button></div>'
+        +'<textarea id="rp-coller" class="rp-ta" rows="4" placeholder="Date;Libellé;Crédit&#10;15/09/2026;VIR SOCIETE 1 FA-001;1200,00"></textarea>'
+        +'<div class="rp-acts"><button class="btn btn-ghost" onclick="rapproColler()">Lire les lignes collées</button></div>'
+        +'</div></div>'; }
+    var P2=c.releve.props;
+    var trouv=P2.filter(function(x){ return x.factureId; });
+    var sans=P2.filter(function(x){ return !x.factureId; });
+    var ret=trouv.filter(function(x){ return x.retenu; });
+    var somme=ret.reduce(function(s,x){ return s+(+x.ligne.montant||0); },0);
+    function ligne(p,i){
+      var ec=p.factureId?Math.abs((+p.du||0)-(+p.ligne.montant||0)):0;
+      return '<div class="rp-row'+(p.retenu?' rp-on':'')+'">'
+        +'<span class="rp-ck">'+(p.factureId?('<input type="checkbox" '+(p.retenu?'checked':'')+' onchange="rapproToggle('+i+')">'):'')+'</span>'
+        +'<span class="rp-b"><b>'+E(frD(p.ligne.date))+'</b><i>'+E(p.ligne.lib||'(sans libellé)')+'</i></span>'
+        +'<span class="rp-m">'+E(eur(p.ligne.montant))+'</span>'
+        +'<span class="rp-f">'+(p.factureId
+            ? ('<b>'+E(p.numero||'')+'</b><i>'+E(p.client||'')+' · '+E(eur(p.du))+(ec>0.005?(' · écart '+E(eur(ec))):'')+'</i>')
+            : ('<select class="rp-sel" onchange="rapproManuel('+i+',this.value)">'+optFactures('')+'</select>'))+'</span>'
+        +'<span class="rp-w">'+(p.factureId?E((p.motifs||[]).join(' · ')):'<i>aucune correspondance</i>')+'</span>'
+        +'</div>'; }
+    return '<div class="card rp-card">'+head+'<div class="card-b">'
+      +'<div class="rp-tete">Relevé <b>'+E(c.releve.nom)+'</b> · '+P2.length+' encaissement(s)'
+      +(c.releve.sorties?(' · '+c.releve.sorties+' sortie(s) ignorée(s)'):'')
+      +' · <b>'+trouv.length+'</b> rapproché(s), <b>'+sans.length+'</b> sans correspondance</div>'
+      +'<div class="rp-list">'
+      +'<div class="rp-row rp-head"><span class="rp-ck"></span><span class="rp-b">Ligne du relevé</span>'
+      +'<span class="rp-m">Montant</span><span class="rp-f">Facture</span><span class="rp-w">Pourquoi</span></div>'
+      +P2.map(ligne).join('')+'</div>'
+      +'<div class="rp-pied"><span>'+ret.length+' retenu(s) · '+E(eur(somme))+'</span>'
+      +'<button class="btn btn-pri" onclick="rapproPointer()">Pointer les encaissements retenus</button></div>'
+      +'<div class="rp-note">Rien n’est modifié tant que vous n’avez pas pointé. Une facture déjà réglée n’est jamais proposée deux fois.</div>'
+      +'</div></div>'; };
+
+  /* ---------- greffe ---------- */
+  try{ var _pf=window.pageFacturier;
+    if(typeof _pf==='function'&&!_pf.__rp){
+      window.pageFacturier=function(){ var h=_pf.apply(this,arguments);
+        try{ if((''+h).indexOf('rp-card')<0) h+=rapproCard(); }catch(e){} return h; };
+      window.pageFacturier.__rp=1; } }catch(e){}
+  function greffe(){ try{
+    if(!(typeof state!=='undefined'&&state.page==='facturier')) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.rp-card')) return;
+    var h=rapproCard(); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h; v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  try{ if(M.apresRendu) M.apresRendu(greffe,'rp',70);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__rp){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffe,70); return r; }; window.render.__rp=1; } } }catch(e){}
+
+  var CSS='.rp-note{font-size:11.5px;opacity:.72;line-height:1.55;margin:0 0 10px}'
+    +'.rp-acts{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}'
+    +'.rp-ta{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padding:8px;border-radius:8px}'
+    +'.rp-tete{font-size:12.5px;margin:0 0 10px}'
+    +'.rp-list{display:flex;flex-direction:column}'
+    +'.rp-row{display:grid;grid-template-columns:30px 1fr 110px 240px 1fr;gap:10px;align-items:center;'
+      +'padding:6px 6px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.rp-head{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.6;border-bottom-width:1px}'
+    +'.rp-on{background:rgba(120,190,255,.06)}'
+    +'.rp-b b,.rp-f b{display:block;font-size:12px}'
+    +'.rp-b i,.rp-f i{display:block;font-style:normal;font-size:11px;opacity:.62;margin-top:1px}'
+    +'.rp-m{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}'
+    +'.rp-w{font-size:11px;opacity:.7}'
+    +'.rp-sel{width:100%;font-size:11.5px}'
+    +'.rp-pied{display:flex;align-items:center;gap:14px;margin-top:12px;font-size:12.5px}'
+    +'.rp-pied .btn{margin-left:auto}'
+    +'@media(max-width:1100px){.rp-row{grid-template-columns:24px 1fr 90px;grid-auto-rows:auto}'
+      +'.rp-f,.rp-w{grid-column:2/4}}';
+  try{ if(M.style) M.style('rp-css',CSS); else { var st=document.createElement('style'); st.id='rp-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Temps passé et rentabilité par dossier (v694)
+   Un chronomètre et une saisie à la main mesurent le temps réel
+   consacré à chaque dossier. Rapporté au taux horaire du cabinet
+   et aux honoraires facturés, il donne la rentabilité réelle du
+   dossier, puis de chaque formalité. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__tempsDossier) return; window.__tempsDossier=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function eur(v){ return M.eur?M.eur(v):((+v||0).toFixed(2)+' €'); }
+  function auj(){ return new Date().toISOString().slice(0,10); }
+  function frD(v){ return M.jour?M.jour(v):S(v); }
+  function uid(){ return M.uid?M.uid('t'):('t'+Date.now().toString(36)); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+
+  function cfg(){ var p=P(); p.tempsChaine=p.tempsChaine||{}; var c=p.tempsChaine;
+    c.lignes=c.lignes||[]; c.journal=c.journal||[];
+    if(c.taux==null) c.taux=60; if(c.encours==null) c.encours=null; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+  function dossiers(){ return (B().dossiers||[]).filter(function(d){ return !d.archived; }); }
+  function dossier(id){ return (B().dossiers||[]).filter(function(d){ return d.id===id; })[0]||null; }
+  function refD(d){ return d?S(d.ref||d.numeroDossier||d.id):''; }
+  function nomD(d){ if(!d) return '';
+    var s=S(((d.intake||{}).societe||{}).denomination);
+    if(s) return s;
+    var c=(B().clients||[]).filter(function(x){ return (d.clientIds||[]).indexOf(x.id)>=0; })[0];
+    return c?(M.nomClient?M.nomClient(c):S(c.denomination)):''; }
+  function formalite(d){ if(!d) return 'Formalité non précisée';
+    /* templateOf retombe sur la création de SAS quand le type est absent : on ne s'y fie
+       que lorsque le dossier porte vraiment un type. */
+    if(d.formaliteType) return sur(function(){ return templateOf(d).label; },'')||S(d.formalite)||'Formalité non précisée';
+    if(S(d.formalite)) return S(d.formalite);
+    return 'Formalité non précisée'; }
+
+  /* ---------- durées ---------- */
+  function hm(min){ min=Math.max(0,Math.round(+min||0));
+    var h=Math.floor(min/60), m2=min%60;
+    return h?(h+' h'+(m2?(' '+(m2<10?'0':'')+m2):'')):(m2+' min'); }
+  window.tempsHM=hm;
+  function lireDuree(v){ v=S(v).toLowerCase().replace(',','.');
+    if(!v) return 0;
+    var m=/^(\d+)\s*h\s*(\d+)?$/.exec(v); if(m) return (+m[1])*60+(+(m[2]||0));
+    m=/^(\d+(?:\.\d+)?)\s*h$/.exec(v); if(m) return Math.round((+m[1])*60);
+    m=/^(\d+)\s*(?:min|m)?$/.exec(v); if(m) return +m[1];
+    m=/^(\d+):(\d{1,2})$/.exec(v); if(m) return (+m[1])*60+(+m[2]);
+    var n=parseFloat(v); return isNaN(n)?0:Math.round(n); }
+  window.tempsLireDuree=lireDuree;
+
+  /* ---------- saisie ---------- */
+  window.tempsAjouter=function(did,min,objet,date){
+    var d=dossier(did); if(!d){ T('Dossier introuvable.','warn'); return null; }
+    min=Math.round(+min||0); if(min<=0){ T('Indiquez une durée.','warn'); return null; }
+    var c=cfg(); var l={id:uid(),dossierId:did,min:min,objet:S(objet),date:date||auj(),ts:Date.now()};
+    c.lignes.unshift(l); c.lignes=c.lignes.slice(0,2000);
+    jrn({action:'temps saisi',ref:refD(d),detail:hm(min)+(l.objet?(' · '+l.objet):'')});
+    enr(); rd(); return l; };
+  window.tempsSupprimer=function(id){ var c=cfg(); var l=c.lignes.filter(function(x){ return x.id===id; })[0];
+    c.lignes=c.lignes.filter(function(x){ return x.id!==id; });
+    if(l) jrn({action:'temps retiré',detail:hm(l.min)});
+    enr(); rd(); };
+  window.tempsSaisir=function(did){
+    var g=function(i){ var e=document.getElementById(i); return e?e.value:''; };
+    var min=lireDuree(g('tp-d')); var r=window.tempsAjouter(did,min,g('tp-o'),g('tp-j'));
+    if(r) T(hm(min)+' ajouté(s) au dossier.','ok'); };
+
+  /* ---------- chronomètre ---------- */
+  window.tempsDemarrer=function(did){ var c=cfg();
+    if(c.encours&&c.encours.dossierId&&c.encours.dossierId!==did) window.tempsArreter(true);
+    c.encours={dossierId:did,debut:Date.now()};
+    jrn({action:'chronomètre lancé',ref:refD(dossier(did))});
+    enr(); rd(); T('Chronomètre lancé.','ok'); };
+  window.tempsArreter=function(silencieux){ var c=cfg(); if(!c.encours){ if(!silencieux) T('Aucun chronomètre en cours.','warn'); return 0; }
+    var min=Math.round((Date.now()-c.encours.debut)/60000); var did=c.encours.dossierId; c.encours=null;
+    if(min<1){ enr(); rd(); if(!silencieux) T('Moins d’une minute : rien n’est retenu.','warn'); return 0; }
+    window.tempsAjouter(did,min,'Chronomètre');
+    if(!silencieux) T(hm(min)+' enregistré(s).','ok'); return min; };
+  window.tempsEnCours=function(){ var c=cfg(); if(!c.encours) return null;
+    return {dossierId:c.encours.dossierId,min:Math.round((Date.now()-c.encours.debut)/60000),debut:c.encours.debut}; };
+  window.tempsTaux=function(v){ var c=cfg(); var n=parseFloat((''+v).replace(',','.'));
+    c.taux=(isNaN(n)||n<0)?0:n; enr(); rd(); };
+
+  /* ---------- rentabilité ---------- */
+  function honoraires(did){ var p=P();
+    var F=(p.facturier||[]).filter(function(f){ return f.dossierId===did&&f.type!=='devis'&&f.statut!=='annulee'; });
+    var mt=function(f){ try{ if(typeof window.invCalc==='function'){ var c=window.invCalc(f); if(c&&c.net!=null) return +c.net||0; } }catch(e){} return +f.ttc||0; };
+    return {nb:F.length,facture:F.reduce(function(s,f){ return s+mt(f); },0),
+      encaisse:F.filter(function(f){ return f.paye; }).reduce(function(s,f){ return s+mt(f); },0)}; }
+  window.tempsHonoraires=honoraires;
+
+  window.tempsDossier=function(did){ var c=cfg();
+    var L=c.lignes.filter(function(x){ return x.dossierId===did; });
+    var min=L.reduce(function(s,x){ return s+(+x.min||0); },0);
+    var h=honoraires(did); var cout=min/60*(+c.taux||0);
+    return {min:min,heures:min/60,cout:cout,taux:+c.taux||0,lignes:L,
+      facture:h.facture,encaisse:h.encaisse,nbFactures:h.nb,
+      marge:h.facture-cout, tauxReel:min?(h.facture/(min/60)):null}; };
+
+  window.tempsBilan=function(){ var c=cfg(); var parF={}; var tot={min:0,cout:0,facture:0,dossiers:0};
+    var lignes=dossiers().map(function(d){ var r=window.tempsDossier(d.id);
+      if(!r.min&&!r.facture) return null;
+      var f=formalite(d);
+      parF[f]=parF[f]||{formalite:f,n:0,min:0,cout:0,facture:0};
+      parF[f].n++; parF[f].min+=r.min; parF[f].cout+=r.cout; parF[f].facture+=r.facture;
+      tot.min+=r.min; tot.cout+=r.cout; tot.facture+=r.facture; tot.dossiers++;
+      return {id:d.id,ref:refD(d),nom:nomD(d),formalite:f,min:r.min,cout:r.cout,
+        facture:r.facture,encaisse:r.encaisse,marge:r.marge,tauxReel:r.tauxReel}; }).filter(Boolean);
+    lignes.sort(function(a,b){ return b.min-a.min; });
+    var fams=Object.keys(parF).map(function(k){ var x=parF[k];
+      x.marge=x.facture-x.cout; x.moyMin=x.n?Math.round(x.min/x.n):0;
+      x.tauxReel=x.min?(x.facture/(x.min/60)):null; return x; })
+      .sort(function(a,b){ return b.min-a.min; });
+    tot.marge=tot.facture-tot.cout; tot.tauxReel=tot.min?(tot.facture/(tot.min/60)):null;
+    return {lignes:lignes,formalites:fams,total:tot,taux:+c.taux||0}; };
+
+  /* ---------- carte du dossier ---------- */
+  window.tempsCarteDossier=function(did){ var d=dossier(did); if(!d) return '';
+    var r=window.tempsDossier(did); var ec=window.tempsEnCours(); var actif=ec&&ec.dossierId===did;
+    var rows=r.lignes.slice(0,10).map(function(l){
+      return '<div class="tp-l"><span>'+E(frD(l.date))+'</span><b>'+E(hm(l.min))+'</b>'
+        +'<i>'+E(l.objet||'—')+'</i>'
+        +'<button class="btn btn-sm btn-ghost" onclick="tempsSupprimer(\''+l.id+'\')">Retirer</button></div>'; }).join('');
+    var marge='';
+    if(r.facture>0||r.min>0){
+      var bon=r.marge>=0;
+      marge='<div class="tp-kpi'+(bon?' tp-ok':' tp-ko')+'">'
+        +'<span><b>'+E(hm(r.min))+'</b><i>temps passé</i></span>'
+        +'<span><b>'+E(eur(r.cout))+'</b><i>coût à '+E(eur(r.taux))+' de l’heure</i></span>'
+        +'<span><b>'+E(eur(r.facture))+'</b><i>honoraires facturés</i></span>'
+        +'<span><b>'+E(eur(r.marge))+'</b><i>'+(bon?'marge':'perte')+'</i></span>'
+        +(r.tauxReel!=null?('<span><b>'+E(eur(r.tauxReel))+'</b><i>taux horaire réellement obtenu</i></span>'):'')
+        +'</div>'; }
+    return '<div class="card tp-card"><div class="card-h"><h2>Temps passé</h2>'
+      +'<span class="sub" style="margin-left:auto">'+E(refD(d))+'</span></div><div class="card-b">'
+      +(actif?('<div class="tp-run">Chronomètre en cours · <b>'+E(hm(ec.min))+'</b>'
+          +'<button class="btn btn-sm btn-pri" onclick="tempsArreter()">Arrêter et enregistrer</button></div>')
+        :('<div class="tp-acts"><button class="btn btn-pri" onclick="tempsDemarrer(\''+did+'\')">Lancer le chronomètre</button></div>'))
+      +'<div class="tp-form"><label>Durée<input id="tp-d" placeholder="1h30, 45, 0,5h"></label>'
+      +'<label>Objet<input id="tp-o" placeholder="Rédaction des statuts"></label>'
+      +'<label>Date<input id="tp-j" type="date" value="'+E(auj())+'"></label>'
+      +'<button class="btn" onclick="tempsSaisir(\''+did+'\')">Ajouter</button></div>'
+      +marge
+      +(rows?('<div class="tp-list">'+rows+(r.lignes.length>10?('<div class="tp-l tp-plus">et '+(r.lignes.length-10)+' saisie(s) de plus</div>'):'')+'</div>')
+            :'<div class="tp-note">Aucun temps saisi sur ce dossier.</div>')
+      +'<div class="tp-note">Le coût est calculé au taux horaire du cabinet, réglable dans le Pilotage. Le temps saisi ne modifie aucune facture.</div>'
+      +'</div></div>'; };
+
+  /* ---------- carte de pilotage ---------- */
+  window.tempsPilotageCard=function(){ var b=window.tempsBilan();
+    if(!b.lignes.length&&!b.total.min)
+      return '<div class="card tp-card"><div class="card-h"><h2>Rentabilité des dossiers</h2></div><div class="card-b">'
+        +'<div class="tp-taux">Taux horaire du cabinet <input type="number" min="0" step="1" value="'+b.taux+'" onchange="tempsTaux(this.value)"> € de l’heure</div>'
+        +'<div class="tp-note">Aucun temps n’a encore été saisi. Ouvrez un dossier pour lancer le chronomètre ou saisir une durée.</div>'
+        +'</div></div>';
+    function lg(x){ var bon=x.marge>=0;
+      return '<tr><td>'+E(x.ref)+'</td><td>'+E(x.nom)+'</td><td>'+E(x.formalite)+'</td>'
+        +'<td class="tp-n">'+E(hm(x.min))+'</td><td class="tp-n">'+E(eur(x.cout))+'</td>'
+        +'<td class="tp-n">'+E(eur(x.facture))+'</td>'
+        +'<td class="tp-n '+(bon?'tp-g':'tp-r')+'">'+E(eur(x.marge))+'</td>'
+        +'<td class="tp-n">'+(x.tauxReel!=null?E(eur(x.tauxReel)):'—')+'</td></tr>'; }
+    function fm(x){ var bon=x.marge>=0;
+      return '<tr><td>'+E(x.formalite)+'</td><td class="tp-n">'+x.n+'</td>'
+        +'<td class="tp-n">'+E(hm(x.moyMin))+'</td><td class="tp-n">'+E(eur(x.facture))+'</td>'
+        +'<td class="tp-n '+(bon?'tp-g':'tp-r')+'">'+E(eur(x.marge))+'</td>'
+        +'<td class="tp-n">'+(x.tauxReel!=null?E(eur(x.tauxReel)):'—')+'</td></tr>'; }
+    var t=b.total;
+    return '<div class="card tp-card"><div class="card-h"><h2>Rentabilité des dossiers</h2>'
+      +'<span class="sub" style="margin-left:auto">'+t.dossiers+' dossier(s) · '+E(hm(t.min))+' au total</span></div><div class="card-b">'
+      +'<div class="tp-taux">Taux horaire du cabinet <input type="number" min="0" step="1" value="'+b.taux+'" onchange="tempsTaux(this.value)"> € de l’heure</div>'
+      +'<div class="tp-kpi'+(t.marge>=0?' tp-ok':' tp-ko')+'">'
+      +'<span><b>'+E(hm(t.min))+'</b><i>temps passé</i></span>'
+      +'<span><b>'+E(eur(t.cout))+'</b><i>coût</i></span>'
+      +'<span><b>'+E(eur(t.facture))+'</b><i>honoraires</i></span>'
+      +'<span><b>'+E(eur(t.marge))+'</b><i>'+(t.marge>=0?'marge':'perte')+'</i></span>'
+      +(t.tauxReel!=null?('<span><b>'+E(eur(t.tauxReel))+'</b><i>taux réellement obtenu</i></span>'):'')+'</div>'
+      +'<div class="tp-h">Par formalité</div>'
+      +'<table class="tp-t"><thead><tr><th>Formalité</th><th>Dossiers</th><th>Temps moyen</th>'
+      +'<th>Honoraires</th><th>Marge</th><th>Taux obtenu</th></tr></thead><tbody>'+b.formalites.map(fm).join('')+'</tbody></table>'
+      +'<div class="tp-h">Par dossier</div>'
+      +'<table class="tp-t"><thead><tr><th>Dossier</th><th>Société</th><th>Formalité</th><th>Temps</th>'
+      +'<th>Coût</th><th>Honoraires</th><th>Marge</th><th>Taux obtenu</th></tr></thead><tbody>'
+      +b.lignes.slice(0,30).map(lg).join('')+'</tbody></table>'
+      +'<div class="tp-note">Le taux réellement obtenu rapporte les honoraires au temps passé : c’est ce que le dossier a rapporté de l’heure.</div>'
+      +'</div></div>'; };
+
+  /* ---------- greffes ---------- */
+  try{ var _pp=window.pagePilotage;
+    if(typeof _pp==='function'&&!_pp.__tp){
+      window.pagePilotage=function(){ var h=_pp.apply(this,arguments);
+        try{ if((''+h).indexOf('tp-card')<0) h+=tempsPilotageCard(); }catch(e){} return h; };
+      window.pagePilotage.__tp=1; } }catch(e){}
+
+  function greffeDossier(){ try{
+    var st=(typeof state!=='undefined'&&state)||{};
+    var did=st.espaceDossier||st.dossierId; if(!did) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.tp-card')) return;
+    var h=tempsCarteDossier(did); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h; v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  function greffePilotage(){ try{
+    if(!(typeof state!=='undefined'&&state.page==='pilotage')) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.tp-card')) return;
+    var h=tempsPilotageCard(); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h; v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  function greffe(){ greffePilotage(); greffeDossier(); }
+  try{ if(M.apresRendu) M.apresRendu(greffe,'tp',80);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__tp){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffe,80); return r; }; window.render.__tp=1; } } }catch(e){}
+
+  var CSS='.tp-acts{display:flex;gap:10px;margin:0 0 10px}'
+    +'.tp-run{display:flex;align-items:center;gap:12px;font-size:12.5px;padding:8px 12px;margin:0 0 10px;'
+      +'border-radius:8px;background:rgba(120,190,255,.1)}'
+    +'.tp-form{display:grid;grid-template-columns:130px 1fr 150px auto;gap:10px;align-items:end;margin:0 0 12px}'
+    +'.tp-form label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;opacity:.8}'
+    +'.tp-taux{font-size:12.5px;margin:0 0 12px}.tp-taux input{width:70px;margin:0 4px}'
+    +'.tp-kpi{display:flex;gap:22px;flex-wrap:wrap;padding:10px 12px;border-radius:9px;margin:0 0 12px;'
+      +'border:1px solid rgba(255,255,255,.1)}'
+    +'.tp-ok{background:rgba(90,200,140,.07);border-color:rgba(90,200,140,.28)}'
+    +'.tp-ko{background:rgba(230,140,90,.07);border-color:rgba(230,140,90,.32)}'
+    +'.tp-kpi b{display:block;font-size:15px}.tp-kpi i{font-style:normal;font-size:11px;opacity:.65}'
+    +'.tp-list{display:flex;flex-direction:column}'
+    +'.tp-l{display:grid;grid-template-columns:100px 90px 1fr auto;gap:10px;align-items:center;'
+      +'font-size:12px;padding:4px 0;border-top:1px solid rgba(255,255,255,.06)}'
+    +'.tp-l i{font-style:normal;opacity:.7}.tp-plus{opacity:.55;font-style:italic;display:block}'
+    +'.tp-h{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;opacity:.6;margin:14px 0 6px}'
+    +'.tp-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.tp-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.6;'
+      +'padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.tp-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.tp-n{text-align:right;font-variant-numeric:tabular-nums}'
+    +'.tp-g{color:#7fd0a0}.tp-r{color:#e8907a}'
+    +'.tp-note{margin-top:10px;font-size:11.5px;opacity:.7;line-height:1.55}'
+    +'@media(max-width:900px){.tp-form{grid-template-columns:1fr}}';
+  try{ if(M.style) M.style('tp-css',CSS); else { var st2=document.createElement('style'); st2.id='tp-css'; st2.textContent=CSS; document.head.appendChild(st2); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Informer le client à chaque étape franchie (v695)
+   À la validation d'une étape du Traitement, le courrier
+   correspondant est composé depuis un modèle et les variables du
+   dossier. Par défaut il est seulement PRÉPARÉ et rejoint la file
+   d'attente : rien ne part sans un choix explicite. Réglable étape
+   par étape, modèles modifiables, journalisé. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__etapeCourrier) return; window.__etapeCourrier=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function uid(){ return M.uid?M.uid('e'):('e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+
+  var ETAPES=[['demande','Demande'],['pieces','Pièces'],['actes','Actes'],
+              ['attestations','Attestations'],['immatriculation','Immatriculation'],['cloture','Clôture']];
+
+  var DEFS={
+    demande:{sujet:'Votre demande est enregistrée — {cabinet}',
+      corps:'Bonjour,\n\nNous avons bien enregistré votre demande concernant {societe}, sous le dossier {dossier}.\n\nNous revenons vers vous dès la prochaine étape.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'},
+    pieces:{sujet:'Vos pièces sont complètes — {societe}',
+      corps:'Bonjour,\n\nNous avons reçu l’ensemble des pièces nécessaires à votre dossier {dossier} ({formalite}).\n\nNous passons à la rédaction des actes et revenons vers vous pour la signature.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'},
+    actes:{sujet:'Vos actes sont prêts — {societe}',
+      corps:'Bonjour,\n\nLes actes de votre dossier {dossier} sont rédigés et prêts à être signés.\n\nNous vous transmettons le nécessaire pour la signature ; le dossier avancera dès qu’ils nous seront retournés signés.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'},
+    attestations:{sujet:'Votre dossier est complet — {societe}',
+      corps:'Bonjour,\n\nLes pièces justificatives de votre dossier {dossier} nous sont parvenues : annonce légale et dépôt de capital sont en ordre.\n\nNous déposons la demande d’immatriculation au guichet unique.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'},
+    immatriculation:{sujet:'{societe} est immatriculée',
+      corps:'Bonjour,\n\nNous avons le plaisir de vous informer que {societe} est immatriculée.\n\nVous recevrez sous peu les documents définitifs. Pensez à ouvrir votre compte professionnel et à souscrire les assurances nécessaires à votre activité.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'},
+    cloture:{sujet:'Votre dossier {dossier} est clôturé',
+      corps:'Bonjour,\n\nVotre dossier {dossier} ({formalite}) est clôturé. L’ensemble des documents vous a été remis.\n\nNous restons à votre disposition pour la suite : obligations déclaratives, paie, comptabilité.\n\nBien cordialement,\n{cabinet}\n{cabinetEmail}'}
+  };
+
+  function cfg(){ var p=P(); p.etapeCourrier=p.etapeCourrier||{}; var c=p.etapeCourrier;
+    if(c.actif==null) c.actif=false;
+    if(c.mode==null) c.mode='preparer';
+    c.etapes=c.etapes||{};
+    ETAPES.forEach(function(e){ if(c.etapes[e[0]]==null) c.etapes[e[0]]=(e[0]!=='demande'); });
+    c.modeles=c.modeles||{}; c.journal=c.journal||[]; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+  function dossier(id){ return (B().dossiers||[]).filter(function(d){ return d.id===id; })[0]||null; }
+  function lbl(k){ for(var i=0;i<ETAPES.length;i++) if(ETAPES[i][0]===k) return ETAPES[i][1]; return k; }
+
+  window.etapeModele=function(k){ var c=cfg(); return c.modeles[k]||DEFS[k]||null; };
+  window.etapeModeleEcrire=function(k,champ,v){ var c=cfg();
+    var m=c.modeles[k]||{sujet:(DEFS[k]||{}).sujet||'',corps:(DEFS[k]||{}).corps||''};
+    m[champ]=v; c.modeles[k]=m; enr(); };
+  window.etapeModeleDefaut=function(k){ var c=cfg(); delete c.modeles[k]; enr(); rd();
+    T('Modèle remis à son texte d’origine.','ok'); };
+  window.etapeSet=function(k,v){ var c=cfg();
+    if(k==='actif') c.actif=!!v;
+    else if(k==='mode') c.mode=(v==='envoyer')?'envoyer':'preparer';
+    else if(k.indexOf('et:')===0) c.etapes[k.slice(3)]=!!v;
+    enr(); rd(); };
+
+  /* le courrier composé pour un dossier et une étape */
+  window.etapeCourrier=function(did,key){
+    var d=dossier(did); if(!d) return null;
+    var m=window.etapeModele(key); if(!m) return null;
+    var cx=sur(function(){ return window.courrierContexte(d); },null)||{};
+    var cl=cx.client||null;
+    var to=S(cl&&cl.email)||S(d.clientEmail)||'';
+    var res=function(t){ return sur(function(){ return window.courrierResoudre(t,d); },t); };
+    return {to:to,sujet:res(m.sujet),corps:res(m.corps),
+      client:cl?(M.nomClient?M.nomClient(cl):S(cl.denomination)):'',
+      etape:lbl(key),ref:S(d.ref||d.numeroDossier||'')}; };
+
+  function versFile(o,ref){ var p=P(); p.fileEnvoi=p.fileEnvoi||{items:[],journal:[]};
+    var f=p.fileEnvoi; f.items=f.items||[];
+    var doublon=f.items.some(function(x){ return !x.fait&&x.to===o.to&&x.sujet===o.sujet; });
+    if(doublon) return false;
+    f.items.unshift({id:uid(),ts:Date.now(),to:o.to,sujet:o.sujet,corps:o.corps,
+      canal:'email',mod:'Étape '+o.etape+' · '+ref,fait:false});
+    f.items=f.items.slice(0,400); return true; }
+
+  /* déclenché à la validation d'une étape */
+  window.etapeFranchie=function(did,key){
+    var c=cfg(); if(!c.actif) return null;
+    if(!c.etapes[key]) return null;
+    var o=window.etapeCourrier(did,key); if(!o) return null;
+    if(!o.to){ jrn({action:'courrier non préparé',ok:false,ref:o.ref,
+      detail:'étape '+o.etape+' : aucune adresse e-mail sur la fiche du client'}); enr(); return null; }
+    var mode=c.mode, envoye=false;
+    if(mode==='envoyer'&&typeof window.demEnvoiDirect==='function'){
+      envoye=sur(function(){ return !!window.demEnvoiDirect(o.to,o.sujet,o.corps); },false); }
+    if(!envoye){ var pose=versFile(o,o.ref); mode='preparer';
+      if(!pose){ jrn({action:'courrier déjà en attente',ref:o.ref,detail:'étape '+o.etape+' · '+o.to}); enr(); return null; } }
+    jrn({action:envoye?'courrier envoyé':'courrier préparé',ref:o.ref,
+      detail:'étape '+o.etape+' · '+o.to+(envoye?'':' · en attente d’envoi')});
+    enr();
+    T(envoye?('Le client a été informé : '+o.etape+'.')
+            :('Courrier « '+o.etape+' » préparé pour '+o.to+'.'),'ok');
+    return {mode:envoye?'envoyer':'preparer',to:o.to,sujet:o.sujet}; };
+
+  /* Détection du franchissement : la validation passe par une confirmation, donc elle
+     n'a pas lieu pendant l'appel. On surveille l'état des dossiers, ce qui couvre aussi
+     les étapes validées par un autre chemin. Le premier passage ne fait qu'enregistrer
+     l'existant, pour ne rien déclencher rétroactivement. */
+  var vu={};
+  window.etapeVeiller=function(){ var out=[];
+    (B().dossiers||[]).forEach(function(d){ if(!d||!d.id) return;
+      var w=d.wf||{}; var connu=vu[d.id];
+      if(!connu){ connu=vu[d.id]={}; ETAPES.forEach(function(e){ if(w[e[0]]) connu[e[0]]=1; }); return; }
+      ETAPES.forEach(function(e){ var k=e[0];
+        if(w[k]&&!connu[k]){ connu[k]=1; try{ if(window.etapeFranchie(d.id,k)) out.push(d.id+':'+k); }catch(x){} }
+        else if(!w[k]&&connu[k]) delete connu[k]; }); });
+    return out; };
+  try{ if(M.apresRendu) M.apresRendu(function(){ window.etapeVeiller(); },'ec',120);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__ec){
+         window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(function(){ window.etapeVeiller(); },120); return r; };
+         window.render.__ec=1; } } }catch(e){}
+  try{ setTimeout(function(){ window.etapeVeiller(); },2500); }catch(e){}
+
+  /* ---------- réglage ---------- */
+  window.etapeCard=function(){ var c=cfg();
+    var lignes=ETAPES.map(function(e){ var k=e[0]; var m=window.etapeModele(k);
+      var perso=!!c.modeles[k];
+      return '<details class="ec-d"><summary><label class="ec-s"><input type="checkbox" '+(c.etapes[k]?'checked':'')
+        +' onclick="event.stopPropagation()" onchange="etapeSet(\'et:'+k+'\',this.checked)"> <b>'+E(e[1])+'</b></label>'
+        +'<span class="ec-su">'+E(m.sujet)+'</span>'+(perso?'<i class="ec-p">modifié</i>':'')+'</summary>'
+        +'<div class="ec-ed"><label>Objet<input value="'+E(m.sujet)+'" onchange="etapeModeleEcrire(\''+k+'\',\'sujet\',this.value)"></label>'
+        +'<label>Message<textarea rows="7" onchange="etapeModeleEcrire(\''+k+'\',\'corps\',this.value)">'+E(m.corps)+'</textarea></label>'
+        +(perso?('<button class="btn btn-sm btn-ghost" onclick="etapeModeleDefaut(\''+k+'\')">Revenir au texte d’origine</button>'):'')
+        +'</div></details>'; }).join('');
+    var att=sur(function(){ return ((P().fileEnvoi||{}).items||[]).filter(function(x){ return !x.fait&&/^Étape /.test(x.mod||''); }).length; },0);
+    return '<div class="card ec-card"><div class="card-h"><h2>Informer le client à chaque étape</h2>'
+      +'<span class="sub" style="margin-left:auto">'+(c.actif?('mode '+(c.mode==='envoyer'?'envoi direct':'préparation')):'désactivé')
+      +(att?(' · '+att+' courrier(s) en attente'):'')+'</span></div><div class="card-b">'
+      +'<div class="ec-opts"><label><input type="checkbox" '+(c.actif?'checked':'')+' onchange="etapeSet(\'actif\',this.checked)"> '
+      +'Composer un courrier quand une étape est validée</label>'
+      +'<label>Ensuite <select onchange="etapeSet(\'mode\',this.value)">'
+      +'<option value="preparer"'+(c.mode==='preparer'?' selected':'')+'>le déposer dans la file d’attente</option>'
+      +'<option value="envoyer"'+(c.mode==='envoyer'?' selected':'')+'>l’envoyer par la passerelle</option></select></label></div>'
+      +'<div class="ec-note">Par défaut le courrier est seulement préparé : il attend dans « Messages à envoyer » et ne part que lorsque vous l’ouvrez. '
+      +'Le mode envoi direct suppose la passerelle configurée ; sans elle, le courrier retombe dans la file. '
+      +'Un client sans adresse e-mail ne reçoit rien et le motif est journalisé.</div>'
+      +'<div class="ec-h">Étapes et modèles</div>'+lignes
+      +'<div class="ec-note">Les variables disponibles sont celles des courriers : {societe}, {dossier}, {formalite}, {dirigeant}, {cabinet}… '
+      +'Une variable sans valeur disparaît avec sa ligne.</div>'
+      +'</div></div>'; };
+
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__ec){
+    window.pageParams=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('ec-card')<0) h+=etapeCard(); }catch(e){} return h; };
+    window.pageParams.__ec=1; } }catch(e){}
+
+  var CSS='.ec-opts{display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-size:12.5px;margin:0 0 6px}'
+    +'.ec-opts label{display:inline-flex;gap:6px;align-items:center}'
+    +'.ec-h{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;opacity:.6;margin:14px 0 6px}'
+    +'.ec-d{border-top:1px solid rgba(255,255,255,.07);padding:6px 0}'
+    +'.ec-d summary{display:flex;gap:12px;align-items:center;cursor:pointer;font-size:12.5px;list-style:none}'
+    +'.ec-d summary::-webkit-details-marker{display:none}'
+    +'.ec-s{display:inline-flex;gap:6px;align-items:center;min-width:150px}'
+    +'.ec-su{opacity:.62;font-size:11.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    +'.ec-p{font-style:normal;font-size:10.5px;opacity:.6;border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:1px 7px}'
+    +'.ec-ed{display:flex;flex-direction:column;gap:8px;padding:10px 0 4px}'
+    +'.ec-ed label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;opacity:.85}'
+    +'.ec-ed textarea{font:12px/1.5 inherit;padding:8px;border-radius:8px;resize:vertical}'
+    +'.ec-note{margin-top:8px;font-size:11.5px;opacity:.72;line-height:1.55}';
+  try{ if(M.style) M.style('ec2-css',CSS); else { var st=document.createElement('style'); st.id='ec2-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Nouveau dossier à partir d'un dossier existant (v696)
+   Ouvrir le dossier suivant en reprenant ce qui relève de la
+   FORMALITÉ : type, forme, prestations, liste des pièces attendues,
+   responsable. Rien de ce qui appartient au client précédent n'est
+   repris : ni identité, ni pièces déposées, ni actes, ni étapes,
+   ni notes, ni historique. Ce qui est repris et ce qui ne l'est
+   pas est dit avant de créer. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__repriseDossier) return; window.__repriseDossier=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function auj(){ try{ if(typeof today==='function') return today(); }catch(e){} return new Date().toISOString().slice(0,10); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+  function ident(){ try{ if(typeof uid==='function') return uid('do'); }catch(e){}
+    return 'do'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+  function cfg(){ var p=P(); p.repriseChaine=p.repriseChaine||{}; var c=p.repriseChaine;
+    c.journal=c.journal||[]; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,150); }
+  function dossier(id){ return (B().dossiers||[]).filter(function(d){ return d.id===id; })[0]||null; }
+  function client(id){ return (B().clients||[]).filter(function(c){ return c.id===id; })[0]||null; }
+  function nomC(c){ return M.nomClient?M.nomClient(c):(S(c&&c.denomination)||S(((c||{}).prenom||'')+' '+((c||{}).nom||''))); }
+  function refD(d){ return S(d&&(d.ref||d.numeroDossier||d.id)); }
+  function nomD(d){ if(!d) return '';
+    var s=S(((d.intake||{}).societe||{}).denomination); if(s) return s;
+    var c=(B().clients||[]).filter(function(x){ return (d.clientIds||[]).indexOf(x.id)>=0; })[0];
+    return c?nomC(c):''; }
+  function formalite(d){ if(!d) return '';
+    if(d.formaliteType) return sur(function(){ return templateOf(d).label; },'')||S(d.formalite);
+    return S(d.formalite); }
+
+  /* ce qui relève de la formalité, et ce qui appartient au client */
+  var REPRIS=[
+    ['formaliteType','Type de formalité'],
+    ['formalite','Formalité'],
+    ['forme','Forme juridique'],
+    ['serviceIds','Prestations rattachées'],
+    ['docsExclus','Pièces écartées de la liste'],
+    ['assigneA','Responsable du dossier']
+  ];
+  var ECARTE=['identité et coordonnées du client','questionnaire et pièces déposées',
+    'actes rédigés et documents générés','étapes déjà franchies','annonce légale et dépôt de capital',
+    'immatriculation et clôture','notes, historique et honoraires'];
+
+  window.repriseApercu=function(did){ var d=dossier(did); if(!d) return null;
+    var repris=REPRIS.filter(function(r){ var v=d[r[0]];
+      if(v==null) return false;
+      if(Array.isArray(v)) return v.length>0;
+      if(typeof v==='object') return Object.keys(v).length>0;
+      return S(v)!==''; }).map(function(r){ var v=d[r[0]]; var t='';
+      if(Array.isArray(v)) t=v.length+' élément(s)';
+      else if(typeof v==='object') t=Object.keys(v).length+' pièce(s)';
+      else t=S(v);
+      if(r[0]==='formaliteType') t=formalite(d)||t;
+      return {cle:r[0],l:r[1],v:t}; });
+    return {source:{id:d.id,ref:refD(d),nom:nomD(d),formalite:formalite(d)||'non précisée'},
+      repris:repris,ecarte:ECARTE}; };
+
+  window.repriseCreer=function(did,clientId){
+    var d=dossier(did); if(!d){ T('Dossier d’origine introuvable.','warn'); return null; }
+    var b=B(); b.dossiers=b.dossiers||[]; b.seq=b.seq||{}; if(!b.seq.dossier) b.seq.dossier=1;
+    var c=clientId?client(clientId):null;
+    var n={id:ident(),ref:'DOS-'+(b.seq.dossier++),clientIds:c?[c.id]:[],serviceIds:[],
+      statut:'Qualification',createdAt:auj(),wf:{},docs:{},
+      historique:[{d:auj(),t:'Dossier ouvert en reprenant '+refD(d)}]};
+    REPRIS.forEach(function(r){ var k=r[0]; var v=d[k]; if(v==null) return;
+      if(Array.isArray(v)) n[k]=v.slice();
+      else if(typeof v==='object'){ n[k]={}; Object.keys(v).forEach(function(x){ n[k][x]=v[x]; }); }
+      else n[k]=v; });
+    /* liste des pièces attendues, sans aucune pièce reçue */
+    sur(function(){ var L=(typeof ESP_DOCS!=='undefined')?ESP_DOCS:[];
+      L.forEach(function(dc){ var requis=(typeof espDocReq==='function')?espDocReq(n,dc.k):!(n.docsExclus&&n.docsExclus[dc.k]);
+        if(requis) n.docs[dc.k]={genere:true,date:auj()}; }); },null);
+    b.dossiers.unshift(n);
+    jrn({action:'dossier ouvert par reprise',ref:n.ref,
+      detail:'depuis '+refD(d)+(c?(' · client '+nomC(c)):' · sans client')+' · '+(formalite(d)||'formalité non précisée')});
+    enr();
+    T('Dossier '+n.ref+' ouvert en reprenant '+refD(d)+'.','ok');
+    return n; };
+
+  window.repriseOuvrir=function(did){ var a=window.repriseApercu(did);
+    if(!a){ T('Dossier introuvable.','warn'); return; }
+    var cls=(B().clients||[]).slice().sort(function(x,y){ return nomC(x).localeCompare(nomC(y),'fr'); });
+    var opts='<option value="">— aucun client pour l’instant —</option>'
+      +cls.map(function(c){ return '<option value="'+E(c.id)+'">'+E(nomC(c)||'(sans nom)')+'</option>'; }).join('');
+    var body='<div class="rq-box">'
+      +'<div class="rq-src">À partir de <b>'+E(a.source.ref)+'</b>'+(a.source.nom?(' · '+E(a.source.nom)):'')
+      +'<br><span class="rq-f">Formalité : '+E(a.source.formalite)+'</span></div>'
+      +'<label class="rq-cl">Client du nouveau dossier<select id="rq-client">'+opts+'</select></label>'
+      +'<div class="rq-h">Ce qui est repris</div>'
+      +(a.repris.length?('<ul class="rq-l rq-ok">'+a.repris.map(function(r){
+          return '<li><b>'+E(r.l)+'</b> — '+E(r.v)+'</li>'; }).join('')+'</ul>')
+        :'<div class="rq-vide">Le dossier d’origine ne porte aucun réglage de formalité à reprendre.</div>')
+      +'<div class="rq-h">Ce qui n’est pas repris</div>'
+      +'<ul class="rq-l rq-ko">'+a.ecarte.map(function(x){ return '<li>'+E(x)+'</li>'; }).join('')+'</ul>'
+      +'<div class="rq-note">Le nouveau dossier repart à la première étape, avec la liste des pièces attendues mais aucune pièce reçue.</div>'
+      +'</div>';
+    var foot='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>'
+      +'<button class="btn btn-pri" onclick="repriseValider(\''+did+'\')">Ouvrir le dossier</button>';
+    try{ openModal('Ouvrir un dossier semblable',body,foot); }catch(e){ T('Affichage impossible.','warn'); } };
+
+  window.repriseValider=function(did){
+    var s=document.getElementById('rq-client'); var cid=s?s.value:'';
+    var n=window.repriseCreer(did,cid);
+    try{ closeModal(); }catch(e){}
+    if(n){ try{ if(typeof state!=='undefined'){ state.page='espace'; state.espaceDossier=n.id; } }catch(e){} }
+    rd(); return n; };
+
+  /* ---------- bouton dans le dossier ouvert ---------- */
+  function greffe(){ try{
+    var st=(typeof state!=='undefined'&&state)||{};
+    var did=st.espaceDossier||st.dossierId; if(!did) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.rq-btn')) return;
+    var cible=v.querySelector('.tp-card .card-h')||v.querySelector('.card .card-h'); if(!cible) return;
+    var b=document.createElement('button'); b.className='btn btn-sm btn-ghost rq-btn';
+    b.textContent='Ouvrir un dossier semblable';
+    b.title='Reprendre la formalité et la liste des pièces pour le dossier suivant';
+    b.onclick=function(){ window.repriseOuvrir(did); };
+    cible.appendChild(b);
+  }catch(e){} }
+  window.repriseBouton=greffe;
+  try{ if(M.apresRendu) M.apresRendu(greffe,'rq',140);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__rq){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffe,140); return r; }; window.render.__rq=1; } } }catch(e){}
+
+  var CSS='.rq-box{font-size:12.5px}'
+    +'.rq-src{line-height:1.6;margin:0 0 12px}'
+    +'.rq-f{opacity:.7;font-size:11.5px}'
+    +'.rq-cl{display:flex;flex-direction:column;gap:4px;font-size:11.5px;opacity:.9;margin:0 0 6px}'
+    +'.rq-h{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;opacity:.6;margin:14px 0 6px}'
+    +'.rq-l{margin:0;padding-left:18px;line-height:1.75;font-size:12px}'
+    +'.rq-ok li b{font-weight:600}'
+    +'.rq-ko{opacity:.65}'
+    +'.rq-vide{font-size:11.5px;opacity:.65;font-style:italic}'
+    +'.rq-note{margin-top:12px;font-size:11.5px;opacity:.72;line-height:1.55}';
+  try{ if(M.style) M.style('rq-css',CSS); else { var st2=document.createElement('style'); st2.id='rq-css'; st2.textContent=CSS; document.head.appendChild(st2); } }catch(e){}
 })();
 </script>
 </body>
