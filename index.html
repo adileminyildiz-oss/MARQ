@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=679;
+var LAST_VER=680;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42307,5 +42307,96 @@ function testLienSignature() {
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
+<script>
+/* ============================================================
+   Mar'q — Partage du lien client (v680)
+   Envoi d'un lien personnalisé (questionnaire, dépôt de pièces,
+   questionnaire public) par e-mail direct, messagerie, WhatsApp,
+   SMS, QR code ou copie. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__partageLien) return; window.__partageLien=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function cabName(){ try{ return (DB&&DB.parametres&&DB.parametres.cabinet&&DB.parametres.cabinet.nom)||'AEM CONSEIL'; }catch(e){ return 'AEM CONSEIL'; } }
+  function corpsDefaut(o){ var pre=(o.prenom||'').trim(); return 'Bonjour'+(pre?(' '+pre):'')+',\n\n'+(o.intro||'Voici votre lien personnalisé pour compléter votre dossier en ligne. Quelques minutes suffisent, aucun compte à créer.')+'\n\n'+o.url+'\n\nVos réponses reviennent directement dans votre dossier.\n\nBien cordialement,\n'+cabName(); }
+  function tel(o){ return (''+(o.tel||'')).replace(/[^\d+]/g,''); }
+  function waHref(txt,t){ var n=t.replace(/^\+/,''); if(n&&/^0\d{9}$/.test(n)) n='33'+n.slice(1); return 'https://wa.me/'+(n||'')+'?text='+encodeURIComponent(txt); }
+  function smsHref(txt,t){ var ua=navigator.userAgent||''; var sep=/iPhone|iPad|Macintosh/.test(ua)?'&':'?'; return 'sms:'+(t||'')+sep+'body='+encodeURIComponent(txt); }
+  function copier(txt,msg){ try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ T(msg||'Lien copié.','success'); },function(){ fallback(); }); return; } }catch(e){} fallback();
+    function fallback(){ try{ var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); T(msg||'Lien copié.','success'); }catch(e){ T('Copie impossible : sélectionnez le lien et copiez-le manuellement.','warn'); } } }
+  var ST={};
+  function val(id){ var el=document.getElementById(id); return el?el.value:''; }
+  function texte(){ var b=val('pl-corps'); return b||(ST.url||''); }
+
+  window.lienPartager=function(url,o){
+    o=o||{}; if(!url){ T('Aucun lien à partager.','warn'); return; }
+    ST={url:url,o:o};
+    var sujet=o.sujet||('Votre dossier'+(o.numero?(' '+o.numero):'')+' - '+cabName());
+    var corps=o.corps||corpsDefaut({prenom:o.prenom,intro:o.intro,url:url});
+    var qr=''; try{ if(typeof lgQRDataUrl==='function') qr=lgQRDataUrl(url,220); }catch(e){}
+    var body='<div class="pl-wrap">'
+      +'<div class="pl-l">'
+      +'<label>Lien à transmettre</label><div class="pl-link"><input id="pl-url" readonly value="'+E(url)+'"><button type="button" class="btn btn-sm" onclick="lienCopier()">Copier</button><a class="btn btn-sm btn-ghost" href="'+E(url)+'" target="_blank" rel="noopener">Ouvrir</a></div>'
+      +'<label>Destinataire (e-mail)</label><input id="pl-to" type="email" value="'+E(o.to||'')+'" placeholder="client@email.fr">'
+      +'<label>Téléphone mobile (WhatsApp, SMS)</label><input id="pl-tel" type="tel" value="'+E(o.tel||'')+'" placeholder="06 00 00 00 00">'
+      +'<label>Objet</label><input id="pl-sujet" value="'+E(sujet)+'">'
+      +'<label>Message</label><textarea id="pl-corps" style="min-height:170px">'+E(corps)+'</textarea>'
+      +'<div class="pl-acts">'
+      +'<button type="button" class="btn btn-pri" onclick="lienEnvoyerMail()">Envoyer par e-mail</button>'
+      +'<button type="button" class="btn" onclick="lienMessagerie()">Ma messagerie</button>'
+      +'<button type="button" class="btn" onclick="lienWhatsApp()">WhatsApp</button>'
+      +'<button type="button" class="btn" onclick="lienSMS()">SMS</button>'
+      +(navigator.share?'<button type="button" class="btn" onclick="lienPartagerNatif()">Autres applications</button>':'')
+      +'</div>'
+      +'<div class="hint pl-hint">L\'envoi par e-mail passe par la passerelle Gmail du cabinet si elle est configurée (Paramètres), sinon par votre messagerie. WhatsApp et SMS ouvrent l\'application avec le message prérempli.</div>'
+      +'</div>'
+      +'<div class="pl-r">'+(qr?('<img class="pl-qr" alt="QR code du lien" src="'+qr+'"><div class="hint">À scanner avec un téléphone : ouvre directement le lien.</div><button type="button" class="btn btn-sm btn-ghost" onclick="lienQRTelecharger()">Télécharger le QR code</button>'):'<div class="hint">QR code indisponible.</div>')+'</div>'
+      +'</div>';
+    openModal(E(o.titre||'Envoyer le lien au client'),body,'<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>');
+  };
+  window.lienCopier=function(){ copier(val('pl-url')||ST.url||'','Lien copié.'); };
+  window.lienEnvoyerMail=function(){ var to=(val('pl-to')||'').trim(), s=val('pl-sujet'), b=texte(); if(!to){ T('Renseignez l\'adresse e-mail du destinataire.','warn'); return; }
+    var done=false; try{ if(typeof demEnvoiDirect==='function'){ done=!!demEnvoiDirect(to,s,b); } }catch(e){ done=false; }
+    if(!done){ try{ if(typeof demSendViaScript==='function'&&typeof smtpActif==='function'&&smtpActif()){ demSendViaScript(to,s,b); done=true; } }catch(e){} }
+    if(!done){ window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(s)+'&body='+encodeURIComponent(b); T('Messagerie ouverte avec le message prérempli.'); }
+    try{ journal('e-mail',to); }catch(e){} };
+  window.lienMessagerie=function(){ var to=(val('pl-to')||'').trim(), s=val('pl-sujet'), b=texte(); window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(s)+'&body='+encodeURIComponent(b); journal('messagerie',to); };
+  window.lienWhatsApp=function(){ var t=tel({tel:val('pl-tel')}); var w=window.open(waHref(texte(),t),'_blank','noopener'); if(!w) T('Fenêtre bloquée : autorisez les pop-ups pour ouvrir WhatsApp.','warn'); journal('WhatsApp',t); };
+  window.lienSMS=function(){ var t=tel({tel:val('pl-tel')}); window.location.href=smsHref(texte(),t); journal('SMS',t); };
+  window.lienPartagerNatif=function(){ try{ navigator.share({title:val('pl-sujet'),text:texte(),url:ST.url}).then(function(){ journal('partage',''); },function(){}); }catch(e){ T('Partage indisponible sur cet appareil.','warn'); } };
+  window.lienQRTelecharger=function(){ try{ var img=document.querySelector('.pl-qr'); if(!img) return; var a=document.createElement('a'); a.href=img.src; a.download='qr-'+((ST.o&&ST.o.numero)||'lien')+'.png'; document.body.appendChild(a); a.click(); a.remove(); }catch(e){ T('Téléchargement impossible.','warn'); } };
+  function journal(canal,dest){ try{ DB.parametres=DB.parametres||{}; var L=DB.parametres.partagesLien=DB.parametres.partagesLien||[]; L.unshift({ts:Date.now(),canal:canal,dest:dest||'',url:ST.url||'',numero:(ST.o&&ST.o.numero)||''}); if(L.length>200) L.length=200; if(typeof save==='function') save(); }catch(e){} }
+  window.lienPartagesJournal=function(){ try{ return (DB.parametres&&DB.parametres.partagesLien)||[]; }catch(e){ return []; } };
+
+  /* ── Demande d'informations : bouton « Envoyer le lien » à côté de Copier / Ouvrir ── */
+  window.infosPartager=function(){ var url=val('if-lien'); if(!url){ T('Le lien n\'est pas encore généré.','warn'); return; }
+    var to=val('ml-to'), sujet=val('ml-sujet'), corps=val('ml-corps'); var no=(url.match(/[?&]d=([^&]+)/)||[])[1]||''; try{ no=decodeURIComponent(no); }catch(x){}
+    var pre=(url.match(/[?&]c=([^&]+)/)||[])[1]||''; try{ pre=decodeURIComponent(pre); }catch(x){}
+    var tl=''; try{ var lo=(to||'').trim().toLowerCase(); if(lo){ var c=(DB.clients||[]).filter(function(x){ return ((x.email||'')+'').trim().toLowerCase()===lo; })[0]; tl=(c&&(c.tel||c.telephone||c.mobile))||''; } }catch(x){}
+    lienPartager(url,{to:to,tel:tl,sujet:sujet,corps:corps,prenom:pre,numero:no,titre:'Envoyer le lien du questionnaire'}); };
+  try{ var _im=window.infosMaj; if(typeof _im==='function'&&!_im.__pl){ window.infosMaj=function(){ var r=_im.apply(this,arguments); try{ var box=document.querySelector('.if-link'); if(box&&!document.getElementById('if-share')){ var b=document.createElement('button'); b.type='button'; b.id='if-share'; b.className='btn btn-sm btn-pri'; b.textContent='Envoyer le lien'; b.onclick=function(){ window.infosPartager(); }; box.appendChild(b); } }catch(e){} return r; }; window.infosMaj.__pl=1; } }catch(e){}
+
+  /* ── Dépôt de pièces : lienDepotPartager(demande ou dossier) ── */
+  window.lienDepotPartager=function(d){ var url=''; try{ url=(typeof depotLien==='function')?depotLien(d):''; }catch(e){} if(!url){ T('Ce dossier n\'a pas encore de numéro : ouvrez-le d\'abord.','warn'); return; }
+    var to='',pre='',tl=''; try{ to=(typeof infosEmailDe==='function')?infosEmailDe(d):(d.clientEmail||''); pre=((d.clientNom||'')+'').split(/\s+/)[0]||''; if(typeof clientDe==='function'){ var c=clientDe(d); tl=(c&&(c.tel||c.telephone||c.mobile))||''; } }catch(e){}
+    lienPartager(url,{to:to,tel:tl,prenom:pre,numero:d.numeroDossier||d.ref||'',titre:'Envoyer le lien de dépôt des pièces',intro:'Voici votre lien sécurisé pour déposer vos pièces justificatives (pièce d\'identité, justificatif de domicile). Photos ou PDF acceptés, aucun compte à créer.'}); };
+  /* ── Questionnaire public (sans dossier) ── */
+  window.lienPublicPartager=function(){ var url=''; try{ url=(typeof infosLienPublic==='function')?infosLienPublic():''; }catch(e){} if(!url){ T('Lien public indisponible.','warn'); return; }
+    lienPartager(url,{titre:'Partager le questionnaire public',sujet:'Questionnaire de création d\'entreprise - '+cabName(),intro:'Voici le questionnaire en ligne pour préparer la création de votre entreprise. Vos réponses créent votre dossier chez nous, sans engagement.'}); };
+
+  var css=document.createElement('style'); css.id='partage-lien-mod'; css.textContent=
+    '.pl-wrap{display:grid;grid-template-columns:1fr 250px;gap:18px;align-items:start}'
+   +'.pl-l label{display:block;font-size:11.5px;color:var(--muted,#8a8a93);margin:10px 0 4px}.pl-l label:first-child{margin-top:0}'
+   +'.pl-link{display:flex;gap:6px;align-items:center}.pl-link input{flex:1;min-width:0}'
+   +'.pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}'
+   +'.pl-hint{margin-top:10px}'
+   +'.pl-r{text-align:center;padding:12px;border:1px solid var(--line,#2a2a2e);border-radius:8px;background:#fff;color:#111}.pl-r .hint{color:#555;margin:8px 0}'
+   +'.pl-qr{width:220px;height:220px;max-width:100%;display:block;margin:0 auto;image-rendering:pixelated}'
+   +'@media(max-width:760px){.pl-wrap{grid-template-columns:1fr}}';
+  document.head.appendChild(css);
+})();
+</script>
+
 </body>
 </html>

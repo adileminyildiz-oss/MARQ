@@ -3,42 +3,137 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AEM CONSEIL — Dépôt sécurisé de vos pièces</title>
+<meta name="theme-color" content="#131316">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<title>AEM CONSEIL | Dépôt sécurisé de vos pièces</title>
 <style>
-:root{--bg:#faf6ec;--card:#fffdf8;--ink:#2a2117;--ink2:#5b5040;--ink3:#8a7d69;--line:#e7ddc9;--line2:#d9ccb2;--accent:#3f372b;--accent2:#7a6a49;--gold:#b8912f;--ok:#3d6b3d;--err:#b0442f}
+:root{--bg:#f2f2f3;--card:#ffffff;--ink:#111113;--ink2:#3a3a41;--ink3:#6b6b73;--line:#dedee2;--line2:#c6c6cc;--accent:#131316;--accent2:#3a3a41;--soft:#f0f0f2;--ok:#1f5f3f;--okbg:#eef3f0;--okline:#c5d6cb;--err:#a8231d;--errbg:#f9eeed;--errline:#e6c3c0;--focus:0 0 0 3px rgba(19,19,22,.14);--r:6px}
 *{box-sizing:border-box}
-body{margin:0;background:linear-gradient(180deg,#f3ecdc,#faf6ec 240px);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:24px 14px 60px}
-.wrap{max-width:680px;margin:0 auto}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-.brand .logo{font:800 24px/1 Georgia,serif;letter-spacing:2px;color:var(--accent)}
-.brand .sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--ink3);font-weight:700}
-h1{font-size:21px;margin:14px 0 4px}
-.lead{color:var(--ink2);margin:0 0 16px}
-.dosno{display:inline-block;font:700 14px/1 Georgia,serif;letter-spacing:1px;color:var(--accent);background:#f6f0e2;border:1px solid var(--line);border-radius:9px;padding:7px 12px;margin-bottom:14px}
-.card{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:22px 20px;box-shadow:0 24px 60px -40px rgba(70,55,25,.4)}
-.piece{border:1px solid var(--line2);border-radius:12px;padding:14px;margin-bottom:12px;background:#fffefb}
-.piece.done{border-color:#cfe3c6;background:#f4faf1}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14.5px/1.6 "Inter","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;padding:0 0 56px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.topbar{background:var(--accent);color:#fff;padding:14px 20px;border-bottom:1px solid #2a2a2f}
+.topbar .in{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px;margin:0}
+.brand .logo{font:600 16px/1 inherit;letter-spacing:3.5px;color:#fff}
+.brand .sub{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:rgba(255,255,255,.62);font-weight:500;border-left:1px solid rgba(255,255,255,.22);padding-left:14px}
+.topbar .ctc{font-size:12px;color:rgba(255,255,255,.62);letter-spacing:.3px}
+.wrap{max-width:720px;margin:0 auto;padding:30px 16px 0}
+h1{font-size:23px;font-weight:600;letter-spacing:-.02em;margin:0 0 6px;color:var(--ink)}
+.lead{color:var(--ink2);margin:0 0 18px;max-width:640px}
+.dosno{display:inline-flex;gap:10px;align-items:center;font:600 13px/1 inherit;letter-spacing:.6px;color:var(--accent);background:#fff;border:1px solid var(--line2);border-radius:6px;padding:9px 12px;margin-bottom:16px;flex-wrap:wrap}
+.dosno small{font:500 11.5px/1 inherit;letter-spacing:0;color:var(--ink3)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px 26px;box-shadow:0 1px 2px rgba(20,24,32,.04),0 8px 24px -16px rgba(20,24,32,.18)}
+.msg{border-left:3px solid var(--accent);background:var(--soft);border-radius:0 6px 6px 0;padding:11px 14px;margin:0 0 18px;color:var(--ink2);white-space:pre-wrap}
+/* progression */
+.steps{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.steps .st{flex:1;min-width:48px;height:4px;border-radius:2px;background:var(--line)}
+.steps .st.on{background:var(--accent)}
+.steps .st.done{background:#8a8a93}
+.stepname{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink3);font-weight:600;margin-bottom:14px}
+.prog{display:flex;align-items:center;gap:12px;margin:0 0 10px;font-size:12px;color:var(--ink3);font-weight:600;letter-spacing:.3px}
+.prog .bar{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:var(--accent2);transition:width .25s}
+h2{font-size:16.5px;font-weight:600;letter-spacing:-.01em;margin:22px 0 4px;color:var(--ink)}
+h2:first-of-type{margin-top:0}
+h2 small{font-weight:400;color:var(--ink3);font-size:12.5px}
+.hint{color:var(--ink3);font-size:13px;margin:0 0 12px}
+label{display:block;font-size:12.5px;font-weight:500;color:var(--ink2);margin:14px 0 6px}
+label .req{color:var(--err)}
+label small{font-weight:400;color:var(--ink3)}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line2);border-radius:6px;background:#fff;color:var(--ink);font:inherit;outline:none;min-height:42px;transition:border-color .12s,box-shadow .12s}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%233a3a41' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input::placeholder,textarea::placeholder{color:#9aa0aa}
+input:focus,select:focus,textarea:focus{border-color:var(--accent2);box-shadow:var(--focus)}
+input.bad,select.bad,textarea.bad{border-color:var(--err);box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+textarea{min-height:96px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:560px){.row,.row3{grid-template-columns:1fr}}
+/* choix de formalité */
+.types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+@media(max-width:560px){.types{grid-template-columns:1fr}}
+.type{border:1px solid var(--line2);border-radius:6px;padding:13px 14px;cursor:pointer;background:#fff;transition:border-color .12s,box-shadow .12s;display:flex;align-items:center;gap:14px}
+.type:hover{border-color:var(--accent2)}
+.type.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.type .tag{flex:none;min-width:48px;height:34px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:4px;font:600 11px/1 inherit;letter-spacing:1px;color:var(--accent);background:var(--soft)}
+.type.on .tag{background:var(--accent);color:#fff;border-color:var(--accent)}
+.type b{display:block;font-size:14px;font-weight:600}
+.type span{font-size:12px;color:var(--ink3)}
+/* blocs répétés */
+.asso{border:1px solid var(--line);border-radius:6px;padding:14px 16px 16px;margin-top:12px;background:#fafbfc;position:relative}
+.asso .tt{font-size:11px;font-weight:600;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+.asso .del{position:absolute;top:10px;right:10px;border:1px solid var(--line2);background:#fff;color:var(--ink2);border-radius:4px;padding:4px 10px;cursor:pointer;font:600 11.5px/1.2 inherit}
+.asso .del:hover{border-color:var(--err);color:var(--err)}
+.asso label{margin-top:10px}
+.addbtn{margin-top:12px;background:#fff;border:1px dashed var(--line2);color:var(--accent);border-radius:6px;padding:11px;width:100%;cursor:pointer;font:600 13.5px/1.2 inherit}
+.addbtn:hover{border-color:var(--accent2);background:var(--soft)}
+.capbar{margin-top:12px;font-size:13px;padding:10px 12px;border-radius:6px;background:var(--soft);border:1px solid var(--line);color:var(--ink2)}
+.capbar.ok{background:var(--okbg);border-color:var(--okline);color:var(--ok)}
+.capbar.ko{background:var(--errbg);border-color:var(--errline);color:var(--err)}
+/* récapitulatif */
+.recap{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+.recap .rg{background:var(--soft);padding:8px 14px;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;color:var(--ink3)}
+.recap .rr{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.recap .rr .k{color:var(--ink3)}
+.recap .rr .v{font-weight:600;text-align:right}
+/* documents */
+.doc,.piece{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-top:10px;background:#fafbfc}
+.piece{margin:0 0 12px}
+.doc.bad{border-color:var(--err);box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+.piece.done{border-color:var(--okline);background:var(--okbg)}
+.doc .dl,.piece-h b{font-size:14px;font-weight:600;color:var(--ink)}
+.doc .dh,.piece .hint{font-size:12.5px;color:var(--ink3);margin:3px 0 10px}
 .piece-h{display:flex;align-items:center;gap:10px}
-.piece-h b{font-size:14px}
-.piece-h .st{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink3)}
+.piece-h .st{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3)}
 .piece.done .st{color:var(--ok)}
-.piece .hint{font-size:12px;color:var(--ink3);margin:4px 0 10px}
-.drop{border:1.5px dashed var(--line2);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--accent2);font-weight:600;background:#fff}
-.drop:hover{border-color:var(--accent2)}
-.files{margin-top:8px;font-size:12px;color:var(--ink2)}
-.files div{padding:3px 0}
-.btn{margin-top:8px;width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(180deg,#c9a13c,#a8801f);color:#fff;font:600 15px/1 inherit;cursor:pointer}
-.btn:disabled{background:#d9ccb2;cursor:not-allowed}
-.note{font-size:12px;color:var(--ink3);margin-top:12px;text-align:center}
-.ok{display:none;text-align:center;padding:34px 12px}
-.ok h2{color:var(--ok)}
-.err{color:var(--err);font-size:13px;text-align:center;padding:20px}
-@media(max-width:600px){input,select,textarea{font-size:16px}}
+.doc .pick,.drop{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border:1px solid var(--accent2);border-radius:6px;background:#fff;color:var(--accent);font:600 13.5px/1.2 inherit;cursor:pointer;min-height:42px}
+.drop{width:100%;text-align:center}
+.doc .pick:hover,.drop:hover{background:var(--soft)}
+.doc .pick input{display:none}
+.doc .files,.files{margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink2)}
+.doc .file,.files div{display:flex;align-items:center;gap:8px;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:4px;padding:7px 10px}
+.doc .file b{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .file small,.files small{color:var(--ink3);font-size:11.5px;white-space:nowrap}
+.doc .file .ok{color:var(--ok);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;display:inline;padding:0}
+.doc .file button{border:1px solid var(--line2);background:#fff;color:var(--ink2);cursor:pointer;font:600 11.5px/1.2 inherit;padding:4px 9px;border-radius:4px}
+.doc .file button:hover{border-color:var(--err);color:var(--err)}
+.libre{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:0 0 16px}
+.libre label{margin-top:0}
+.pieces{margin-top:18px;border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:13px;color:var(--ink2);background:var(--soft)}
+.pieces a{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+/* boutons */
+.btn{padding:0 20px;min-height:44px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;font:500 14px/1.2 inherit;letter-spacing:.2px;cursor:pointer;transition:background .12s,border-color .12s;display:inline-flex;align-items:center;justify-content:center}
+.btn:hover{background:var(--accent2);border-color:var(--accent2)}
+.btn.sec{background:#fff;color:var(--accent);border-color:var(--line2)}
+.btn.sec:hover{background:var(--soft);border-color:var(--accent2)}
+.btn.gold{background:var(--accent);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+#send{width:100%;margin-top:6px}
+.btn:focus-visible{box-shadow:var(--focus);outline:none}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:24px;flex-wrap:wrap}
+.nav .btn{flex:1}
+.nav span:empty{flex:1}
+.errline,.err{display:none;color:var(--err);font-size:13px;margin-top:10px;font-weight:600}
+.fatal{color:var(--err);font-size:14px;text-align:center;padding:24px;background:#fff;border:1px solid var(--errline);border-radius:var(--r)}
+.note{font-size:12px;color:var(--ink3);margin-top:16px;text-align:center}
+.ok{display:none;text-align:center;padding:40px 20px}
+.ok h2{color:var(--ink);font-size:22px;margin:14px 0 6px}
+.ok .mark{width:52px;height:52px;border-radius:50%;background:var(--okbg);border:1px solid var(--okline);display:inline-flex;align-items:center;justify-content:center;color:var(--ok)}
+.ok .mark svg{width:24px;height:24px}
+.ok .recap{text-align:left;display:inline-block;margin:12px auto 0;font-size:13px;color:var(--ink2);border:none}
+.ok .recap div{padding:2px 0}
+.dossierno{display:inline-block;margin-top:10px;font:600 14px/1 inherit;letter-spacing:1px;color:var(--accent);background:var(--soft);border:1px solid var(--line2);border-radius:6px;padding:9px 14px}
+.foot{font-size:12px;color:var(--ink3);text-align:center;margin-top:26px;line-height:1.7}
+.foot a{color:var(--ink3)}
+@media(max-width:600px){.wrap{padding-top:20px}.card{padding:20px 16px}h1{font-size:21px}.btn{width:100%}.nav{flex-direction:column}.doc .pick{width:100%}.brand .sub{display:none}.topbar .ctc{display:none}input,select,textarea{font-size:16px}}
+@media print{.topbar{background:#fff;color:#000;border-bottom:1px solid #000}.topbar .logo,.topbar .sub,.topbar .ctc{color:#000}.card{box-shadow:none}}
 </style>
 </head>
 <body>
+<header class="topbar"><div class="in"><div class="brand"><span class="logo">AEM CONSEIL</span><span class="sub">Création et formalités d'entreprise</span></div><span class="ctc">aemconseil.eu</span></div></header>
 <div class="wrap">
-  <div class="brand"><span class="logo">AEM</span><span class="sub">Conseil · Dépôt sécurisé</span></div>
   <h1>Dépôt de vos pièces justificatives</h1>
   <p class="lead" id="lead">Transmettez en toute sécurité les documents nécessaires à la création de votre société.</p>
   <div id="dosno" class="dosno"></div>
@@ -48,7 +143,7 @@ h1{font-size:21px;margin:14px 0 4px}
     <form id="post" action="https://formsubmit.co/aemconseil.sas@gmail.com" method="POST" enctype="multipart/form-data">
       <input type="hidden" name="_captcha" value="false">
       <input type="hidden" name="_template" value="box">
-      <input type="hidden" name="_subject" id="p_subject" value="DÉPÔT PIÈCES — AEM CONSEIL">
+      <input type="hidden" name="_subject" id="p_subject" value="DÉPÔT PIÈCES - AEM CONSEIL">
       <input type="hidden" name="_next" id="p_next" value="">
       <input type="hidden" name="Origine" value="Portail de dépôt sécurisé">
       <input type="hidden" name="Numéro de dossier" id="p_dossier" value="">
@@ -56,20 +151,21 @@ h1{font-size:21px;margin:14px 0 4px}
       <div id="fileInputs" style="display:none"></div>
       <button class="btn" type="button" id="send" disabled>Transmettre mes pièces</button>
     </form>
-    <div class="note">🔒 Liaison directe et sécurisée à votre dossier. Aucun compte à créer.</div>
+    <div class="note">Liaison directe et sécurisée à votre dossier. Aucun compte à créer.</div>
   </div>
 
   <div class="card ok" id="cardOk">
-    <h2>✅ Merci, vos pièces sont transmises !</h2>
+    <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><h2>Vos pièces ont bien été transmises</h2>
     <p class="lead" style="text-align:center">Nous avons bien reçu vos documents. Notre équipe les vérifie et poursuit les démarches de création.</p>
   </div>
-  <div class="err" id="cardErr" style="display:none">Lien invalide : numéro de dossier manquant. Utilisez le lien reçu par e-mail.</div>
+  <div class="fatal" id="cardErr" style="display:none">Lien invalide : numéro de dossier manquant. Utilisez le lien reçu par e-mail ou contactez AEM CONSEIL.</div>
+  <div class="foot">AEM CONSEIL, création et formalités d'entreprise. Vos informations sont utilisées uniquement pour le traitement de votre dossier (RGPD).<br><a href="https://aemconseil.eu" rel="noopener">aemconseil.eu</a></div>
 </div>
 
 <script>
 var PIECES=[
- {k:'identite',l:"Pièce d'identité du dirigeant",h:'Carte nationale d\'identité, passeport ou titre de séjour — recto et verso.'},
- {k:'domiciliation',l:'Justificatif de domicile',h:'Facture (électricité, téléphone…) ou quittance de loyer de moins de 3 mois.'},
+ {k:'identite',l:"Pièce d'identité du dirigeant",h:'Carte nationale d\'identité, passeport ou titre de séjour, recto et verso.'},
+ {k:'domiciliation',l:'Justificatif de domicile',h:'Facture (électricité, téléphone) ou quittance de loyer de moins de 3 mois.'},
  {k:'attestation',l:'Attestation de domiciliation / bail',h:'Si le siège est chez vous : attestation. Si local : bail ou mise à disposition.'},
  {k:'impot',l:"Avis d'impôt (facultatif)",h:'Dernier avis d\'imposition, si demandé.'}
 ];
@@ -80,7 +176,7 @@ if(!dossier){document.getElementById('cardForm').style.display='none';document.g
 else{
   document.getElementById('dosno').textContent='Dossier '+dossier;
   document.getElementById('p_dossier').value=dossier;
-  document.getElementById('p_subject').value='DÉPÔT PIÈCES — '+dossier+' — AEM CONSEIL';
+  document.getElementById('p_subject').value='DÉPÔT PIÈCES - '+dossier+' - AEM CONSEIL';
   document.getElementById('p_next').value=location.href.split('#')[0]+'#ok';
   render();
 }
@@ -88,10 +184,10 @@ function esc(s){return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&
 function render(){
   var el=document.getElementById('pieces');
   el.innerHTML=PIECES.map(function(p){var f=STORE[p.k]||[];var done=f.length>0;
-    return '<div class="piece'+(done?' done':'')+'" id="pc-'+p.k+'"><div class="piece-h"><b>'+esc(p.l)+'</b><span class="st">'+(done?('✓ '+f.length+' fichier(s)'):'À déposer')+'</span></div>'
+    return '<div class="piece'+(done?' done':'')+'" id="pc-'+p.k+'"><div class="piece-h"><b>'+esc(p.l)+'</b><span class="st">'+(done?(f.length+' fichier(s) ajouté(s)'):'À déposer')+'</span></div>'
      +'<div class="hint">'+esc(p.h)+'</div>'
-     +'<label class="drop">＋ Choisir un fichier (photo ou PDF)<input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="pick(\''+p.k+'\',this)"></label>'
-     +(done?('<div class="files">'+f.map(function(x){return '<div>📎 '+esc(x.name)+(x.pending?' <small>(préparation…)</small>':(x.file&&x.file.size&&window.aemKo?(' <small>'+(x.orig?(aemKo(x.orig)+' → '):'')+aemKo(x.file.size)+'</small>'):''))+'</div>';}).join('')+'</div>'):'')+'</div>';
+     +'<label class="drop">Choisir un fichier (photo ou PDF)<input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="pick(\''+p.k+'\',this)"></label>'
+     +(done?('<div class="files">'+f.map(function(x){return '<div>'+esc(x.name)+(x.pending?' <small>(préparation en cours)</small>':(x.file&&x.file.size&&window.aemKo?(' <small>'+(x.orig?(aemKo(x.orig)+' réduit à '):'')+aemKo(x.file.size)+'</small>'):''))+'</div>';}).join('')+'</div>'):'')+'</div>';
   }).join('');
   var any=Object.keys(STORE).some(function(k){return (STORE[k]||[]).length;});
   var pending=Object.keys(STORE).some(function(k){return (STORE[k]||[]).some(function(x){return x.pending;});});
