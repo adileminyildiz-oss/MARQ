@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=672;
+var LAST_VER=673;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -26042,7 +26042,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
 
   window.invVoir=function(id){ var f=store().find(function(x){return x.id===id;}); if(!f)return; window.__invDraft=JSON.parse(JSON.stringify(f)); if(!window.__invDraft.lignes||!window.__invDraft.lignes.length)window.__invDraft.lignes=[{des:'',qte:1,pu:0}]; ui().tab='new'; render(); if(typeof toast==='function')toast('Facture '+ (f.numero||'')+' ouverte pour édition.'); };
   window.invDup=function(id){ var f=store().find(function(x){return x.id===id;}); if(!f)return; var d=JSON.parse(JSON.stringify(f)); d.id=''; d.numero=(typeof invNumPourType==='function')?invNumPourType(f.type||'facture'):nextNum(); d.statut='brouillon'; /* v650 : numéro de la série du type copié */ window.__invDraft=d; ui().tab='new'; render(); if(typeof toast==='function')toast('Copie créée : '+d.numero); };
-  window.invDel=function(id){ var arr=store(); var i=arr.findIndex(function(x){return x.id===id;}); if(i<0)return; if(typeof confirm==='function'&&!confirm('Supprimer cette facture ?'))return; arr.splice(i,1); try{save();}catch(e){} render(); };
+  window.invDel=function(id){ var arr=store(); var i=arr.findIndex(function(x){return x.id===id;}); if(i<0)return; var go=function(){ arr.splice(i,1); try{save();}catch(e){} render(); }; if(typeof uiConfirm==='function') uiConfirm('Supprimer cette facture ?',go,{okLabel:'Supprimer',danger:true}); else go(); };
   window.invSetTab=function(t){ ui().tab=t; render(); };
   window.invTogglePreview=function(){ ui().hidePrev=!ui().hidePrev; render(); };
 
@@ -41922,6 +41922,66 @@ function testLienSignature() {
    +'.edc-empty{font-size:12px;opacity:.55;padding:2px 0}.edc-lot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}'
    +'.edc-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.edc-opts label{display:inline-flex;align-items:center;gap:6px}.edc-opts input[type=number]{width:56px;padding:3px 6px}.edc-note{font-size:11.5px;opacity:.6;margin-left:auto}'
    +'.edc-journal{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}.edc-jl{display:flex;gap:8px;font-size:12px;padding:2px 0}.edc-jl span{opacity:.55;min-width:130px}.edc-jl.ko b{color:#e0a458}.edc-jl i{opacity:.6}';
+    document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Nettoyage 2 : cache & versions, grille de boutons, messages (v673)
+   ----------------------------------------------------------------------------
+   1) Versions : au premier chargement d'une nouvelle version, les caches du
+      navigateur sont vidés et les clés de stockage devenues inutiles (thème
+      jour/nuit retiré) sont supprimées ; un bandeau discret confirme la version.
+   2) Boutons : une seule grille de tailles pour tout le logiciel — 30 px (petit),
+      36 px (standard), 42 px (grand) — mêmes rayons, mêmes états (survol,
+      focus clavier, désactivé, en cours). Les tuiles, étapes et lignes
+      cliquables gardent leur propre forme.
+   3) Messages : uiPrompt (saisie rapide) aux couleurs du système, complément
+      de uiConfirm ; plus aucune boîte native.
+   100 % additif.
+   ============================================================================ */
+(function(){
+  if(window.__netto2) return; window.__netto2=1;
+  /* ---------- 1. versions & résidus ---------- */
+  try{
+    var K='marq-ver-seen', seen=parseInt(localStorage.getItem(K)||'0',10)||0, cur=(typeof LAST_VER!=='undefined')?+LAST_VER:0;
+    if(cur&&cur!==seen){
+      ['last-dark'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+      try{ if(window.caches&&caches.keys) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); }catch(e){}
+      try{ localStorage.setItem(K,String(cur)); }catch(e){}
+      if(seen&&cur>seen){ setTimeout(function(){ try{ if(typeof toast==='function') toast('Mar\'q est à jour — version '+cur+'.','','success'); }catch(e){} },2500); }
+    }
+  }catch(e){}
+  /* ---------- 3. uiPrompt ---------- */
+  window.uiPrompt=function(msg,def,onOk,opts){
+    opts=opts||{}; var e=(typeof esc==='function')?esc:function(s){return (''+s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+    var multi=!!opts.multiline;
+    var body='<div class="uicfm-msg">'+e(msg).replace(/\n/g,'<br>')+'</div>'+(multi?('<textarea id="uiprm-in" class="uiprm-in" rows="4" placeholder="'+e(opts.placeholder||'')+'">'+e(def==null?'':def)+'</textarea>'):('<input id="uiprm-in" class="uiprm-in" type="'+e(opts.type||'text')+'" value="'+e(def==null?'':def)+'" placeholder="'+e(opts.placeholder||'')+'">'));
+    var footer='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" id="uiprm-ok">'+e(opts.okLabel||'Valider')+'</button>';
+    if(typeof openModal!=='function'){ var v=prompt(msg,def==null?'':def); if(v!=null&&typeof onOk==='function') onOk(v); return; }
+    openModal(opts.title||'Saisie',body,footer);
+    var inp=document.getElementById('uiprm-in'), ok=document.getElementById('uiprm-ok');
+    var go=function(){ var v=inp?inp.value:''; if(opts.required&&!(''+v).trim()){ if(inp){ inp.classList.add('ko'); inp.focus(); } return; } closeModal(); try{ if(typeof onOk==='function') onOk(v); }catch(err){} };
+    if(ok) ok.onclick=go;
+    if(inp){ setTimeout(function(){ try{ inp.focus(); try{ var L=inp.value.length; inp.setSelectionRange(L,L); }catch(e){} }catch(e){} },30); inp.addEventListener('keydown',function(ev){ if(ev.key==='Enter'&&!(multi&&!ev.ctrlKey&&!ev.metaKey)){ ev.preventDefault(); go(); } }); }
+  };
+  /* ---------- 2. grille de boutons ---------- */
+  try{ var st=document.createElement('style'); st.id='btn-grid-mod'; st.textContent=
+    ':root{--ctl-sm:30px;--ctl-md:36px;--ctl-lg:42px;--ctl-r:9px}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn,html body:not(#mq):not(#mq):not(#mq):not(#mq) button.btn,html body:not(#mq):not(#mq):not(#mq):not(#mq) a.btn{box-sizing:border-box;min-height:var(--ctl-md)!important;padding:0 14px!important;border-radius:var(--ctl-r)!important;font-size:12.5px!important;font-weight:600!important;line-height:1.2!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;align-self:center;gap:6px;white-space:nowrap;cursor:pointer;transition:background .12s,border-color .12s,color .12s,opacity .12s,box-shadow .12s}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.btn-sm{min-height:var(--ctl-sm)!important;padding:0 10px!important;font-size:11.5px!important;border-radius:7px!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.btn-lg{min-height:var(--ctl-lg)!important;padding:0 18px!important;font-size:13.5px!important;border-radius:11px!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.btn-icon,html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.ico{padding:0!important;width:var(--ctl-md);min-width:var(--ctl-md)}html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.btn-sm.btn-icon{width:var(--ctl-sm);min-width:var(--ctl-sm)}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn:focus-visible{outline:none!important;box-shadow:0 0 0 2px #08080c,0 0 0 4px var(--accent)!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn[disabled],html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.disabled{opacity:.45!important;cursor:not-allowed!important;pointer-events:none;filter:none!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.busy{position:relative;color:transparent!important;pointer-events:none}html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.busy::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;color:#cfd2da;animation:btnspin .7s linear infinite}@keyframes btnspin{to{transform:rotate(360deg)}}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn+.btn{margin-left:0}'
+   /* barre de progression « Mise en place » et fil d'Ariane des Paramètres : plus de beige ni de police machine */
+   +'html body .mep-bar{background:#26272d!important}html body .sp-crumb{font-family:inherit!important;font-size:12px!important;letter-spacing:.02em}'
+   /* saisie de uiPrompt */
+   +'.uiprm-in{width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;border-radius:8px;border:1px solid var(--line,#2a2a2e);background:#0f0f12;color:#eceef6;font:inherit}.uiprm-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(138,138,147,.25)}.uiprm-in.ko{border-color:#e05252}'
+   +'@media (prefers-reduced-motion:reduce){html body:not(#mq):not(#mq):not(#mq):not(#mq) .btn.busy::after{animation:none}}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
