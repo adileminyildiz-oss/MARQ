@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=686;
+var LAST_VER=687;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42683,6 +42683,71 @@ function testLienSignature() {
   try{ var busy=false; var mo=new MutationObserver(function(){ if(busy) return; busy=true; setTimeout(function(){ try{ decorate(); }finally{ busy=false; } },60); }); var host=document.getElementById('view')||document.body; mo.observe(host,{childList:true,subtree:true}); }catch(e){}
   window.__modLastDecorate=decorate;
   var css=document.createElement('style'); css.id='mod-last-mod'; css.textContent='.mod-pause-it.mp-has{flex-wrap:wrap}.mod-pause-it .mp-last{flex-basis:100%;margin-left:26px}.mp-last{display:block;font-size:11px;color:var(--muted,#8a8a93);margin-top:3px;line-height:1.35}.mp-last.mp-ko{color:#d16d63}.mp-last.mp-none{font-style:italic}.pv-auto-l .mp-last{margin-top:2px}';
+  document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Traitement › Notes : journal de notes datées (v687)
+   Mémo général conservé + journal de notes horodatées et signées
+   (Note, Appel, Rendez-vous, À faire), épingle, à faire avec échéance
+   remontée dans la Prévoyance, recherche, reprise dans le journal
+   d'audit. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__notesJ) return; window.__notesJ=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function doss(id){ return (B().dossiers||[]).filter(function(x){ return x.id===id; })[0]; }
+  function qui(){ try{ return (typeof auditUser==='function'?auditUser():'')||''; }catch(e){ return ''; } }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function frD(iso){ try{ var p=(''+iso).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }catch(e){ return iso; } }
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  var TYPES={note:'Note',appel:'Appel',rdv:'Rendez-vous',afaire:'À faire'};
+  function liste(d){ d.notesList=d.notesList||[]; return d.notesList; }
+  var ST={q:''};
+  function tri(a,b){ if(!!a.epingle!==!!b.epingle) return a.epingle?-1:1; if(a.type==='afaire'&&b.type==='afaire'&&!!a.fait!==!!b.fait) return a.fait?1:-1; return (b.ts||0)-(a.ts||0); }
+  function badgeEch(n){ if(n.type!=='afaire'||!n.echeance) return ''; var dj=Math.round((new Date(n.echeance+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000); var cl=n.fait?'':(dj<0?' ko':(dj===0?' warn':'')); var lbl=n.fait?'fait':(dj<0?('en retard de '+(-dj)+' j'):(dj===0?'aujourd\'hui':('dans '+dj+' j'))); return '<span class="nj-ech'+cl+'">'+E(frD(n.echeance))+' · '+lbl+'</span>'; }
+  window.notesJournalHTML=function(d){ var L=liste(d).slice().sort(tri); var q=(ST.q||'').toLowerCase(); if(q) L=L.filter(function(n){ return ((n.txt||'')+' '+(n.qui||'')+' '+(TYPES[n.type]||'')).toLowerCase().indexOf(q)>=0; });
+    var aFaire=liste(d).filter(function(n){ return n.type==='afaire'&&!n.fait; }).length;
+    var rows=L.map(function(n){ return '<div class="nj-it'+(n.epingle?' pin':'')+(n.type==='afaire'&&n.fait?' done':'')+'" data-n="'+E(n.id)+'"><div class="nj-h"><span class="nj-type t-'+E(n.type)+'">'+E(TYPES[n.type]||'Note')+'</span><span class="nj-meta">'+E(frDT(n.ts))+(n.qui?(' · '+E(n.qui)):'')+'</span>'+badgeEch(n)+'<span class="nj-acts">'
+        +(n.type==='afaire'?('<button type="button" class="btn btn-sm'+(n.fait?' btn-ghost':'')+'" onclick="noteFait(\''+E(d.id)+'\',\''+E(n.id)+'\')">'+(n.fait?'Rouvrir':'Fait')+'</button>'):'')
+        +'<button type="button" class="btn btn-sm btn-ghost" onclick="noteEpingler(\''+E(d.id)+'\',\''+E(n.id)+'\')">'+(n.epingle?'Désépingler':'Épingler')+'</button>'
+        +'<button type="button" class="btn btn-sm btn-ghost" onclick="noteSupprimer(\''+E(d.id)+'\',\''+E(n.id)+'\')">Supprimer</button></span></div><div class="nj-txt">'+E(n.txt).replace(/\n/g,'<br>')+'</div></div>'; }).join('');
+    return '<div class="nj-wrap"><div class="nj-top"><b>Journal de notes</b><span class="hint">'+liste(d).length+' note'+(liste(d).length>1?'s':'')+(aFaire?(' · '+aFaire+' à faire'):'')+'</span><input type="search" class="nj-q" placeholder="Rechercher dans les notes" value="'+E(ST.q)+'" oninput="noteRecherche(\''+E(d.id)+'\',this.value)"></div>'
+      +'<div class="nj-form"><select id="nj-type-'+E(d.id)+'" onchange="noteTypeChange(\''+E(d.id)+'\')">'+Object.keys(TYPES).map(function(k){ return '<option value="'+k+'">'+E(TYPES[k])+'</option>'; }).join('')+'</select><input id="nj-txt-'+E(d.id)+'" placeholder="Nouvelle note (Entrée pour ajouter)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();noteAjouter(\''+E(d.id)+'\');}"><input type="date" id="nj-ech-'+E(d.id)+'" title="Échéance (pour une note à faire)" style="display:none" max="9999-12-31"><button type="button" class="btn btn-sm btn-pri" onclick="noteAjouter(\''+E(d.id)+'\')">Ajouter</button></div>'
+      +(rows||'<div class="hint nj-empty">'+(liste(d).length?'Aucune note ne correspond à la recherche.':'Aucune note datée pour ce dossier. Une note « À faire » avec une échéance remonte dans la Prévoyance.')+'</div>')+'</div>'; };
+  window.noteTypeChange=function(id){ var s=document.getElementById('nj-type-'+id), e=document.getElementById('nj-ech-'+id); if(s&&e) e.style.display=s.value==='afaire'?'':'none'; };
+  window.noteAjouter=function(id,o){ var d=doss(id); if(!d) return null; o=o||{}; var txt=o.txt!=null?o.txt:((document.getElementById('nj-txt-'+id)||{}).value||''); txt=(''+txt).trim(); if(!txt){ T('Saisissez le texte de la note.','warn'); return null; }
+    var type=o.type||((document.getElementById('nj-type-'+id)||{}).value)||'note'; if(!TYPES[type]) type='note'; var ech=o.echeance!=null?o.echeance:((document.getElementById('nj-ech-'+id)||{}).value||'');
+    var n={id:'n'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),ts:Date.now(),type:type,txt:txt,qui:qui(),epingle:!!o.epingle,fait:false,echeance:type==='afaire'?(ech||''):''};
+    liste(d).unshift(n); d.updated=Date.now(); try{ save(); }catch(e){} repaint(d); return n; };
+  window.noteFait=function(id,nid){ var d=doss(id); if(!d) return; var n=liste(d).filter(function(x){ return x.id===nid; })[0]; if(!n) return; n.fait=!n.fait; n.faitTs=n.fait?Date.now():null; n.faitQui=n.fait?qui():''; try{ save(); }catch(e){} repaint(d); };
+  window.noteEpingler=function(id,nid){ var d=doss(id); if(!d) return; var n=liste(d).filter(function(x){ return x.id===nid; })[0]; if(!n) return; n.epingle=!n.epingle; try{ save(); }catch(e){} repaint(d); };
+  window.noteSupprimer=function(id,nid){ var d=doss(id); if(!d) return; var go=function(){ d.notesList=liste(d).filter(function(x){ return x.id!==nid; }); try{ save(); }catch(e){} repaint(d); }; if(typeof uiConfirm==='function') uiConfirm('Supprimer cette note ?',go,{okLabel:'Supprimer',danger:true}); else if(confirm('Supprimer cette note ?')) go(); };
+  window.noteRecherche=function(id,v){ ST.q=v||''; var d=doss(id); if(d){ repaint(d); try{ var inp=document.querySelector('.nj-q'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); } }catch(e){} } };
+  function repaint(d){ var el=document.querySelector('.nj-wrap'); if(!el){ try{ render(); }catch(e){} return; } var tmp=document.createElement('div'); tmp.innerHTML=window.notesJournalHTML(d); el.replaceWith(tmp.firstChild); try{ var t=document.getElementById('nj-txt-'+d.id); if(t) t.value=''; }catch(e){} }
+  /* carte Notes : mémo existant + journal */
+  try{ var _nc=window.espNotesCard; if(typeof _nc==='function'&&!_nc.__nj){ window.espNotesCard=function(d){ var h=_nc.apply(this,arguments); try{ if(d&&d.id&&h.indexOf('nj-wrap')<0){ var i=h.lastIndexOf('</div></div>'); if(i>0) h=h.slice(0,i)+window.notesJournalHTML(d)+h.slice(i); } }catch(e){} return h; }; window.espNotesCard.__nj=1; } }catch(e){}
+  /* Prévoyance : notes « à faire » avec échéance */
+  function ouvrirNotes(d){ try{ state.page='espace'; state.espaceDossier=d.id; state.espTab='notes'; render(); try{ trwGo('notes'); }catch(e){} }catch(e){} }
+  function nomDossier(d){ try{ var c=(B().clients||[]).filter(function(x){ return d.clientIds&&x.id===d.clientIds[0]; })[0]; var n=c?(((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||''):(d.clientNom||''); return (n||'Dossier')+(d.ref?(' · '+d.ref):''); }catch(e){ return d.ref||'Dossier'; } }
+  function catDe(q){ var dj=Math.round((new Date(q+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000); var pc=(B().parametres||{}).prevoyance||{}; var lead=pc.leadJ>0?pc.leadJ:7, hor=pc.horizonJ>0?pc.horizonJ:30; if(dj<0) return 'retard'; if(dj===0) return 'aujourdhui'; if(dj<=lead) return 'semaine'; if(dj<=hor) return 'mois'; return ''; }
+  try{ var _pi=window.prevItems; if(typeof _pi==='function'&&!_pi.__nj){ window.prevItems=function(){ var res=_pi.apply(this,arguments)||[]; try{ var pc=(B().parametres||{}).prevoyance||{}; if((pc.sources||{}).trw===false) return res; var add=[];
+        (B().dossiers||[]).forEach(function(d){ if(d.archived) return; (d.notesList||[]).forEach(function(n){ if(n.type!=='afaire'||n.fait||!n.echeance) return; var cat=catDe(n.echeance); if(!cat) return; add.push({key:'note:'+d.id+':'+n.id,src:'trw',niveau:cat==='retard'?'crit':(cat==='aujourdhui'?'warn':'info'),cat:cat,quand:n.echeance,titre:nomDossier(d)+' · à faire',detail:(''+n.txt).slice(0,120)+(n.qui?(' · '+n.qui):''),page:'espace',open:function(){ ouvrirNotes(d); }}); }); });
+        if(!add.length) return res; var seen={}; res.forEach(function(o){ seen[o.key]=1; }); add.forEach(function(o){ if(seen[o.key]) return; var sn=(pc.snooze||{})[o.key]; if(sn&&sn>Date.now()) return; o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); });
+        var ORD={retard:0,aujourdhui:1,semaine:2,mois:3,systeme:4}, NIV={crit:0,warn:1,info:2}; res.sort(function(a,b){ return (ORD[a.cat]-ORD[b.cat])||(NIV[a.niveau]-NIV[b.niveau])||((a.quand||'')>(b.quand||'')?1:-1); }); }catch(e){} return res; }; window.prevItems.__nj=1; } }catch(e){}
+  /* journal d'audit : les notes datées des dossiers */
+  try{ var _ae=window.auditEntrees; if(typeof _ae==='function'&&!_ae.__nj){ window.auditEntrees=function(){ var out=_ae.apply(this,arguments)||[]; try{ (B().dossiers||[]).forEach(function(d){ (d.notesList||[]).forEach(function(n){ out.push({ts:n.ts,src:'notes',srcLbl:'Notes de dossier',action:(TYPES[n.type]||'Note')+(n.type==='afaire'?(n.fait?' · fait':' · à faire'):''),ok:true,detail:n.txt||'',qui:n.qui||'',mode:'',ref:[d.ref||d.numeroDossier,nomDossier(d).split(' · ')[0]].filter(Boolean).join(' · ')}); }); }); out.sort(function(a,b){ return b.ts-a.ts; }); }catch(e){} return out; }; window.auditEntrees.__nj=1; } }catch(e){}
+  var css=document.createElement('style'); css.id='notes-journal-mod'; css.textContent=
+    '.nj-wrap{margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2a2a2e)}.nj-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.nj-top b{font-size:13px}.nj-top .hint{margin:0}.nj-q{margin-left:auto;min-width:220px}'
+   +'.nj-form{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.nj-form select{width:140px}.nj-form input:not([type=date]){flex:1;min-width:220px}'
+   +'.nj-it{padding:9px 11px;border:1px solid var(--line,#2a2a2e);border-radius:8px;margin-bottom:6px}.nj-it.pin{border-color:#8a8a93;background:rgba(138,138,147,.08)}.nj-it.done{opacity:.55}.nj-it.done .nj-txt{text-decoration:line-through}'
+   +'.nj-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted,#8a8a93)}.nj-type{font-weight:600;letter-spacing:.4px;text-transform:uppercase;font-size:10.5px;padding:2px 7px;border:1px solid var(--line,#2a2a2e);border-radius:4px;color:var(--text,#eee)}.nj-type.t-afaire{border-color:#8a8a93}'
+   +'.nj-ech{font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--line,#2a2a2e)}.nj-ech.ko{color:#d16d63;border-color:#d16d63}.nj-ech.warn{color:#e0b458;border-color:#e0b458}'
+   +'.nj-acts{margin-left:auto;display:flex;gap:4px}.nj-txt{margin-top:5px;font-size:13px;line-height:1.45;white-space:pre-wrap}.nj-empty{padding:6px 0}';
   document.head.appendChild(css);
 })();
 </script>
