@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=674;
+var LAST_VER=675;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42056,6 +42056,57 @@ function testLienSignature() {
    /* toast cliquable + bandeau */
    +'#toast.tst-act{cursor:pointer}#toast.tst-act:hover{filter:brightness(1.08)}.dash-alert{cursor:pointer}';
     document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Mar'q — Nettoyage 4 : filet de sécurité des générations & erreurs (v675)
+   ----------------------------------------------------------------------------
+   Plus aucune action qui échoue en silence :
+   1) toute erreur JavaScript non rattrapée et toute promesse rejetée sans
+      traitement (export PDF, Word, Excel, FEC, e-mail, bibliothèque non
+      chargée hors ligne, fenêtre bloquée, stockage plein) affichent un message
+      clair en français, avec la marche à suivre, et sont consignées dans un
+      « Journal des incidents » (Paramètres) ;
+   2) fenêtre pop-up bloquée : détectée au moment de l'ouverture (export PDF,
+      impression, aperçu) → explication et rappel de l'autorisation ;
+   3) le centre de notifications signale les incidents.
+   100 % additif : aucune fonction de génération n'est réécrite.
+   ============================================================================ */
+(function(){
+  if(window.__netto4) return; window.__netto4=1;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function J(){ try{ DB.parametres=DB.parametres||{}; if(!Array.isArray(DB.parametres.incidents)) DB.parametres.incidents=[]; return DB.parametres.incidents; }catch(e){ return []; } }
+  var last={msg:'',ts:0};
+  /* traduction des erreurs techniques en marche à suivre */
+  function explique(err){ var m=''; try{ m=(err&&(err.message||err.reason&&err.reason.message||(typeof err==='string'?err:'')))||''; if(!m&&err&&err.reason) m=''+err.reason; }catch(e){}
+    var s=(''+m); var low=s.toLowerCase();
+    if(/offline|hors ligne|failed to fetch|networkerror|load https?:|chargement impossible|timeout|net::/.test(low)&&(!navigator.onLine||/load |chargement|offline|hors/.test(low))) return {t:'Connexion requise',d:'Cette action a besoin d\'une bibliothèque ou d\'un service en ligne. Vérifiez la connexion puis relancez.',k:'reseau'};
+    if(/quota|storage|stockage/.test(low)) return {t:'Stockage plein',d:'L\'espace de stockage du navigateur est saturé. Exportez une sauvegarde (Paramètres) puis supprimez les pièces volumineuses inutiles.',k:'stockage'};
+    if(/popup|pop-up|fenêtre|window\.open|cannot read properties of null \(reading 'document'\)|w\.document|null.*document/.test(low)||(!low&&Date.now()-(window.__popupBlockedAt||0)<1500)||(/typeerror|null|undefined/.test(low)&&Date.now()-(window.__popupBlockedAt||0)<1500)) return {t:'Fenêtre bloquée',d:'Le navigateur a bloqué l\'ouverture de la fenêtre (export, impression, aperçu). Autorisez les fenêtres pop-up pour Mar\'q via l\'icône dans la barre d\'adresse, puis relancez.',k:'popup'};
+    if(/script error/.test(low)) return {t:'Erreur d\'un script externe',d:'Une bibliothèque tierce a échoué. Rechargez la page ; si cela persiste, vérifiez la connexion.',k:'script'};
+    return {t:'Action non aboutie',d:'Une erreur interne a interrompu l\'action. Rechargez la page ; si le problème se reproduit, copiez le détail depuis Paramètres › Journal des incidents.',k:'interne'};
+  }
+  window.incidentSignaler=function(err,ctx){ try{ var x=explique(err); var m=''; try{ m=(err&&(err.message||(err.reason&&(err.reason.message||''+err.reason))||(typeof err==='string'?err:'')))||''; }catch(e){}
+      var st=''; try{ st=(err&&err.stack)||(err&&err.reason&&err.reason.stack)||''; }catch(e){}
+      var now=Date.now(); var j=J(); j.unshift({ts:now,titre:x.t,detail:x.d,kind:x.k,msg:(''+m).slice(0,300),stack:(''+st).slice(0,900),ctx:ctx||'',page:(typeof state!=='undefined'&&state.page)||''}); if(j.length>40) j.length=40; try{ if(typeof save==='function') save(); }catch(e){}
+      if(!(last.msg===x.t&&now-last.ts<4000)){ last={msg:x.t,ts:now}; try{ if(typeof toast==='function') toast(x.t+' — '+x.d,9000,'error',{go:'params'}); }catch(e){} }
+      try{ if(typeof ntBadge==='function') ntBadge(); }catch(e){}
+    }catch(e){} };
+  window.addEventListener('error',function(ev){ try{ var m=(ev&&ev.message)||''; if(/ServiceWorker|ResizeObserver|version\.json/i.test(m)) return; incidentSignaler(ev.error||m,'erreur'); }catch(e){} });
+  window.addEventListener('unhandledrejection',function(ev){ try{ var r=ev&&ev.reason; var m=(r&&(r.message||''+r))||''; if(/ServiceWorker|version\.json|AbortError/i.test(m)) return; incidentSignaler(r||m,'promesse'); }catch(e){} });
+  /* fenêtre bloquée */
+  try{ var _open=window.open; if(typeof _open==='function'&&!_open.__nt4){ window.open=function(){ var w=null; try{ w=_open.apply(window,arguments); }catch(e){ w=null; } if(!w){ window.__popupBlockedAt=Date.now(); try{ if(!(last.msg==='Fenêtre bloquée'&&Date.now()-last.ts<4000)){ last={msg:'Fenêtre bloquée',ts:Date.now()}; if(typeof toast==='function') toast('Fenêtre bloquée — autorisez les fenêtres pop-up pour Mar\'q (icône dans la barre d\'adresse), puis relancez l\'export ou l\'impression.',9000,'error'); } var j=J(); j.unshift({ts:Date.now(),titre:'Fenêtre bloquée',detail:'Export / impression / aperçu : ouverture refusée par le navigateur.',kind:'popup',msg:'window.open → null',ctx:'popup',page:(typeof state!=='undefined'&&state.page)||''}); if(j.length>40) j.length=40; try{ if(typeof save==='function') save(); }catch(e){} }catch(e){} } return w; }; window.open.__nt4=1; } }catch(e){}
+  /* journal des incidents : Paramètres + notifications */
+  window.incidentsCard=function(){ var j=J(); var head='<div class="card-h"><h2>Journal des incidents</h2><span class="sub" style="margin-left:auto">'+(j.length?(j.length+' incident(s) consigné(s)'):'aucun incident')+'</span>'+(j.length?'<button class="btn btn-sm btn-ghost" onclick="incidentsVider()">Vider</button>':'')+'</div>';
+    var rows=j.length?j.slice(0,20).map(function(x,i){ return '<div class="inc-row"><span class="inc-when">'+E(new Date(x.ts).toLocaleString('fr-FR'))+'</span><div class="inc-main"><b>'+E(x.titre)+'</b>'+(x.page?(' <span class="inc-pg">'+E(x.page)+'</span>'):'')+'<span>'+E(x.detail)+'</span>'+(x.msg?('<code>'+E(x.msg)+'</code>'):'')+'</div><button class="btn btn-sm btn-ghost" onclick="incidentCopier('+i+')">Copier le détail</button></div>'; }).join(''):'<div class="inc-empty">Aucune action n\'a échoué. Les erreurs de génération (PDF, Word, Excel, FEC, e-mail), les fenêtres bloquées et les problèmes de stockage apparaîtront ici avec la marche à suivre.</div>';
+    return '<div class="card inc-card">'+head+'<div class="card-b">'+rows+'</div></div>'; };
+  window.incidentCopier=function(i){ var x=J()[i]; if(!x) return; var txt='Mar\'q v'+(typeof LAST_VER!=='undefined'?LAST_VER:'?')+' — '+new Date(x.ts).toLocaleString('fr-FR')+'\n'+x.titre+' ('+(x.page||'')+')\n'+x.detail+'\n'+(x.msg||'')+'\n'+(x.stack||''); try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ if(typeof toast==='function') toast('Détail copié.','','success'); }); return; } }catch(e){} try{ if(typeof uiPrompt==='function') uiPrompt('Détail de l\'incident',txt,function(){},{multiline:true,okLabel:'Fermer'}); }catch(e){} };
+  window.incidentsVider=function(){ try{ DB.parametres.incidents=[]; if(typeof save==='function') save(); }catch(e){} try{ render(); }catch(e){} };
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__nt4){ window.pageParams=function(){ var h=_pp.apply(this,arguments); try{ h+=incidentsCard(); }catch(e){} return h; }; window.pageParams.__nt4=1; } }catch(e){}
+  try{ var _ni=window.ntItems; if(typeof _ni==='function'&&!_ni.__nt4){ window.ntItems=function(){ var out=_ni.apply(this,arguments)||[]; try{ var s=parseInt(localStorage.getItem('marq-nt-seen')||'0',10)||0; J().slice(0,10).forEach(function(x){ out.push({k:'auto',ok:false,ts:x.ts,titre:'Incident — '+x.titre,txt:x.detail,unread:x.ts>s,open:function(){ go('params'); }}); }); out.sort(function(a,b){ return (b.todo?1:0)-(a.todo?1:0) || (b.ts-a.ts); }); }catch(e){} return out; }; window.ntItems.__nt4=1; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='inc-mod'; st.textContent='.inc-card{margin-top:16px}.inc-row{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:start;padding:8px 0;border-top:1px solid #1f1f24;font-size:12.5px}.inc-row:first-child{border-top:0}.inc-when{font-size:11.5px;color:#8a8a93;white-space:nowrap}.inc-main{display:flex;flex-direction:column;gap:2px;min-width:0}.inc-main b{font-size:13px}.inc-main span{color:#aeb3be}.inc-main code{font-size:11px;color:#8a8a93;background:#0f0f12;padding:2px 6px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inc-pg{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#7f8698;margin-left:6px}.inc-empty{font-size:12.5px;color:#8a8a93;line-height:1.5}'; document.head.appendChild(st); }catch(e){}
 })();
 </script>
 
