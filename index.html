@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=690;
+var LAST_VER=691;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42609,7 +42609,7 @@ function testLienSignature() {
   function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -43408,6 +43408,837 @@ function testLienSignature() {
   try{ var v=document.getElementById('view'); if(v&&window.MutationObserver){ var tm=null;
     new MutationObserver(function(){ clearTimeout(tm); tm=setTimeout(barre,180); }).observe(v,{childList:true,subtree:true}); } }catch(e){}
   try{ setTimeout(barre,1200); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Sauvegarde : datée, rappelée, vérifiable (v691 · 1/6)
+   Chaque sauvegarde est datée et mesurée, son contenu est compté
+   (clients, dossiers, factures, pièces). Un rappel apparaît dans
+   la Prévoyance passé un délai réglable, ou si aucune sauvegarde
+   n'a jamais été faite. Un fichier de sauvegarde peut être vérifié
+   sans rien remplacer. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__bkpSuivi) return; window.__bkpSuivi=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function ko(n){ n=+n||0; if(n>1048576) return (n/1048576).toFixed(1).replace('.',',')+' Mo'; return Math.max(1,Math.round(n/1024))+' Ko'; }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function cfg(){ var p=P(); p.sauvegarde=p.sauvegarde||{}; var c=p.sauvegarde;
+    if(c.rappelJ==null) c.rappelJ=7; c.historique=c.historique||[]; return c; }
+
+  /* ---------- ce que contient la base ---------- */
+  function compte(){ var b=B(); var p=b.parametres||{};
+    var pieces=0; try{ (b.dossiers||[]).forEach(function(d){ Object.keys(d.docs||{}).forEach(function(k){ pieces+=((d.docs||{})[k]||[]).length; }); }); }catch(e){}
+    return {clients:(b.clients||[]).length,dossiers:(b.dossiers||[]).length,demandes:(b.demandes||[]).length,
+      factures:(p.facturier||[]).length,pieces:pieces}; }
+
+  window.sauvegardeEtat=function(){ var c=cfg(); var d=c.dernier;
+    if(!d||!d.ts) return {jamais:true,retard:true,ageJ:null,rappelJ:c.rappelJ,dernier:null};
+    var ageJ=Math.floor((Date.now()-d.ts)/86400000);
+    return {jamais:false,retard:ageJ>=c.rappelJ,ageJ:ageJ,rappelJ:c.rappelJ,dernier:d}; };
+
+  /* ---------- enregistrement après chaque export ---------- */
+  function noter(octets,nom){ var c=cfg(); var n=compte();
+    var e={ts:Date.now(),octets:+octets||0,nom:nom||'',ver:(typeof LAST_VER!=='undefined'?LAST_VER:0),
+      clients:n.clients,dossiers:n.dossiers,factures:n.factures,pieces:n.pieces};
+    c.dernier=e; c.historique.unshift(e); c.historique=c.historique.slice(0,20);
+    try{ var b0=B(); b0.params=b0.params||{}; b0.params.lastBackup=e.ts; }catch(e0){}
+    c.journal=c.journal||[]; c.journal.unshift({ts:e.ts,action:'sauvegarde exportée',ok:true,
+      detail:ko(e.octets)+' · '+e.clients+' client(s) · '+e.dossiers+' dossier(s) · '+e.pieces+' pièce(s)'});
+    c.journal=c.journal.slice(0,120); enr();
+    try{ if(typeof render==='function') render(); }catch(e2){}
+    return e; }
+  window.sauvegardeNoter=noter;
+
+  /* mesure de la taille réelle : on recalcule le contenu sans le retélécharger */
+  function taille(){ try{ var raw=localStorage.getItem('last-db-v1')||''; var t=raw.length;
+      try{ var cf=(typeof window.cofFilesGet==='function')?window.cofFilesGet():{}; t+=JSON.stringify(cf||{}).length; }catch(e){}
+      return t; }catch(e){ return 0; } }
+
+  try{ var _me=window.marqExport; if(typeof _me==='function'&&!_me.__bkp){
+    window.marqExport=function(){ var r=_me.apply(this,arguments); try{ noter(taille(),''); T('Sauvegarde téléchargée et datée.','ok'); }catch(e){} return r; };
+    window.marqExport.__bkp=1; } }catch(e){}
+
+  /* ---------- vérifier un fichier de sauvegarde (sans rien remplacer) ---------- */
+  window.sauvegardeVerifierPick=function(){ var i=document.getElementById('bkp-verif'); if(i) i.click(); };
+  window.sauvegardeVerifier=function(input){ var f=input&&input.files&&input.files[0]; if(!f){ return; }
+    var r=new FileReader();
+    r.onload=function(){ var o=null; try{ o=JSON.parse(r.result); }catch(e){ o=null; }
+      input.value='';
+      if(!o||o.app!=='marq'||!o.db){ T('Ce fichier n’est pas une sauvegarde Mar’q.','warn'); return; }
+      var d=o.db||{}; var p=d.parametres||{}; var pieces=0;
+      try{ (d.dossiers||[]).forEach(function(x){ Object.keys(x.docs||{}).forEach(function(k){ pieces+=((x.docs||{})[k]||[]).length; }); }); }catch(e){}
+      var maint=compte();
+      function ligne(l,a,b2){ var ec=(+b2||0)-(+a||0); var s=ec>0?('+'+ec):(ec<0?(''+ec):'identique');
+        return '<tr><td>'+E(l)+'</td><td class="bk-n">'+(+a||0)+'</td><td class="bk-n">'+(+b2||0)+'</td><td class="bk-d'+(ec<0?' bk-moins':'')+'">'+E(s)+'</td></tr>'; }
+      var body='<div class="bk-verif"><div class="bk-intro">Fichier : <b>'+E(f.name)+'</b> · '+E(ko(f.size))
+        +'<br>Établi le '+E(frDT(o.ts||0))+(o.ver?(' · version '+E(o.ver)):'')+'</div>'
+        +'<table class="bk-t"><thead><tr><th>Contenu</th><th>Dans le fichier</th><th>Sur cet appareil</th><th>Écart</th></tr></thead><tbody>'
+        +ligne('Clients',(d.clients||[]).length,maint.clients)
+        +ligne('Dossiers',(d.dossiers||[]).length,maint.dossiers)
+        +ligne('Demandes',(d.demandes||[]).length,maint.demandes)
+        +ligne('Factures & devis',(p.facturier||[]).length,maint.factures)
+        +ligne('Pièces déposées',pieces,maint.pieces)
+        +'</tbody></table>'
+        +'<div class="bk-note">Aucune donnée n’a été modifiée. Un écart négatif signifie que le fichier est plus ancien que l’appareil.</div></div>';
+      try{ openModal('Vérification d’une sauvegarde',body,'<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'); }catch(e){}
+    };
+    r.readAsText(f); };
+
+  window.sauvegardeRappelJ=function(v){ var c=cfg(); var n=parseInt(v,10); c.rappelJ=(isNaN(n)||n<1)?7:Math.min(90,n); enr();
+    try{ if(typeof render==='function') render(); }catch(e){} };
+
+  /* ---------- carte de suivi (Paramètres) ---------- */
+  window.sauvegardeSuiviCard=function(){ var c=cfg(); var e=window.sauvegardeEtat(); var n=compte();
+    var etat = e.jamais
+      ? '<div class="bk-etat bk-ko">Aucune sauvegarde n’a encore été faite sur cet appareil.</div>'
+      : (e.retard
+        ? '<div class="bk-etat bk-ko">Dernière sauvegarde il y a '+e.ageJ+' jour(s) — '+E(frDT(e.dernier.ts))+'.</div>'
+        : '<div class="bk-etat bk-ok">Dernière sauvegarde '+E(frDT(e.dernier.ts))+' · '+E(ko(e.dernier.octets))+'.</div>');
+    var hist=(c.historique||[]).slice(0,8).map(function(x){
+      return '<tr><td>'+E(frDT(x.ts))+'</td><td class="bk-n">'+E(ko(x.octets))+'</td><td class="bk-n">'+x.clients+'</td><td class="bk-n">'+x.dossiers+'</td><td class="bk-n">'+x.pieces+'</td></tr>'; }).join('');
+    return '<div class="card bk-card"><div class="card-h"><h2>Suivi des sauvegardes</h2>'
+      +'<span class="sub" style="margin-left:auto">'+(c.historique||[]).length+' sauvegarde(s) enregistrée(s)</span></div><div class="card-b">'
+      +etat
+      +'<div class="bk-now">À sauvegarder aujourd’hui : '+n.clients+' client(s), '+n.dossiers+' dossier(s), '+n.factures+' facture(s), '+n.pieces+' pièce(s).</div>'
+      +'<div class="bk-acts"><button class="btn btn-pri" onclick="marqExport()">Sauvegarder maintenant</button>'
+      +'<input type="file" id="bkp-verif" accept="application/json,.json" style="display:none" onchange="sauvegardeVerifier(this)">'
+      +'<button class="btn btn-ghost" onclick="sauvegardeVerifierPick()">Vérifier un fichier de sauvegarde</button>'
+      +'<label class="bk-lbl">Rappel après <input type="number" min="1" max="90" value="'+(c.rappelJ)+'" onchange="sauvegardeRappelJ(this.value)"> jour(s)</label></div>'
+      +(hist?('<table class="bk-t bk-h"><thead><tr><th>Date</th><th>Taille</th><th>Clients</th><th>Dossiers</th><th>Pièces</th></tr></thead><tbody>'+hist+'</tbody></table>'):'')
+      +'<div class="bk-note">Les données ne quittent pas cet appareil tant qu’aucune sauvegarde n’est exportée. Conservez le fichier ailleurs que sur la machine.</div>'
+      +'</div></div>'; };
+
+  /* ---------- rappel dans la Prévoyance ---------- */
+  try{ var _pi=window.prevItems; if(typeof _pi==='function'&&!_pi.__bkp){
+    window.prevItems=function(){ var res=_pi.apply(this,arguments)||[];
+      try{ var pc=(P()).prevoyance||{}; if((pc.sources||{}).sys===false) return res;
+        res=res.filter(function(x){ return x.key!=='sys:backup'; });
+        var e=window.sauvegardeEtat(); if(!e.retard) return res;
+        var n=compte(); if(!n.clients&&!n.dossiers) return res;
+        var o={key:'sys:sauvegarde',src:'sys',niveau:e.jamais?'crit':'alerte',cat:'systeme',quand:today(),
+          titre:e.jamais?'Aucune sauvegarde des données':'Sauvegarde à refaire',
+          detail:(e.jamais?('Les données de '+n.clients+' client(s) et '+n.dossiers+' dossier(s) ne sont enregistrées que sur cet appareil.')
+                          :('Dernière sauvegarde il y a '+e.ageJ+' jour(s) — '+n.clients+' client(s), '+n.dossiers+' dossier(s), '+n.pieces+' pièce(s) à protéger.')),
+          page:'parametres',open:function(){ try{ if(typeof marqExport==='function') marqExport(); }catch(x){} }};
+        if(!res.some(function(x){ return x.key===o.key; })){ var sn=(pc.snooze||{})[o.key];
+          if(!(sn&&sn>Date.now())){ o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); } }
+      }catch(e){} return res; };
+    window.prevItems.__bkp=1; } }catch(e){}
+
+  /* ---------- greffe Paramètres ---------- */
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__bkp){
+    window.pageParams=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('bk-card')<0) h+=sauvegardeSuiviCard(); }catch(e){} return h; };
+    window.pageParams.__bkp=1; } }catch(e){}
+
+  var CSS='.bk-etat{padding:9px 12px;border-radius:8px;font-size:12.5px;margin:0 0 10px}'
+    +'.bk-ok{background:rgba(90,200,140,.12);border:1px solid rgba(90,200,140,.35)}'
+    +'.bk-ko{background:rgba(230,140,90,.12);border:1px solid rgba(230,140,90,.4)}'
+    +'.bk-now{font-size:12px;opacity:.78;margin:0 0 10px}'
+    +'.bk-acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap}'
+    +'.bk-lbl{font-size:12px;opacity:.8;display:inline-flex;gap:6px;align-items:center}'
+    +'.bk-lbl input{width:64px}'
+    +'.bk-t{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}'
+    +'.bk-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.62;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.bk-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.bk-n{text-align:right;font-variant-numeric:tabular-nums}'
+    +'.bk-d{text-align:right;opacity:.8}.bk-moins{color:#e08a5a}'
+    +'.bk-intro{font-size:12.5px;line-height:1.6;margin:0 0 10px}'
+    +'.bk-note{margin-top:10px;font-size:11.5px;opacity:.7;line-height:1.55}';
+  try{ var st=document.createElement('style'); st.id='bk-css'; st.textContent=CSS; document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — File d'attente d'envoi (v691 · 2/6)
+   Sans passerelle, les chaînes qui écrivent aux clients restaient
+   bloquées sur « Passerelle requise ». Elles peuvent désormais être
+   PRÉPARÉES : la chaîne fait tout son travail, mais les messages
+   sont retenus dans une file au lieu d'ouvrir vingt fenêtres.
+   Chaque message s'ouvre ensuite dans la messagerie, se copie, ou
+   s'exporte pour un publipostage. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__fileEnvoi) return; window.__fileEnvoi=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function uid(){ return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function cfg(){ var p=P(); p.fileEnvoi=p.fileEnvoi||{}; var c=p.fileEnvoi; c.items=c.items||[]; c.journal=c.journal||[]; return c; }
+  function jrn(o){ var c=cfg(); c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+
+  window.fileEnvoiItems=function(tout){ var c=cfg(); return tout?c.items.slice():c.items.filter(function(x){ return !x.fait; }); };
+
+  function deMailto(u){ u=''+(u||''); var m=/^mailto:([^?]*)\??(.*)$/i.exec(u); if(!m) return null;
+    var to=decodeURIComponent(m[1]||''), q=m[2]||'', su='', co='';
+    q.split('&').forEach(function(kv){ var i=kv.indexOf('='); if(i<0) return; var k=kv.slice(0,i).toLowerCase(), v=kv.slice(i+1);
+      try{ v=decodeURIComponent(v.replace(/\+/g,' ')); }catch(e){}
+      if(k==='subject') su=v; else if(k==='body') co=v; });
+    return {to:to,sujet:su,corps:co,canal:'email'}; }
+  function deSms(u){ u=''+(u||''); var m=/^sms:([^?]*)\??(.*)$/i.exec(u); if(!m) return null;
+    var to=decodeURIComponent(m[1]||''), co=''; var q=m[2]||'';
+    q.split('&').forEach(function(kv){ var i=kv.indexOf('='); if(i<0) return; var k=kv.slice(0,i).toLowerCase().replace(/^&/,'');
+      if(k==='body'){ try{ co=decodeURIComponent(kv.slice(i+1).replace(/\+/g,' ')); }catch(e){} } });
+    return {to:to,sujet:'',corps:co,canal:'sms'}; }
+
+  window.fileEnvoiPreparer=function(key,lbl){
+    if(typeof cxChaineExecuter!=='function'){ T('Centre d’exécution indisponible.','warn'); return 0; }
+    var st={cfg:window.demSyncCfg,send:window.demSendViaScript,direct:window.demEnvoiDirect,
+            sms:window.sendSmsViaScript,open:window.open,smtp:window.smtpActif};
+    var pris=[]; var t0=Date.now();
+    function prendre(o){ if(!o) return; o.id=uid(); o.ts=Date.now(); o.mod=lbl||key; o.fait=false; pris.push(o); }
+    try{
+      window.demSyncCfg=function(){ var c=null; try{ c=st.cfg?st.cfg.apply(this,arguments):null; }catch(e){ c=null; }
+        var o={}; if(c&&typeof c==='object') Object.keys(c).forEach(function(k){ o[k]=c[k]; });
+        if(!o.url) o.url='file-attente'; return o; };
+      window.smtpActif=function(){ return true; };
+      window.demSendViaScript=function(to,sujet,corps,cb,opts){ prendre({to:''+(to||''),sujet:''+(sujet||''),corps:''+(corps||''),canal:'email'});
+        if(typeof cb==='function'){ try{ cb({ok:true,prepare:true}); }catch(e){} } return true; };
+      window.demEnvoiDirect=function(to,sujet,corps){ prendre({to:''+(to||''),sujet:''+(sujet||''),corps:''+(corps||''),canal:'email'}); return true; };
+      window.sendSmsViaScript=function(to,txt,cb){ prendre({to:''+(to||''),sujet:'',corps:''+(txt||''),canal:'sms'});
+        if(typeof cb==='function'){ try{ cb({ok:true,prepare:true}); }catch(e){} } return true; };
+      window.open=function(u){ var s=''+(u||'');
+        if(/^mailto:/i.test(s)){ prendre(deMailto(s)); return null; }
+        if(/^sms:/i.test(s)){ prendre(deSms(s)); return null; }
+        try{ return st.open.apply(window,arguments); }catch(e){ return null; } };
+      try{ cxChaineExecuter(key); }catch(e){}
+    } finally {
+      window.demSyncCfg=st.cfg; window.demSendViaScript=st.send; window.demEnvoiDirect=st.direct;
+      window.sendSmsViaScript=st.sms; window.open=st.open; window.smtpActif=st.smtp;
+    }
+    if(!pris.length){ T('Rien à préparer pour ce module.','warn'); return 0; }
+    var c=cfg(); var vus={}; c.items.forEach(function(x){ if(!x.fait) vus[(x.canal||'')+'|'+(x.to||'')+'|'+(x.sujet||'')]=1; });
+    var neufs=pris.filter(function(x){ return !vus[(x.canal||'')+'|'+(x.to||'')+'|'+(x.sujet||'')]; });
+    c.items=neufs.concat(c.items).slice(0,400);
+    jrn({ts:t0,action:'messages préparés',ok:true,ref:lbl||key,detail:neufs.length+' message(s) en attente d’envoi'});
+    enr(); rd();
+    T(neufs.length+' message(s) préparé(s) — à envoyer depuis la file d’attente.','ok');
+    return neufs.length; };
+
+  function lien(x){ if(x.canal==='sms') return 'sms:'+encodeURIComponent(x.to)+'?&body='+encodeURIComponent(x.corps||'');
+    return 'mailto:'+encodeURIComponent(x.to)+'?subject='+encodeURIComponent(x.sujet||'')+'&body='+encodeURIComponent(x.corps||''); }
+  window.fileEnvoiOuvrir=function(id){ var x=cfg().items.filter(function(y){ return y.id===id; })[0]; if(!x) return;
+    try{ window.open(lien(x)); }catch(e){}
+    x.fait=true; x.faitLe=Date.now(); jrn({ts:Date.now(),action:'message ouvert dans la messagerie',ok:true,ref:x.mod||'',detail:x.to});
+    enr(); rd(); };
+  window.fileEnvoiCopier=function(id){ var x=cfg().items.filter(function(y){ return y.id===id; })[0]; if(!x) return;
+    var t=(x.sujet?('Objet : '+x.sujet+'\n\n'):'')+(x.corps||'');
+    try{ navigator.clipboard.writeText(t); T('Message copié.','ok'); }catch(e){ T('Copie impossible sur cet appareil.','warn'); } };
+  window.fileEnvoiFait=function(id){ var x=cfg().items.filter(function(y){ return y.id===id; })[0]; if(!x) return;
+    x.fait=!x.fait; x.faitLe=x.fait?Date.now():0; enr(); rd(); };
+  window.fileEnvoiSuppr=function(id){ var c=cfg(); c.items=c.items.filter(function(y){ return y.id!==id; }); enr(); rd(); };
+  window.fileEnvoiVider=function(){ var c=cfg(); var n=c.items.filter(function(x){ return x.fait; }).length;
+    c.items=c.items.filter(function(x){ return !x.fait; }); jrn({ts:Date.now(),action:'file nettoyée',ok:true,detail:n+' message(s) envoyé(s) retiré(s)'});
+    enr(); rd(); T(n+' message(s) retiré(s) de la file.','ok'); };
+  window.fileEnvoiCSV=function(){ var L=cfg().items.filter(function(x){ return !x.fait; });
+    if(!L.length){ T('Aucun message en attente.','warn'); return; }
+    function q(s){ return '"'+(''+(s==null?'':s)).replace(/"/g,'""')+'"'; }
+    var csv='Canal;Destinataire;Objet;Message;Module;Préparé le\n'
+      +L.map(function(x){ return [q(x.canal),q(x.to),q(x.sujet),q(x.corps),q(x.mod),q(frDT(x.ts))].join(';'); }).join('\n');
+    var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='marq-envois-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ try{ URL.revokeObjectURL(a.href); }catch(e){} },4000);
+    jrn({ts:Date.now(),action:'file exportée',ok:true,detail:L.length+' message(s)'}); enr();
+    T(L.length+' message(s) exporté(s) pour un publipostage.','ok'); };
+
+  window.fileEnvoiCard=function(){ var c=cfg(); var att=c.items.filter(function(x){ return !x.fait; });
+    var faits=c.items.filter(function(x){ return x.fait; });
+    if(!c.items.length) return '';
+    var rows=att.slice(0,40).map(function(x){
+      var ap=(x.corps||'').replace(/\s+/g,' ').slice(0,110);
+      return '<div class="fe-row"><span class="fe-c fe-'+E(x.canal)+'">'+(x.canal==='sms'?'SMS':'E-mail')+'</span>'
+        +'<span class="fe-to"><b>'+E(x.to||'(sans destinataire)')+'</b><i>'+E(x.mod||'')+' · '+E(frDT(x.ts))+'</i></span>'
+        +'<span class="fe-su">'+E(x.sujet||'(sans objet)')+'<i>'+E(ap)+(((x.corps||'').length>110)?'…':'')+'</i></span>'
+        +'<span class="fe-a"><button class="btn btn-sm btn-pri" onclick="fileEnvoiOuvrir(\''+x.id+'\')">Ouvrir</button>'
+        +'<button class="btn btn-sm btn-ghost" onclick="fileEnvoiCopier(\''+x.id+'\')">Copier</button>'
+        +'<button class="btn btn-sm btn-ghost" onclick="fileEnvoiFait(\''+x.id+'\')">Envoyé</button>'
+        +'<button class="btn btn-sm btn-ghost" onclick="fileEnvoiSuppr(\''+x.id+'\')">Retirer</button></span></div>'; }).join('');
+    return '<div class="card fe-card"><div class="card-h"><h2>Messages à envoyer</h2>'
+      +'<span class="sub" style="margin-left:auto">'+att.length+' en attente · '+faits.length+' envoyé(s)</span>'
+      +'<button class="btn btn-sm btn-ghost" onclick="fileEnvoiCSV()">Exporter pour publipostage</button>'
+      +(faits.length?('<button class="btn btn-sm btn-ghost" onclick="fileEnvoiVider()">Retirer les envoyés</button>'):'')
+      +'</div><div class="card-b">'
+      +(att.length?('<div class="fe-list">'+rows+'</div>'+(att.length>40?('<div class="fe-note">'+(att.length-40)+' message(s) de plus dans la file.</div>'):''))
+                 :'<div class="fe-note">Tous les messages préparés ont été envoyés.</div>')
+      +'<div class="fe-note">Ces messages ont été préparés par les chaînes sans passerelle. « Ouvrir » les passe dans votre messagerie ; l’export permet un publipostage.</div>'
+      +'</div></div>'; };
+
+  var MODS={fact:'Facturation',ag:'Agenda',cf:'Fiscal',cli:'Clients',fq:'Questionnaire en ligne',
+    ech:'Échéancier fiscal & social',sg:'Signatures des actes',ve:'Veille réglementaire',
+    co:'Coffre-fort & portail',em:'Études de marché',ed:'Éditions',trw:'Traitement des dossiers'};
+  function injecterBoutons(){ try{
+    var rows=document.querySelectorAll('.cxc-card .cxc-row'); if(!rows.length) return;
+    for(var i=0;i<rows.length;i++){ var r=rows[i];
+      var tag=r.querySelector('.cxc-tag'); if(!tag||tag.getAttribute('data-fe')==='1') continue;
+      if(!/Passerelle requise/.test(tag.textContent||'')) continue;
+      var nom=(r.querySelector('.cxc-mod b')||{}).textContent||'';
+      var key=''; Object.keys(MODS).forEach(function(k){ if(MODS[k]===nom) key=k; });
+      if(!key) continue;
+      tag.setAttribute('data-fe','1');
+      var b=document.createElement('button'); b.className='btn btn-sm btn-pri';
+      b.textContent='Préparer les messages';
+      b.title='La passerelle n’est pas configurée : les messages seront retenus dans la file d’attente.';
+      b.onclick=(function(k,l){ return function(){ window.fileEnvoiPreparer(k,l); }; })(key,nom);
+      tag.parentNode.insertBefore(b,tag); tag.style.display='none';
+    } }catch(e){} }
+  window.fileEnvoiBoutons=injecterBoutons;
+
+  function inject(){ try{
+    injecterBoutons();
+    if(!(typeof state!=='undefined'&&state.page==='cockpit')) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.fe-card')) return;
+    var h=fileEnvoiCard(); if(!h) return;
+    var tmp=document.createElement('div'); tmp.innerHTML=h; var card=tmp.firstElementChild;
+    var cx=v.querySelector('.cxc-card');
+    if(cx&&cx.parentNode) cx.insertAdjacentElement('afterend',card); else v.insertAdjacentElement('afterbegin',card);
+  }catch(e){} }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__fe){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(inject,40); return r; }; window.render.__fe=1; } }catch(e){}
+  try{ setTimeout(inject,1400); }catch(e){}
+
+  var CSS='.fe-list{display:flex;flex-direction:column;gap:2px}'
+    +'.fe-row{display:grid;grid-template-columns:70px 210px 1fr auto;gap:10px;align-items:center;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.fe-c{font-size:10px;letter-spacing:.6px;text-transform:uppercase;opacity:.75;border:1px solid rgba(255,255,255,.18);border-radius:5px;padding:2px 5px;text-align:center}'
+    +'.fe-sms{border-color:rgba(160,190,255,.4)}'
+    +'.fe-to b,.fe-su{display:block;font-size:12px}'
+    +'.fe-to i,.fe-su i{display:block;font-style:normal;font-size:11px;opacity:.6;margin-top:1px}'
+    +'.fe-a{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+    +'.fe-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}'
+    +'@media(max-width:1100px){.fe-row{grid-template-columns:1fr;gap:4px}.fe-a{justify-content:flex-start}}';
+  try{ var st2=document.createElement('style'); st2.id='fe-css'; st2.textContent=CSS; document.head.appendChild(st2); }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Socle commun (v691 · 3/6)
+   Les fonctions que chaque module réécrivait pour son compte
+   (échappement, montants, dates, accès à la base, journal, bulles
+   d'information) sont réunies ici sous window.MQ. Les modules
+   existants ne sont pas touchés ; les prochains s'appuient sur ce
+   socle, de sorte qu'un défaut se répare en un seul endroit.
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.MQ&&window.MQ.__socle) return;
+  var MQ={};
+  MQ.__socle=1;
+  MQ.version=function(){ try{ return (typeof LAST_VER!=='undefined')?LAST_VER:0; }catch(e){ return 0; } };
+
+  /* ---------- texte ---------- */
+  MQ.E=function(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  MQ.txt=function(v){ return (''+(v==null?'':v)).trim(); };
+  MQ.nz=function(s){ return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,''); };
+  MQ.mots=function(s){ return (''+(s==null?'':s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); };
+  MQ.coupe=function(s,n){ s=''+(s==null?'':s); n=n||80; return s.length>n?(s.slice(0,n-1)+'…'):s; };
+
+  /* ---------- nombres & montants ---------- */
+  MQ.nb=function(v){ if(typeof v==='number') return isFinite(v)?v:0;
+    var s=(''+(v==null?'':v)).replace(/\s| | /g,'').replace(/[^0-9,.\-]/g,'').replace(',','.');
+    var n=parseFloat(s); return isFinite(n)?n:0; };
+  MQ.eur=function(v){ return MQ.nb(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; };
+  MQ.octets=function(n){ n=MQ.nb(n); if(n>=1048576) return (n/1048576).toFixed(1).replace('.',',')+' Mo';
+    if(n>=1024) return Math.round(n/1024)+' Ko'; return Math.max(0,Math.round(n))+' o'; };
+  MQ.pct=function(v,d){ return MQ.nb(v).toLocaleString('fr-FR',{minimumFractionDigits:d==null?1:d,maximumFractionDigits:d==null?1:d})+' %'; };
+
+  /* ---------- dates ---------- */
+  MQ.auj=function(){ return new Date().toISOString().slice(0,10); };
+  MQ.ts=function(v){ if(!v) return 0; if(typeof v==='number') return v;
+    var s=''+v; var m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s); if(m) s=m[3]+'-'+m[2]+'-'+m[1];
+    var t=Date.parse(s); return isNaN(t)?0:t; };
+  MQ.iso=function(v){ if(!v) return ''; var s=''+v; var m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+    if(m) return m[3]+'-'+m[2]+'-'+m[1]; if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    var t=MQ.ts(s); return t?new Date(t).toISOString().slice(0,10):''; };
+  MQ.jour=function(v){ var s=MQ.iso(v); if(!s) return ''; var p=s.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
+  MQ.dateheure=function(v){ var t=MQ.ts(v); if(!t) return '';
+    try{ var d=new Date(t); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } };
+  MQ.joursDepuis=function(v){ var t=MQ.ts(v); return t?Math.floor((Date.now()-t)/86400000):null; };
+  MQ.plusJours=function(v,n){ var t=MQ.ts(v)||Date.now(); return new Date(t+(+n||0)*86400000).toISOString().slice(0,10); };
+  MQ.lundi=function(v){ var d=new Date(MQ.ts(v)||Date.now()); var j=(d.getDay()+6)%7;
+    d.setHours(0,0,0,0); d.setDate(d.getDate()-j); return d; };
+
+  /* ---------- base ---------- */
+  MQ.db=function(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; };
+  MQ.par=function(){ var b=MQ.db(); b.parametres=b.parametres||{}; return b.parametres; };
+  MQ.clients=function(){ return MQ.db().clients||[]; };
+  MQ.dossiers=function(){ return (MQ.db().dossiers||[]).filter(function(d){ return !d.archived; }); };
+  MQ.client=function(id){ return MQ.clients().filter(function(x){ return x.id===id; })[0]||null; };
+  MQ.dossier=function(id){ return (MQ.db().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; };
+  MQ.nomClient=function(c){ if(!c) return '';
+    return MQ.txt(c.denomination)||MQ.txt((c.prenom||'')+' '+(c.nom||''))||''; };
+  MQ.uid=function(p){ return (p||'m')+Date.now().toString(36)+Math.random().toString(36).slice(2,7); };
+  MQ.enr=function(){ try{ if(typeof save==='function') save(); return true; }catch(e){ return false; } };
+  MQ.rendre=function(){ try{ if(typeof render==='function') render(); }catch(e){} };
+  MQ.sur=function(fn,dft){ try{ return fn(); }catch(e){ return dft; } };
+
+  /* ---------- bulles d'information ---------- */
+  var TYPES={ok:'success',success:'success',ko:'error',err:'error',error:'error',
+             warn:'warn',attention:'warn',info:'info'};
+  MQ.dire=function(msg,type,duree){ try{ var t=TYPES[type]||null;
+      if(typeof toast==='function') toast(msg,duree||null,t||undefined); }catch(e){} };
+
+  /* ---------- journaux (repris par le journal d'audit) ---------- */
+  MQ.journal=function(cle,max){ var p=MQ.par(); p[cle]=p[cle]||{}; var c=p[cle];
+    c.journal=c.journal||[]; if(max) c.__max=max; return c; };
+  MQ.noter=function(cle,o){ var c=MQ.journal(cle); o=o||{}; if(!o.ts) o.ts=Date.now();
+    if(o.ok==null) o.ok=true; c.journal.unshift(o); c.journal=c.journal.slice(0,c.__max||150);
+    MQ.enr(); return o; };
+
+  /* ---------- greffes sûres ---------- */
+  MQ.greffe=function(nom,fn,marque){ try{ var f=window[nom];
+      if(typeof f!=='function'||f['__'+marque]) return false;
+      window[nom]=function(){ var r=f.apply(this,arguments); try{ return fn.call(this,r,arguments); }catch(e){ return r; } };
+      window[nom]['__'+marque]=1; return true; }catch(e){ return false; } };
+  MQ.apresRendu=function(fn,marque,delai){ return MQ.greffe('render',function(r){
+      setTimeout(function(){ try{ fn(); }catch(e){} },delai==null?60:delai); return r; },marque); };
+  MQ.style=function(id,css){ try{ if(document.getElementById(id)) return false;
+      var s=document.createElement('style'); s.id=id; s.textContent=css; document.head.appendChild(s); return true; }catch(e){ return false; } };
+
+  /* ---------- fichiers ---------- */
+  MQ.telecharger=function(contenu,nom,type){ try{
+      var blob=(contenu instanceof Blob)?contenu:new Blob([contenu],{type:type||'text/plain;charset=utf-8'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nom||'marq.txt';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ try{ URL.revokeObjectURL(a.href); }catch(e){} },4000); return true; }catch(e){ return false; } };
+  MQ.csv=function(entetes,lignes,nom){ function q(s){ return '"'+(''+(s==null?'':s)).replace(/"/g,'""')+'"'; }
+    var t=entetes.map(q).join(';')+'\n'+lignes.map(function(l){ return l.map(q).join(';'); }).join('\n');
+    return MQ.telecharger('﻿'+t,nom||('marq-'+MQ.auj()+'.csv'),'text/csv;charset=utf-8'); };
+
+  window.MQ=MQ;
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Variables de courrier issues du dossier (v691 · 4/6)
+   Les modèles d'e-mails ne résolvaient que le prénom, le numéro
+   de demande et les pièces. Ils reconnaissent désormais toute
+   l'identité de la société, l'état du dossier et les coordonnées
+   du cabinet, en puisant dans le même référentiel que le
+   pré-remplissage. Un aide-mémoire liste les variables et leur
+   valeur pour la demande en cours. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__courrierVars) return; window.__courrierVars=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ return M.par?M.par():((B().parametres=B().parametres||{})); }
+  function S(v){ return M.txt?M.txt(v):(''+(v==null?'':v)).trim(); }
+  function nz(v){ return M.nz?M.nz(v):(''+(v==null?'':v)).toLowerCase(); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+
+  function cab(){ var p=P(); var c=p.cabinet||{};
+    return {nom:S(c.nom)||'AEM CONSEIL',email:S(c.email)||'aemconseil.sas@gmail.com',
+      tel:S(c.tel),adresse:[c.adresse,c.cp,c.ville].filter(Boolean).join(' ')}; }
+
+  /* retrouve la société et le dossier derrière une demande, un dossier ou un client */
+  window.courrierContexte=function(d){
+    if(!d) return {client:null,dossier:null};
+    if(d.clientIds||d.intake){ var dos=d; var cl=(B().clients||[]).filter(function(x){ return (dos.clientIds||[]).indexOf(x.id)>=0; })[0]||null;
+      return {client:cl,dossier:dos}; }
+    if(d.denomination!==undefined||d.clientType) return {client:d,dossier:null};
+    var dossier=d.dossierId?((B().dossiers||[]).filter(function(x){ return x.id===d.dossierId; })[0]||null):null;
+    var client=null;
+    if(dossier) client=(B().clients||[]).filter(function(x){ return (dossier.clientIds||[]).indexOf(x.id)>=0; })[0]||null;
+    if(!client){ var em=nz(d.clientEmail), nm=nz(d.clientNom);
+      client=(B().clients||[]).filter(function(c){
+        if(em&&nz(c.email)===em) return true;
+        if(!nm) return false;
+        var n1=nz(c.denomination), n2=nz((c.prenom||'')+' '+(c.nom||''));
+        return (n1&&n1===nm)||(n2&&n2===nm); })[0]||null; }
+    if(!dossier&&client) dossier=(B().dossiers||[]).filter(function(x){ return !x.archived&&(x.clientIds||[]).indexOf(client.id)>=0; })[0]||null;
+    return {client:client,dossier:dossier}; };
+
+  /* toutes les variables disponibles, avec leur valeur pour ce contexte */
+  window.courrierVariables=function(d){
+    var cx=window.courrierContexte(d); var c=cx.client||{}; var dos=cx.dossier||null;
+    var pv=sur(function(){ return window.prefValeurs?window.prefValeurs(c.id?c:null,dos?dos.id:null):{}; },{})||{};
+    function v(k){ return (pv[k]&&pv[k].v)||''; }
+    var K=cab(); var now=new Date();
+    var etape='',avance='',manq='';
+    if(dos){ var plan=sur(function(){ return trwPlan(dos.id); },null);
+      if(plan){ etape=(plan.courante&&plan.courante.l)||'Terminé';
+        var et=plan.etapes||[]; avance=et.filter(function(x){ return x.validee; }).length+' sur '+(et.length||6); }
+      var pcs=sur(function(){ return piecesRequises(dos)||[]; },[]);
+      var dm=sur(function(){ return espDemandeDe(dos)||dos; },dos);
+      manq=pcs.filter(function(x){ var k=x.k;
+        return !((((dm.docs||{})[k]||[]).length)||((dm.piecesRecues||{})[k]===true)||(((dos.pieces||{})[k]||{}).recu)); })
+        .map(function(x){ return '   • '+(x.label||x.l||x.k); }).join('\n'); }
+    return {
+      societe:{v:v('denomination')||S(c.denomination),l:'Dénomination de la société'},
+      forme:{v:v('forme'),l:'Forme juridique'},
+      siren:{v:v('siren'),l:'Numéro SIREN'},
+      siret:{v:v('siret'),l:'Numéro SIRET'},
+      capital:{v:v('capital'),l:'Capital social'},
+      ape:{v:v('ape'),l:'Code APE'},
+      tva:{v:v('tva'),l:'Numéro de TVA'},
+      objet:{v:v('objet'),l:'Objet ou activité'},
+      siege:{v:v('siege')||v('adresse'),l:'Siège social'},
+      cp:{v:v('cp'),l:'Code postal'},
+      ville:{v:v('ville'),l:'Ville'},
+      dirigeant:{v:v('president'),l:'Dirigeant'},
+      fonction:{v:v('fonction'),l:'Fonction du dirigeant'},
+      email:{v:v('email'),l:'E-mail du client'},
+      telephone:{v:v('tel'),l:'Téléphone du client'},
+      dossier:{v:dos?S(dos.ref||dos.numeroDossier):'',l:'Numéro de dossier'},
+      formalite:{v:v('formalite'),l:'Formalité en cours'},
+      etape:{v:etape,l:'Étape en cours'},
+      avancement:{v:avance,l:'Étapes validées'},
+      manquantes:{v:manq,l:'Pièces encore attendues'},
+      cabinet:{v:K.nom,l:'Nom du cabinet'},
+      cabinetEmail:{v:K.email,l:'E-mail du cabinet'},
+      cabinetTel:{v:K.tel,l:'Téléphone du cabinet'},
+      cabinetAdresse:{v:K.adresse,l:'Adresse du cabinet'},
+      date:{v:now.toLocaleDateString('fr-FR'),l:'Date du jour'},
+      mois:{v:now.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}),l:'Mois en cours'},
+      annee:{v:''+now.getFullYear(),l:'Année en cours'}
+    }; };
+
+  /* remplace les variables dans un texte ; une variable sans valeur disparaît avec sa ligne */
+  window.courrierResoudre=function(txt,d){ if(txt==null) return txt;
+    var V=window.courrierVariables(d); var s=''+txt;
+    Object.keys(V).forEach(function(k){
+      var re=new RegExp('\\{'+k+'\\}','g');
+      var val=V[k].v;
+      if(val) s=s.replace(re,val);
+      else s=s.replace(new RegExp('^.*\\{'+k+'\\}.*$\\n?','gm'),'').replace(re,''); });
+    return s; };
+
+  /* greffe sur les modèles d'e-mails */
+  try{ var _r=window.mailTplResolve;
+    if(typeof _r==='function'&&!_r.__cv){
+      window.mailTplResolve=function(d,key){ var o=_r.apply(this,arguments); if(!o) return o;
+        try{ o.sujet=window.courrierResoudre(o.sujet,d); o.corps=window.courrierResoudre(o.corps,d); }catch(e){}
+        return o; };
+      window.mailTplResolve.__cv=1; } }catch(e){}
+
+  /* aide-mémoire des variables */
+  window.courrierAide=function(d){
+    var V=window.courrierVariables(d||null);
+    var rows=Object.keys(V).map(function(k){ var o=V[k];
+      var val=(o.v||'').replace(/\n/g,' · ');
+      return '<tr><td class="cv-k">{'+E(k)+'}</td><td>'+E(o.l)+'</td><td class="cv-v'+(o.v?'':' cv-vide')+'">'
+        +E(o.v?(val.length>70?(val.slice(0,69)+'…'):val):'(sans valeur ici)')+'</td></tr>'; }).join('');
+    var body='<div class="cv-aide"><div class="cv-intro">Écrivez une variable entre accolades dans l’objet ou le corps d’un modèle : '
+      +'elle sera remplacée à l’envoi. Une variable sans valeur disparaît avec sa ligne, ce qui évite les phrases à trous.'
+      +'<br><span class="cv-h">Les valeurs ci-dessous sont celles de la demande ouverte.</span></div>'
+      +'<table class="cv-t"><thead><tr><th>Variable</th><th>Contenu</th><th>Valeur ici</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="cv-note">Les variables historiques restent valables : {prenom}, {nom}, {serie}, {ref}, {pieces}, {lien}.</div></div>';
+    try{ openModal('Variables disponibles dans les courriers',body,'<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'); }catch(e){} };
+
+  /* bouton d'accès depuis la carte des modèles */
+  function greffeBouton(){ try{
+    var cards=document.querySelectorAll('.card'); 
+    for(var i=0;i<cards.length;i++){ var c=cards[i];
+      var h=c.querySelector('h2'); if(!h||!/mod[eè]les? d.e-mails|r[ée]ponses types/i.test(h.textContent||'')) continue;
+      if(c.querySelector('.cv-btn')) continue;
+      var b=document.createElement('button'); b.className='btn btn-sm btn-ghost cv-btn';
+      b.textContent='Variables disponibles'; b.onclick=function(){ window.courrierAide(null); };
+      var head=c.querySelector('.card-h')||h.parentNode; head.appendChild(b); } }catch(e){} }
+  window.courrierBouton=greffeBouton;
+  try{ if(M.apresRendu) M.apresRendu(greffeBouton,'cv',80);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__cv){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffeBouton,80); return r; }; window.render.__cv=1; } } }catch(e){}
+  try{ setTimeout(greffeBouton,1500); }catch(e){}
+
+  var CSS='.cv-aide{font-size:12.5px}.cv-intro{line-height:1.6;margin:0 0 10px}'
+    +'.cv-h{opacity:.7;font-size:11.5px}'
+    +'.cv-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.cv-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.62;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.cv-t td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top}'
+    +'.cv-k{font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}'
+    +'.cv-v{opacity:.85}.cv-vide{opacity:.45;font-style:italic}'
+    +'.cv-note{margin-top:10px;font-size:11.5px;opacity:.7}';
+  try{ if(M.style) M.style('cv-css',CSS); else { var st=document.createElement('style'); st.id='cv-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Bilan de santé de la base (v691 · 5/6)
+   Relève les incohérences qui s'installent avec le temps :
+   dossier sans client, client en double, facture rattachée à un
+   dossier disparu, pièce orpheline, demande pointant vers un
+   dossier supprimé, fiche vide, journal démesuré. Chaque constat
+   dit ce qu'il implique ; les corrections sûres sont proposées,
+   jamais appliquées d'office. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__santeBase) return; window.__santeBase=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function nz(v){ return M.nz?M.nz(v):(''+(v==null?'':v)).toLowerCase(); }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function nom(c){ return M.nomClient?M.nomClient(c):(S(c&&c.denomination)||S(((c||{}).prenom||'')+' '+((c||{}).nom||''))); }
+
+  /* mots vides pour comparer deux dénominations */
+  var STOP={de:1,des:1,du:1,la:1,le:1,les:1,et:1,a:1,au:1,aux:1,en:1,sur:1,pour:1,
+    sarl:1,sas:1,sasu:1,eurl:1,sci:1,sa:1,snc:1,selarl:1,scop:1,ei:1,eirl:1};
+  function cle(s){ return (M.mots?M.mots(s):(''+s).toLowerCase()).split(' ')
+    .filter(function(w){ return w&&!STOP[w]; })
+    .map(function(w){ return w.replace(/s$/,''); }).sort().join(' '); }
+
+  window.santeBilan=function(){
+    var b=B(); var p=P();
+    var clients=b.clients||[], dossiers=b.dossiers||[], demandes=b.demandes||[];
+    var fact=p.facturier||[];
+    var idsC={}; clients.forEach(function(c){ idsC[c.id]=c; });
+    var idsD={}; dossiers.forEach(function(d){ idsD[d.id]=d; });
+    var C=[];
+    function c(cle,titre,niveau,items,quoi,action,lbl){
+      if(!items.length) return;
+      C.push({cle:cle,titre:titre,niveau:niveau,n:items.length,items:items,quoi:quoi,action:action||null,lbl:lbl||''}); }
+
+    /* dossiers sans client rattaché */
+    c('dosSansClient','Dossiers sans client rattaché','alerte',
+      dossiers.filter(function(d){ return !d.archived&&!(d.clientIds||[]).some(function(i){ return idsC[i]; }); })
+        .map(function(d){ return {id:d.id,l:S(d.ref||d.numeroDossier||d.id),
+          d:S(((d.intake||{}).societe||{}).denomination)||'sans dénomination'}; }),
+      'La synthèse, le point hebdomadaire et le pré-remplissage ne trouvent rien pour ces dossiers.');
+
+    /* demandes pointant vers un dossier disparu */
+    c('demOrphelines','Demandes rattachées à un dossier disparu','alerte',
+      demandes.filter(function(q){ return !q.archived&&q.dossierId&&!idsD[q.dossierId]; })
+        .map(function(q){ return {id:q.id,l:S(q.code||q.numeroDossier||q.id),d:S(q.clientNom)||'sans nom'}; }),
+      'Ces demandes ne remonteront jamais dans le dossier qu’elles visent.',
+      'santeDetacherDemandes','Détacher du dossier disparu');
+
+    /* factures rattachées à un dossier disparu */
+    c('factOrphelines','Factures rattachées à un dossier disparu','alerte',
+      fact.filter(function(f){ return f.dossierId&&!idsD[f.dossierId]; })
+        .map(function(f){ return {id:f.id,l:S(f.numero||f.id),d:S(f.clNom||f.clientNom)||'sans client'}; }),
+      'Ces factures n’apparaissent plus dans les honoraires d’un dossier.',
+      'santeDetacherFactures','Détacher du dossier disparu');
+
+    /* clients en double */
+    var groupes={};
+    clients.forEach(function(x){ var k=cle(nom(x)); if(!k) return; (groupes[k]=groupes[k]||[]).push(x); });
+    var dups=[]; Object.keys(groupes).forEach(function(k){ var g=groupes[k]; if(g.length<2) return;
+      var sirets={}; g.forEach(function(x){ var s=S(x.siret); if(s) sirets[s]=1; });
+      if(Object.keys(sirets).length>1) return; /* entités distinctes : on ne signale pas */
+      dups.push({id:g[0].id,l:nom(g[0]),d:g.length+' fiches pour la même dénomination'}); });
+    c('clientsDoubles','Clients en double','vigilance',dups,
+      'Les dossiers, factures et rendez-vous se répartissent entre plusieurs fiches de la même société.');
+
+    /* clients sans aucune coordonnée */
+    c('clientsMuets','Clients sans e-mail ni téléphone','vigilance',
+      clients.filter(function(x){ return !S(x.email)&&!S(x.tel); })
+        .map(function(x){ return {id:x.id,l:nom(x)||'(sans nom)',d:'aucun moyen de contact'}; }),
+      'Aucune relance, aucun envoi de lien ni de point hebdomadaire n’est possible pour eux.');
+
+    /* clients sans nom */
+    c('clientsSansNom','Fiches client sans nom','alerte',
+      clients.filter(function(x){ return !nom(x); })
+        .map(function(x){ return {id:x.id,l:'(fiche vide)',d:S(x.email)||S(x.siren)||x.id}; }),
+      'Ces fiches sont invisibles dans les listes et les recherches.');
+
+    /* dossiers rattachés à un client supprimé */
+    c('dosClientPartiel','Dossiers citant un client supprimé','vigilance',
+      dossiers.filter(function(d){ return !d.archived&&(d.clientIds||[]).length&&(d.clientIds||[]).some(function(i){ return !idsC[i]; }); })
+        .map(function(d){ return {id:d.id,l:S(d.ref||d.id),d:'référence de client périmée'}; }),
+      'Le rattachement pointe dans le vide ; il peut être nettoyé sans perte.',
+      'santeNettoyerRattachements','Retirer les références périmées');
+
+    /* pièces déposées sans dossier */
+    var piecesOrph=[];
+    (p.depots||[]).forEach(function(x){ if(x&&x.dossierId&&!idsD[x.dossierId])
+      piecesOrph.push({id:x.id||'',l:S(x.nom||x.fichier||'pièce'),d:'dossier '+S(x.dossierId)+' introuvable'}); });
+    c('piecesOrphelines','Pièces déposées sans dossier','vigilance',piecesOrph,
+      'Ces pièces occupent de la place sans être consultables depuis un dossier.');
+
+    /* journaux démesurés */
+    var gros=[]; Object.keys(p).forEach(function(k){ var v=p[k];
+      if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      if(Array.isArray(v.journal)&&v.journal.length>500) gros.push({id:k,l:k,d:v.journal.length+' lignes'});
+      Object.keys(v).forEach(function(k2){ var w=v[k2];
+        if(w&&typeof w==='object'&&!Array.isArray(w)&&Array.isArray(w.journal)&&w.journal.length>500)
+          gros.push({id:k+'.'+k2,l:k+' › '+k2,d:w.journal.length+' lignes'}); }); });
+    c('journauxGros','Journaux devenus très longs','vigilance',gros,
+      'Ils alourdissent chaque enregistrement et la sauvegarde.',
+      'santeRognerJournaux','Ne garder que les 300 dernières lignes');
+
+    return {constats:C,total:C.reduce(function(s,x){ return s+x.n; },0),
+      compte:{clients:clients.length,dossiers:dossiers.filter(function(d){ return !d.archived; }).length,
+        demandes:demandes.length,factures:fact.length}}; };
+
+  /* ---------- corrections sûres ---------- */
+  function noter(action,detail,n){ var c=P(); c.santeChaine=c.santeChaine||{}; c.santeChaine.journal=c.santeChaine.journal||[];
+    c.santeChaine.journal.unshift({ts:Date.now(),action:action,ok:true,detail:detail});
+    c.santeChaine.journal=c.santeChaine.journal.slice(0,120); enr(); }
+
+  window.santeDetacherDemandes=function(){ var b=B(); var idsD={}; (b.dossiers||[]).forEach(function(d){ idsD[d.id]=1; });
+    var n=0; (b.demandes||[]).forEach(function(q){ if(q.dossierId&&!idsD[q.dossierId]){ q.dossierId=''; n++; } });
+    noter('demandes détachées',n+' demande(s)',n); rd(); T(n+' demande(s) détachée(s) du dossier disparu.','ok'); return n; };
+
+  window.santeDetacherFactures=function(){ var b=B(); var p=P(); var idsD={}; (b.dossiers||[]).forEach(function(d){ idsD[d.id]=1; });
+    var n=0; (p.facturier||[]).forEach(function(f){ if(f.dossierId&&!idsD[f.dossierId]){ f.dossierId=''; n++; } });
+    noter('factures détachées',n+' facture(s)',n); rd(); T(n+' facture(s) détachée(s) du dossier disparu.','ok'); return n; };
+
+  window.santeNettoyerRattachements=function(){ var b=B(); var idsC={}; (b.clients||[]).forEach(function(c){ idsC[c.id]=1; });
+    var n=0; (b.dossiers||[]).forEach(function(d){ var a=d.clientIds||[]; var g=a.filter(function(i){ return idsC[i]; });
+      if(g.length!==a.length){ d.clientIds=g; n++; } });
+    noter('rattachements nettoyés',n+' dossier(s)',n); rd(); T(n+' dossier(s) nettoyé(s).','ok'); return n; };
+
+  window.santeRognerJournaux=function(){ var p=P(); var n=0;
+    function rogne(o){ if(o&&Array.isArray(o.journal)&&o.journal.length>300){ o.journal=o.journal.slice(0,300); n++; } }
+    Object.keys(p).forEach(function(k){ var v=p[k]; if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      rogne(v); Object.keys(v).forEach(function(k2){ var w=v[k2];
+        if(w&&typeof w==='object'&&!Array.isArray(w)) rogne(w); }); });
+    noter('journaux rognés',n+' journal(aux)',n); rd(); T(n+' journal(aux) ramené(s) à 300 lignes.','ok'); return n; };
+
+  /* ---------- carte ---------- */
+  window.santeCard=function(){ var R=window.santeBilan(); var c=R.compte;
+    var head='<div class="card-h"><h2>Bilan de santé de la base</h2>'
+      +'<span class="sub" style="margin-left:auto">'+c.clients+' client(s) · '+c.dossiers+' dossier(s) · '
+      +c.demandes+' demande(s) · '+c.factures+' facture(s)</span>'
+      +'<button class="btn btn-sm btn-ghost" onclick="santeRefaire()">Refaire le bilan</button></div>';
+    if(!R.constats.length)
+      return '<div class="card sn-card">'+head+'<div class="card-b"><div class="sn-ok">Aucune incohérence relevée.</div>'
+        +'<div class="sn-note">Le bilan vérifie les rattachements entre clients, dossiers, demandes, factures et pièces, ainsi que la taille des journaux.</div></div></div>';
+    var blocs=R.constats.map(function(x){
+      var lignes=x.items.slice(0,12).map(function(i){
+        return '<div class="sn-i"><b>'+E(i.l)+'</b><span>'+E(i.d)+'</span></div>'; }).join('');
+      return '<div class="sn-bloc sn-'+x.niveau+'">'
+        +'<div class="sn-h"><b>'+E(x.titre)+'</b><span class="sn-n">'+x.n+'</span>'
+        +(x.action?('<button class="btn btn-sm btn-ghost" onclick="'+E(x.action)+'()">'+E(x.lbl)+'</button>'):'')
+        +'</div><div class="sn-q">'+E(x.quoi)+'</div><div class="sn-l">'+lignes
+        +(x.items.length>12?('<div class="sn-i sn-plus">et '+(x.items.length-12)+' de plus</div>'):'')+'</div></div>'; }).join('');
+    return '<div class="card sn-card">'+head+'<div class="card-b">'
+      +'<div class="sn-tot">'+R.total+' point(s) à regarder sur '+R.constats.length+' constat(s).</div>'
+      +blocs
+      +'<div class="sn-note">Les corrections proposées ne suppriment jamais de donnée : elles retirent un rattachement devenu faux ou raccourcissent un journal. Les doublons de clients se traitent depuis le module Clients.</div>'
+      +'</div></div>'; };
+  window.santeRefaire=function(){ rd(); T('Bilan refait.','ok'); };
+
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__sn){
+    window.pageParams=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('sn-card')<0) h+=santeCard(); }catch(e){} return h; };
+    window.pageParams.__sn=1; } }catch(e){}
+
+  var CSS='.sn-ok{padding:9px 12px;border-radius:8px;font-size:12.5px;background:rgba(90,200,140,.12);border:1px solid rgba(90,200,140,.35)}'
+    +'.sn-tot{font-size:12.5px;opacity:.85;margin:0 0 12px}'
+    +'.sn-bloc{border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 12px;margin:0 0 10px}'
+    +'.sn-alerte{border-color:rgba(230,140,90,.4);background:rgba(230,140,90,.07)}'
+    +'.sn-vigilance{border-color:rgba(200,190,120,.3);background:rgba(200,190,120,.05)}'
+    +'.sn-h{display:flex;align-items:center;gap:10px;font-size:12.5px}'
+    +'.sn-n{font-size:11px;opacity:.7;border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:1px 8px}'
+    +'.sn-h .btn{margin-left:auto}'
+    +'.sn-q{font-size:11.5px;opacity:.72;margin:4px 0 8px;line-height:1.55}'
+    +'.sn-l{display:flex;flex-direction:column;gap:2px}'
+    +'.sn-i{display:flex;gap:10px;font-size:11.5px;padding:2px 0;border-top:1px solid rgba(255,255,255,.05)}'
+    +'.sn-i b{min-width:190px}.sn-i span{opacity:.65}'
+    +'.sn-plus{opacity:.55;font-style:italic}'
+    +'.sn-note{margin-top:10px;font-size:11.5px;opacity:.7;line-height:1.55}';
+  try{ if(M.style) M.style('sn-css',CSS); else { var st=document.createElement('style'); st.id='sn-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Journaux bornés (v691 · 6/6)
+   Les historiques attachés à chaque facture, rendez-vous, dossier
+   et demande s'allongeaient indéfiniment : ils sont alimentés à
+   chaque action et n'avaient aucune limite. Ils sont désormais
+   ramenés à leurs entrées les plus récentes après chaque
+   enregistrement, sans rien changer à ce qui s'affiche.
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__rogneJournaux) return; window.__rogneJournaux=1;
+  var M=window.MQ||{};
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+
+  var MAX_EXEC=60;    /* historique d'exécution d'une facture, d'un rendez-vous, d'un dossier */
+  var MAX_HIST=120;   /* historique visible d'un dossier ou d'une demande */
+  var MAX_JRN=300;    /* journal de module */
+
+  /* les historiques d'exécution sont empilés du plus ancien au plus récent :
+     on garde la fin. Les journaux de module sont empilés à l'envers : on garde le début. */
+  function fin(o,cle,max){ var a=o&&o[cle];
+    if(!Array.isArray(a)||a.length<=max) return 0;
+    o[cle]=a.slice(a.length-max); return 1; }
+  function debut(o,cle,max){ var a=o&&o[cle];
+    if(!Array.isArray(a)||a.length<=max) return 0;
+    o[cle]=a.slice(0,max); return 1; }
+
+  window.journauxRogner=function(){ var b=B(); var p=P(); var n=0;
+    function item(o){ if(!o||typeof o!=='object') return;
+      n+=fin(o,'execLog',MAX_EXEC);
+      n+=debut(o,'historique',MAX_HIST);
+      n+=debut(o,'notesList',400); }
+    (b.dossiers||[]).forEach(item);
+    (b.demandes||[]).forEach(item);
+    (p.facturier||[]).forEach(item);
+    (p.rdv||[]).forEach(item);
+    (b.clients||[]).forEach(item);
+    Object.keys(p).forEach(function(k){ var v=p[k];
+      if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      n+=debut(v,'journal',MAX_JRN);
+      Object.keys(v).forEach(function(k2){ var w=v[k2];
+        if(w&&typeof w==='object'&&!Array.isArray(w)) n+=debut(w,'journal',MAX_JRN); }); });
+    return n; };
+
+  window.journauxMesure=function(){ var b=B(); var p=P();
+    var exec=0,hist=0,jrn=0,pire=0,ou='';
+    function item(o,lbl){ if(!o||typeof o!=='object') return;
+      if(Array.isArray(o.execLog)){ exec+=o.execLog.length; if(o.execLog.length>pire){ pire=o.execLog.length; ou=lbl; } }
+      if(Array.isArray(o.historique)) hist+=o.historique.length; }
+    (b.dossiers||[]).forEach(function(o){ item(o,'dossier '+(o.ref||o.id)); });
+    (b.demandes||[]).forEach(function(o){ item(o,'demande '+(o.code||o.id)); });
+    (p.facturier||[]).forEach(function(o){ item(o,'facture '+(o.numero||o.id)); });
+    (p.rdv||[]).forEach(function(o){ item(o,'rendez-vous'); });
+    Object.keys(p).forEach(function(k){ var v=p[k];
+      if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      if(Array.isArray(v.journal)) jrn+=v.journal.length;
+      Object.keys(v).forEach(function(k2){ var w=v[k2];
+        if(w&&typeof w==='object'&&!Array.isArray(w)&&Array.isArray(w.journal)) jrn+=w.journal.length; }); });
+    return {exec:exec,hist:hist,journal:jrn,total:exec+hist+jrn,pire:pire,ou:ou,
+      limites:{exec:MAX_EXEC,hist:MAX_HIST,journal:MAX_JRN}}; };
+
+  /* rognage après chaque enregistrement, au plus une fois par seconde */
+  var t=null, dedans=false;
+  try{ var _s=window.save;
+    if(typeof _s==='function'&&!_s.__rg){
+      window.save=function(){ var r=_s.apply(this,arguments);
+        if(!dedans){ clearTimeout(t); t=setTimeout(function(){
+          try{ var n=window.journauxRogner(); if(n){ dedans=true; try{ _s.call(window); } finally { dedans=false; } } }catch(e){} },1000); }
+        return r; };
+      window.save.__rg=1; } }catch(e){}
+
+  /* un passage au démarrage pour les bases déjà chargées */
+  try{ setTimeout(function(){ try{ if(window.journauxRogner()) { if(typeof save==='function') save(); } }catch(e){} },3000); }catch(e){}
+
+  /* la mesure rejoint le bilan de santé */
+  try{ var _sb=window.santeBilan;
+    if(typeof _sb==='function'&&!_sb.__rg){
+      window.santeBilan=function(){ var R=_sb.apply(this,arguments);
+        try{ var m=window.journauxMesure();
+          R.journaux=m;
+          if(m.pire>MAX_EXEC){ R.constats.push({cle:'execLongs',titre:'Historiques d’exécution trop longs',
+            niveau:'vigilance',n:1,items:[{id:'',l:m.ou,d:m.pire+' lignes'}],
+            quoi:'Ils seront ramenés automatiquement à '+MAX_EXEC+' lignes au prochain enregistrement.',
+            action:'journauxRognerMain',lbl:'Rogner maintenant'});
+            R.total+=1; }
+        }catch(e){} return R; };
+      window.santeBilan.__rg=1; } }catch(e){}
+  window.journauxRognerMain=function(){ var n=window.journauxRogner();
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof render==='function') render(); }catch(e){}
+    if(M.dire) M.dire(n+' historique(s) raccourci(s).','ok'); return n; };
 })();
 </script>
 </body>
