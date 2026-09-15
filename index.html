@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=680;
+var LAST_VER=681;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42379,7 +42379,11 @@ function testLienSignature() {
 
   /* ── Dépôt de pièces : lienDepotPartager(demande ou dossier) ── */
   window.lienDepotPartager=function(d){ var url=''; try{ url=(typeof depotLien==='function')?depotLien(d):''; }catch(e){} if(!url){ T('Ce dossier n\'a pas encore de numéro : ouvrez-le d\'abord.','warn'); return; }
-    var to='',pre='',tl=''; try{ to=(typeof infosEmailDe==='function')?infosEmailDe(d):(d.clientEmail||''); pre=((d.clientNom||'')+'').split(/\s+/)[0]||''; if(typeof clientDe==='function'){ var c=clientDe(d); tl=(c&&(c.tel||c.telephone||c.mobile))||''; } }catch(e){}
+    var to='',pre='',tl=''; try{ to=(typeof infosEmailDe==='function')?infosEmailDe(d):(d.clientEmail||''); }catch(e){ to=d.clientEmail||''; }
+    try{ var B=(typeof DB!=='undefined'&&DB)||{}; var C=B.clients||[]; var c=null; if(d.clientIds&&d.clientIds.length){ c=C.filter(function(x){ return x.id===d.clientIds[0]; })[0]||null; }
+      if(!c&&to){ var lo=(''+to).trim().toLowerCase(); c=C.filter(function(x){ return ((x.email||'')+'').trim().toLowerCase()===lo; })[0]||null; }
+      if(c){ tl=(c.tel||c.telephone||c.mobile)||''; if(!to) to=c.email||''; pre=(c.prenom||'')||pre; }
+      if(!pre) pre=((d.clientNom||'')+'').split(/\s+/)[0]||''; }catch(e){}
     lienPartager(url,{to:to,tel:tl,prenom:pre,numero:d.numeroDossier||d.ref||'',titre:'Envoyer le lien de dépôt des pièces',intro:'Voici votre lien sécurisé pour déposer vos pièces justificatives (pièce d\'identité, justificatif de domicile). Photos ou PDF acceptés, aucun compte à créer.'}); };
   /* ── Questionnaire public (sans dossier) ── */
   window.lienPublicPartager=function(){ var url=''; try{ url=(typeof infosLienPublic==='function')?infosLienPublic():''; }catch(e){} if(!url){ T('Lien public indisponible.','warn'); return; }
@@ -42394,6 +42398,36 @@ function testLienSignature() {
    +'.pl-r{text-align:center;padding:12px;border:1px solid var(--line,#2a2a2e);border-radius:8px;background:#fff;color:#111}.pl-r .hint{color:#555;margin:8px 0}'
    +'.pl-qr{width:220px;height:220px;max-width:100%;display:block;margin:0 auto;image-rendering:pixelated}'
    +'@media(max-width:760px){.pl-wrap{grid-template-columns:1fr}}';
+  document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Traitement › Pièces : bouton « Envoyer le lien de dépôt » (v681)
+   Le lien sécurisé depot.html?d=…&k=… du dossier est proposé directement
+   dans la carte « Pièces justificatives » (e-mail, WhatsApp, SMS, QR).
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__depotBtn) return; window.__depotBtn=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function entite(id){ var B=(typeof DB!=='undefined'&&DB)||window.DB||{}; return ((B.dossiers||[]).filter(function(x){ return x.id===id; })[0])||((B.demandes||[]).filter(function(x){ return x.id===id; })[0])||null; }
+  window.lienDepotPartagerId=function(id){ var d=entite(id); if(!d){ try{ toast('Dossier introuvable.',null,'warn'); }catch(e){} return; }
+    var url=''; try{ url=(typeof depotLien==='function')?depotLien(d):''; }catch(e){}
+    if(!url){ /* dossier sans numéro : on en attribue un, comme pour le questionnaire */ try{ if(!d.numeroDossier&&!d.ref){ d.numeroDossier='DOS-'+new Date().getFullYear()+'-'+String(Math.floor(Math.random()*900000+100000)); if(typeof save==='function') save(); url=depotLien(d); } }catch(e){} }
+    if(!url){ try{ toast('Impossible de générer le lien de dépôt pour ce dossier.',null,'warn'); }catch(e){} return; }
+    if(typeof lienDepotPartager==='function') lienDepotPartager(d); else if(typeof lienPartager==='function') lienPartager(url,{numero:d.numeroDossier||d.ref||''}); };
+  function bouton(d){ return '<button type="button" class="btn btn-sm btn-pri dl-btn" onclick="lienDepotPartagerId(\''+E(d.id)+'\')" title="Envoyer au client le lien sécurisé pour déposer ses pièces (e-mail, WhatsApp, SMS, QR code)">Envoyer le lien de dépôt</button>'; }
+  try{ var _pc=window.espPiecesCard; if(typeof _pc==='function'&&!_pc.__dl){ window.espPiecesCard=function(d){ var h=_pc.apply(this,arguments); try{ if(d&&d.id&&h&&h.indexOf('dl-btn')<0){ var i=h.indexOf('</span></div>'); if(i>0){ h=h.slice(0,i+7)+bouton(d)+h.slice(i+7); } } }catch(e){} return h; }; window.espPiecesCard.__dl=1; } }catch(e){}
+  /* onglet Pièces du Traitement : la carte « Pièces du dossier » (e3-card) est rendue hors espPiecesCard → décoration après rendu */
+  function decorate(){ try{ if(typeof state==='undefined'||state.page!=='espace'||!state.espaceDossier) return; var d=entite(state.espaceDossier); if(!d) return;
+      var heads=document.querySelectorAll('.esp-tabpanel[data-tab="pieces"] .e3-card .card-h, .esp-tabpanel[data-tab="pieces"] .pj-card .card-h, .esp-tabpanel[data-tab="pieces"] .fi-attendues .card-h');
+      if(!heads.length) return; var first=true; heads.forEach(function(hd){ if(hd.querySelector('.dl-btn')) { first=false; return; } if(!first) return; first=false; var tmp=document.createElement('span'); tmp.innerHTML=bouton(d); hd.appendChild(tmp.firstChild); }); }catch(e){} }
+  try{ var _r=window.render; if(typeof _r==='function'&&!_r.__dl){ window.render=function(){ var out=_r.apply(this,arguments); try{ decorate(); }catch(e){} return out; }; window.render.__dl=1; } }catch(e){}
+  try{ var busy=false; var mo=new MutationObserver(function(){ if(busy) return; busy=true; setTimeout(function(){ try{ decorate(); }finally{ busy=false; } },40); }); var host=document.getElementById('view')||document.body; mo.observe(host,{childList:true,subtree:true}); }catch(e){}
+  window.__depotBtnDecorate=decorate;
+  var css=document.createElement('style'); css.id='depot-btn-mod'; css.textContent='.pj-card .card-h,.e3-card .card-h,.fi-attendues .card-h{flex-wrap:wrap;gap:8px}.card-h .dl-btn{margin-left:8px}@media(max-width:700px){.card-h .dl-btn{margin-left:0;width:100%}}';
   document.head.appendChild(css);
 })();
 </script>
