@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=691;
+var LAST_VER=692;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -44239,6 +44239,235 @@ function testLienSignature() {
     try{ if(typeof save==='function') save(); }catch(e){}
     try{ if(typeof render==='function') render(); }catch(e){}
     if(M.dire) M.dire(n+' historique(s) raccourci(s).','ok'); return n; };
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Actions groupées en menu (v692)
+   Quand une même série de boutons se répète d'une ligne à l'autre,
+   elle encombre l'écran. Ces boutons sont remplacés par un unique
+   bouton à trois points qui déroule une petite liste de choix.
+   Les boutons d'origine sont conservés, seulement masqués : leurs
+   actions restent exactement les mêmes. Les sélecteurs de choix et
+   les barres d'outils ne sont pas touchés. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__kebab) return; window.__kebab=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function P(){ return M.par?M.par():(((typeof DB!=='undefined'&&DB)||{}).parametres||{}); }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+
+  function cfg(){ var p=P(); p.actionsGroupees=p.actionsGroupees||{}; var c=p.actionsGroupees;
+    if(c.actif==null) c.actif=true;
+    if(c.seuil==null) c.seuil=3;
+    return c; }
+
+  /* conteneurs à ne jamais regrouper : ce ne sont pas des actions de ligne */
+  var EXCLUS={
+    'ed2-pc-vs':'choix de la forme juridique',
+    'ed2-open':'liste de documents à ouvrir',
+    'agw-bar':'barre de configuration'
+  };
+  var EXCLUS_PARENT=/(card-h|modal-foot|toolbar|tabs|onglets|nav|pf-panel|kb-menu|sy-bar|cv-aide)/;
+
+  function texte(b){ return (b.textContent||'').replace(/\s+/g,' ').trim(); }
+  function danger(t){ return /supprim|retir|effac|vider|annul|refus|d[ée]tach|purge/i.test(t); }
+  function principal(b){ return /btn-pri/.test(b.className||''); }
+
+  /* le conteneur est-il une série d'actions répétée ? */
+  function candidat(el,seuil){
+    if(!el||el.nodeType!==1) return null;
+    if(el.getAttribute('data-kb')==='1'||el.getAttribute('data-no-kebab')!=null) return null;
+    var cls=(''+(el.className||'')).split(/\s+/).filter(Boolean);
+    for(var i=0;i<cls.length;i++){ if(EXCLUS[cls[i]]) return null; }
+    var btns=[]; for(var j=0;j<el.children.length;j++){ var c=el.children[j];
+      if(c.tagName==='BUTTON'&&c.offsetParent!==null) btns.push(c); }
+    if(btns.length<seuil) return null;
+    var visibles=0; for(var v=0;v<el.children.length;v++){ var ch=el.children[v];
+      if(ch.offsetParent===null&&getComputedStyle(ch).display==='none') continue; visibles++; }
+    if(btns.length!==visibles) return null;                  /* seuls des boutons sont visibles */
+    /* pas dans un en-tête de carte, une barre d'outils, un pied de fenêtre */
+    var n=el.parentElement; var prof=0;
+    while(n&&n!==document.body&&prof<6){
+      if(EXCLUS_PARENT.test(''+(n.className||''))) return null;
+      if(n.id&&/^(kb-|pf-|sy-|hb-|cv-)/.test(n.id)) return null;
+      n=n.parentElement; prof++; }
+    /* la série doit se répéter : au moins deux conteneurs de même classe dans la vue */
+    var sig=cls.join('.'); if(!sig||!/^[A-Za-z][-A-Za-z0-9_.]*$/.test(sig)) return null;
+    var tous=null; try{ tous=document.querySelectorAll('#view .'+sig); }catch(e){ return null; }
+    if(!tous||tous.length<2) return null;
+    return btns; }
+
+  /* ---------- menu ---------- */
+  var ouvert=null;
+  function fermer(){ if(!ouvert) return;
+    try{ var m=document.getElementById('kb-menu'); if(m) m.remove(); }catch(e){}
+    try{ if(ouvert.bouton) ouvert.bouton.setAttribute('aria-expanded','false'); }catch(e){}
+    ouvert=null; }
+  window.kbFermer=fermer;
+
+  function ouvrir(dots,btns){
+    if(ouvert&&ouvert.bouton===dots){ fermer(); return; }
+    fermer();
+    var m=document.createElement('div'); m.id='kb-menu'; m.className='kb-menu'; m.setAttribute('role','menu');
+    btns.forEach(function(b){
+      var t=texte(b)||b.title||'Action';
+      var it=document.createElement('button');
+      it.type='button'; it.className='kb-it'+(danger(t)?' kb-danger':'')+(principal(b)?' kb-pri':'');
+      it.setAttribute('role','menuitem');
+      it.textContent=t;
+      if(b.title&&b.title!==t) it.title=b.title;
+      if(b.disabled){ it.disabled=true; it.classList.add('kb-off'); }
+      it.onclick=function(ev){ ev.stopPropagation(); fermer();
+        try{ b.click(); }catch(e){} };
+      m.appendChild(it); });
+    document.body.appendChild(m);
+    /* position : sous le bouton, recadré dans l'écran */
+    var z=1; try{ z=parseFloat(getComputedStyle(document.documentElement).zoom)||1; }catch(ez){}
+    var r=dots.getBoundingClientRect();
+    var w=m.offsetWidth*z, h=m.offsetHeight*z;
+    var x=Math.min(Math.max(8,r.right-w), window.innerWidth-w-8);
+    var y=(r.bottom+h+8>window.innerHeight)?(r.top-h-6):(r.bottom+6);
+    y=Math.max(8,y);
+    m.style.left=Math.round(x/z)+'px'; m.style.top=Math.round(y/z)+'px';
+    dots.setAttribute('aria-expanded','true');
+    ouvert={bouton:dots,menu:m};
+    var prem=m.querySelector('.kb-it:not([disabled])'); if(prem) prem.focus();
+  }
+
+  /* ---------- pose des trois points ---------- */
+  function poser(el,btns){
+    var cache=document.createElement('span'); cache.className='kb-cache';
+    while(el.firstChild) cache.appendChild(el.firstChild);
+    var dots=document.createElement('button');
+    dots.type='button'; dots.className='kb-dots';
+    dots.setAttribute('aria-haspopup','menu'); dots.setAttribute('aria-expanded','false');
+    dots.setAttribute('aria-label','Actions'); dots.title=btns.map(texte).filter(Boolean).join(' · ');
+    dots.innerHTML='<span class="kb-d"></span><span class="kb-d"></span><span class="kb-d"></span>';
+    dots.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); ouvrir(dots,btns); };
+    el.appendChild(dots); el.appendChild(cache);
+    /* la ligne (ou la carte) qui contient les actions devient la zone de survol */
+    var hote=el.parentElement, prof=0;
+    while(hote&&hote!==document.body&&prof<4){
+      var hc=''+(hote.className||'');
+      if(/(row|ligne|item|-it\b|card|tr\b|li\b)/.test(hc)||hote.tagName==='TR'||hote.tagName==='LI') break;
+      hote=hote.parentElement; prof++; }
+    if(hote&&hote!==document.body&&hote.nodeType===1){ hote.classList.add('kb-host'); el.classList.add('kb-zone'); }
+    else { dots.classList.add('kb-toujours'); }
+    el.setAttribute('data-kb','1');
+    el.setAttribute('data-kb-n',btns.length); }
+
+  function balayer(){
+    try{
+      var c=cfg(); if(!c.actif) return 0;
+      var v=document.getElementById('view'); if(!v) return 0;
+      var n=0; var els=v.querySelectorAll('*');
+      for(var i=0;i<els.length;i++){ var el=els[i];
+        var btns=candidat(el,c.seuil);
+        if(btns){ poser(el,btns); n++; } }
+      return n;
+    }catch(e){ return 0; } }
+  window.kbBalayer=balayer;
+
+  /* ---------- réglage ---------- */
+  window.kbSet=function(k,v){ var c=cfg();
+    if(k==='actif') c.actif=!!v;
+    if(k==='seuil'){ var x=parseInt(v,10); c.seuil=(isNaN(x)||x<2)?3:Math.min(6,x); }
+    enr(); try{ if(typeof render==='function') render(); }catch(e){} };
+  window.kbCard=function(){ var c=cfg();
+    var ex=Object.keys(EXCLUS).map(function(k){ return '<li><b>'+E(k)+'</b> — '+E(EXCLUS[k])+'</li>'; }).join('');
+    return '<div class="card kb-card"><div class="card-h"><h2>Actions groupées</h2>'
+      +'<span class="sub" style="margin-left:auto">à partir de '+c.seuil+' boutons sur une même ligne</span></div><div class="card-b">'
+      +'<div class="kb-opts"><label><input type="checkbox" '+(c.actif?'checked':'')+' onchange="kbSet(\'actif\',this.checked)"> '
+      +'Regrouper les boutons répétés derrière un bouton à trois points</label>'
+      +'<label>À partir de <input type="number" min="2" max="6" value="'+c.seuil+'" onchange="kbSet(\'seuil\',this.value)"> boutons</label></div>'
+      +'<div class="kb-demo"><span class="kb-demo-l">Aperçu :</span>'
+      +'<span class="kb-demo-b"><button type="button" class="kb-dots" disabled>'
+      +'<span class="kb-d"></span><span class="kb-d"></span><span class="kb-d"></span></button></span></div>'
+      +'<div class="kb-note">Le regroupement ne s’applique qu’aux séries qui se répètent d’une ligne à l’autre. '
+      +'Les boutons ne sont pas supprimés : ils sont masqués et déclenchés depuis la liste, avec la même action. '
+      +'Ne sont jamais regroupés les en-têtes de carte, les pieds de fenêtre, les barres d’outils et ces sélecteurs :</div>'
+      +'<ul class="kb-ex">'+ex+'</ul></div></div>'; };
+
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__kb){
+    window.pageParams=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('kb-card')<0) h+=kbCard(); }catch(e){} return h; };
+    window.pageParams.__kb=1; } }catch(e){}
+
+  /* ---------- fermeture & clavier ---------- */
+  document.addEventListener('click',function(ev){ if(!ouvert) return;
+    if(ouvert.menu&&ouvert.menu.contains(ev.target)) return;
+    if(ouvert.bouton&&ouvert.bouton.contains(ev.target)) return; fermer(); },true);
+  document.addEventListener('keydown',function(ev){ if(!ouvert) return;
+    if(ev.key==='Escape'){ ev.preventDefault(); var b=ouvert.bouton; fermer(); try{ b.focus(); }catch(e){} return; }
+    if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ ev.preventDefault();
+      var its=[].slice.call(ouvert.menu.querySelectorAll('.kb-it:not([disabled])'));
+      if(!its.length) return; var i=its.indexOf(document.activeElement);
+      i=(ev.key==='ArrowDown')?((i+1)%its.length):((i<=0?its.length:i)-1); its[i].focus(); } },true);
+  window.addEventListener('scroll',function(){ fermer(); },true);
+  window.addEventListener('resize',function(){ fermer(); });
+
+  /* ---------- déclenchement après chaque rendu ---------- */
+  function apres(){ fermer(); setTimeout(balayer,50); }
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__kb){
+    window.render=function(){ var r=_rd.apply(this,arguments); apres(); return r; }; window.render.__kb=1; } }catch(e){}
+  try{ var v=document.getElementById('view');
+    if(v&&window.MutationObserver){ var t=null;
+      new MutationObserver(function(){ clearTimeout(t); t=setTimeout(balayer,200); }).observe(v,{childList:true,subtree:true}); } }catch(e){}
+  try{ setTimeout(balayer,1800); }catch(e){}
+
+  var CSS='.kb-cache{display:none !important}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots,.kb-dots{'
+      +'position:relative;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;gap:2.5px;'
+      +'padding:4px 5px;margin:0;min-width:0;min-height:0;width:auto;height:auto;line-height:1;'
+      +'background:transparent !important;background-image:none !important;border:0 !important;'
+      +'border-radius:4px;box-shadow:none !important;outline:0;'
+      +'color:inherit;font:inherit;cursor:pointer;opacity:.55;transition:opacity .12s}'
+    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:26px;height:22px;'
+      +'transform:translate(-50%,-50%);border-radius:5px}'
+    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:26px;height:22px;'
+      +'transform:translate(-50%,-50%);border-radius:5px}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots{opacity:0;transition:opacity .13s}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-host:hover .kb-dots,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-host:focus-within .kb-dots,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots.kb-toujours,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots:focus,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots[aria-expanded="true"]{opacity:.6}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-host:hover .kb-dots:hover,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots[aria-expanded="true"]{opacity:1}'
+    +'@media (hover:none){html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots{opacity:.6}}'
+    +'.kb-dots .kb-d{width:2px;height:2px;border-radius:50%;background:currentColor;display:block;flex:0 0 auto}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots:hover,.kb-dots:hover,'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots:focus-visible,.kb-dots:focus-visible'
+      +'{opacity:1;background:transparent !important;background-image:none !important;border:0 !important;box-shadow:none !important}'
+    +'.kb-dots:focus-visible{outline:1px solid rgba(255,255,255,.35);outline-offset:1px}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots[aria-expanded="true"],.kb-dots[aria-expanded="true"]'
+      +'{opacity:1;background:transparent !important;background-image:none !important}'
+    +'.kb-dots[disabled]{cursor:default;opacity:.45}'
+    +'.kb-menu{position:fixed;z-index:9000;min-width:160px;max-width:280px;padding:4px;'
+      +'background:#17191d;border:0;border-radius:10px;'
+      +'box-shadow:0 14px 38px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:1px}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-it,.kb-menu .kb-it{'
+      +'appearance:none;background:transparent !important;background-image:none !important;'
+      +'border:0 !important;box-shadow:none !important;color:#e7e9ee !important;text-align:left;'
+      +'font:inherit;font-size:12.5px;padding:7px 10px;margin:0;min-width:0;min-height:0;'
+      +'border-radius:7px;cursor:pointer;white-space:nowrap;width:100%}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-it:hover:not([disabled]),'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-it:focus-visible{'
+      +'background:rgba(255,255,255,.09) !important;outline:none}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-pri{font-weight:600}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-danger{color:#e8907a !important}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-danger:hover:not([disabled]){'
+      +'background:rgba(220,110,80,.16) !important}'
+    +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-menu .kb-off{opacity:.42;cursor:default}'
+    +'.kb-opts{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12.5px}'
+    +'.kb-opts label{display:inline-flex;gap:6px;align-items:center}'
+    +'.kb-opts input[type=number]{width:60px}'
+    +'.kb-demo{display:flex;gap:10px;align-items:center;margin:12px 0 0;font-size:12px;opacity:.8}'
+    +'.kb-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}'
+    +'.kb-ex{margin:6px 0 0;padding-left:18px;font-size:11.5px;opacity:.65;line-height:1.7}';
+  try{ if(M.style) M.style('kb-css',CSS); else { var st=document.createElement('style'); st.id='kb-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
 })();
 </script>
 </body>
