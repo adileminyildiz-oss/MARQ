@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=684;
+var LAST_VER=685;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42591,6 +42591,68 @@ function testLienSignature() {
   try{ var _pd=window.prevDigest; if(typeof _pd==='function'&&!_pd.__sms){ window.prevDigest=function(){ var _send=window.demSendViaScript; var restored=false; function restore(){ if(!restored){ restored=true; window.demSendViaScript=_send; } }
         try{ if(typeof _send==='function'){ window.demSendViaScript=function(to,subject,body,cb,opts){ var b=body; try{ if(/à prévoir aujourd/.test(subject||'')){ var sec=section(); if(sec) b=(''+body).replace(/\n\nOuvrir le tableau de bord/, sec+'\n\nOuvrir le tableau de bord'); if(sec&&b===body) b=body+sec; } }catch(e){} restore(); return _send.call(this,to,subject,b,cb,opts); }; } }catch(e){}
         try{ return _pd.apply(this,arguments); } finally{ restore(); } }; window.prevDigest.__sms=1; } }catch(e){}
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Paramètres › Journal d'audit consolidé (v685)
+   Un seul journal qui réunit tous les journaux du système :
+   prévoyance, chaînes d'exécution de chaque module, incidents,
+   liens envoyés et rappels, historiques des dossiers et demandes.
+   Filtres (source, période, échecs, recherche) et export en un
+   fichier d'audit unique (CSV ou JSON). 100 % additif, lecture seule.
+   ============================================================ */
+(function(){
+  if(window.__auditJournal) return; window.__auditJournal=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Demandes → dossier',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
+  function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function typeLien(u){ u=''+(u||''); if(/depot\.html/.test(u)) return 'dépôt de pièces'; if(/questionnaire\.html/.test(u)) return 'questionnaire public'; if(/infos\.html/.test(u)) return 'questionnaire'; return 'lien'; }
+  function nomEnt(e){ if(e.clientNom) return e.clientNom; try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c) return ((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||''; }catch(x){} return ''; }
+  /* ── collecte ── */
+  window.auditEntrees=function(){ var out=[]; var p=P();
+    function push(src,o){ if(!o||!o.ts) return; out.push({ts:o.ts,src:src,srcLbl:lbl(src),action:o.action||'',ok:o.ok!==false,detail:o.detail||'',qui:o.qui||'',mode:o.mode||'',ref:o.ref||''}); }
+    /* journaux « chaîne » : tout objet de parametres qui porte un tableau journal (2 niveaux) */
+    Object.keys(p).forEach(function(k){ var v=p[k]; if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      var seen=[]; if(Array.isArray(v.journal)) seen.push([k,v.journal]); Object.keys(v).forEach(function(k2){ var w=v[k2]; if(w&&typeof w==='object'&&!Array.isArray(w)&&Array.isArray(w.journal)) seen.push([k,w.journal]); });
+      seen.forEach(function(pair){ pair[1].forEach(function(j){ var ref=j.numero||j.num||j.rdv||j.to||j.ref||''; var action=j.step||j.etape||(j.type?('rappel '+j.type):'')||''; var det=j.detail||''; if(j.canal&&k==='liensSuivi') det=(j.canal+(det?(' · '+det):'')); push(pair[0],{ts:tsOf(j.ts),action:action,ok:j.ok,detail:det,qui:j.qui,mode:j.mode,ref:ref}); }); }); });
+    (p.incidents||[]).forEach(function(i){ push('incidents',{ts:tsOf(i.ts),action:i.titre||i.kind||'incident',ok:false,detail:(i.detail||'')+(i.page?(' · page '+i.page):''),mode:'',ref:''}); });
+    (p.partagesLien||[]).forEach(function(r){ push('partagesLien',{ts:tsOf(r.ts),action:(r.relance?'rappel':'envoi')+' · '+typeLien(r.url)+' · '+(r.canal||''),ok:true,detail:r.url||'',ref:[r.numero,r.dest].filter(Boolean).join(' · ')}); });
+    (B().dossiers||[]).forEach(function(d){ (d.historique||[]).forEach(function(h){ var ts=tsOf(h.ts||h.d||h.date); if(!ts) return; push('dossiers',{ts:ts,action:h.t||h.titre||h.action||'',ok:true,detail:h.detail||'',qui:h.qui||'',ref:[d.ref||d.numeroDossier,nomEnt(d)].filter(Boolean).join(' · ')}); }); });
+    (B().demandes||[]).forEach(function(d){ (d.historique||[]).forEach(function(h){ var ts=tsOf(h.ts||h.d||h.date); if(!ts) return; push('demandes',{ts:ts,action:h.t||h.titre||h.action||'',ok:true,detail:h.detail||'',qui:h.qui||'',ref:[d.numeroDossier||d.id,d.clientNom].filter(Boolean).join(' · ')}); }); });
+    out.sort(function(a,b){ return b.ts-a.ts; }); return out; };
+  var ST={src:'',per:30,q:'',ko:false};
+  function filtre(L){ var lim=ST.per?Date.now()-ST.per*86400000:0; var q=(ST.q||'').toLowerCase(); return L.filter(function(o){ if(ST.src&&o.src!==ST.src) return false; if(lim&&o.ts<lim) return false; if(ST.ko&&o.ok) return false; if(q){ var s=(o.srcLbl+' '+o.action+' '+o.detail+' '+o.ref+' '+o.qui).toLowerCase(); if(s.indexOf(q)<0) return false; } return true; }); }
+  window.auditCard=function(){ var all=auditEntrees(); var R=filtre(all); var srcs={}; all.forEach(function(o){ srcs[o.src]=(srcs[o.src]||0)+1; }); var ko=all.filter(function(o){ return !o.ok; }).length;
+    var opts='<option value="">Toutes les sources ('+all.length+')</option>'+Object.keys(srcs).sort(function(a,b){ return lbl(a).localeCompare(lbl(b),'fr'); }).map(function(k){ return '<option value="'+E(k)+'"'+(ST.src===k?' selected':'')+'>'+E(lbl(k))+' ('+srcs[k]+')</option>'; }).join('');
+    var pers=[[7,'7 jours'],[30,'30 jours'],[90,'90 jours'],[0,'Tout']].map(function(x){ return '<option value="'+x[0]+'"'+(ST.per===x[0]?' selected':'')+'>'+x[1]+'</option>'; }).join('');
+    var tr=R.slice(0,300).map(function(o){ return '<tr class="'+(o.ok?'':'au-ko')+'"><td>'+E(frDT(o.ts))+'</td><td>'+E(o.srcLbl)+'</td><td>'+E(o.action)+'</td><td class="au-det" title="'+E(o.detail)+'">'+E(o.detail)+'</td><td>'+E(o.ref)+'</td><td>'+E(o.qui||o.mode||'')+'</td><td>'+(o.ok?'<span class="au-ok">ok</span>':'<span class="au-err">échec</span>')+'</td></tr>'; }).join('');
+    var body=all.length?(R.length?('<div class="au-wrap"><table class="au-tbl"><thead><tr><th>Date</th><th>Source</th><th>Action</th><th>Détail</th><th>Référence</th><th>Par</th><th>État</th></tr></thead><tbody>'+tr+'</tbody></table></div>'+(R.length>300?'<div class="hint">Les 300 entrées les plus récentes sont affichées ; l\'export contient tout le filtre.</div>':'')):'<div class="hint au-empty">Aucune entrée ne correspond au filtre.</div>'):'<div class="hint au-empty">Aucune entrée pour le moment : les actions des modules, les envois et les incidents s\'inscriront ici.</div>';
+    return '<div class="card au-card" data-sp="sec/audit"><div class="card-h"><h2>Journal d\'audit</h2><span class="sub" style="margin-left:auto">'+all.length+' entrée'+(all.length>1?'s':'')+(ko?(' · <span class="au-err">'+ko+' échec'+(ko>1?'s':'')+'</span>'):'')+'</span>'
+      +(all.length?'<button type="button" class="btn btn-sm" onclick="auditExport(\'csv\')">Exporter CSV</button><button type="button" class="btn btn-sm btn-ghost" onclick="auditExport(\'json\')">Fichier d\'audit (JSON)</button>':'')+'</div>'
+      +'<div class="card-b"><div class="au-filt"><select onchange="auditFiltre(\'src\',this.value)">'+opts+'</select><select onchange="auditFiltre(\'per\',this.value)">'+pers+'</select><label><input type="checkbox" '+(ST.ko?'checked':'')+' onchange="auditFiltre(\'ko\',this.checked)"> échecs seulement</label><input type="search" placeholder="Rechercher une action, un dossier, un détail" value="'+E(ST.q)+'" oninput="auditFiltre(\'q\',this.value)"></div>'+body+'</div></div>'; };
+  function repaint(){ var el=document.querySelector('.au-card'); if(!el) return; var tmp=document.createElement('div'); tmp.innerHTML=window.auditCard(); el.replaceWith(tmp.firstChild); }
+  window.auditFiltre=function(k,v){ if(k==='per') ST.per=parseInt(v,10)||0; else if(k==='ko') ST.ko=!!v; else ST[k]=v||''; repaint(); if(k==='q'){ try{ var inp=document.querySelector('.au-filt input[type=search]'); inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){} } };
+  function dl(name,content,type){ try{ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:type})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); return true; }catch(e){ T('Export impossible.','warn'); return false; } }
+  window.auditExport=function(fmt){ var all=auditEntrees(); var R=filtre(all); if(!R.length){ T('Rien à exporter avec ce filtre.','warn'); return; } var stamp=new Date().toISOString().slice(0,10); var ver=(typeof LAST_VER!=='undefined')?LAST_VER:''; var cab=''; try{ cab=(P().cabinet&&P().cabinet.nom)||''; }catch(e){}
+    if(fmt==='json'){ var p=P(); var raw={}; Object.keys(p).forEach(function(k){ var v=p[k]; if(v&&typeof v==='object'&&!Array.isArray(v)){ if(Array.isArray(v.journal)) raw[k]=v.journal; Object.keys(v).forEach(function(k2){ var w=v[k2]; if(w&&typeof w==='object'&&!Array.isArray(w)&&Array.isArray(w.journal)) raw[k+'.'+k2]=w.journal; }); } }); raw.incidents=p.incidents||[]; raw.partagesLien=p.partagesLien||[];
+      var doc={type:'marq-audit',version:ver,cabinet:cab,genere:new Date().toISOString(),filtre:{source:ST.src,periodeJours:ST.per,echecsSeulement:ST.ko,recherche:ST.q},nb:R.length,entrees:R.map(function(o){ return {date:new Date(o.ts).toISOString(),source:o.srcLbl,action:o.action,etat:o.ok?'ok':'échec',detail:o.detail,reference:o.ref,par:o.qui||o.mode||''}; }),journauxBruts:raw};
+      if(dl('marq-audit-'+stamp+'.json',JSON.stringify(doc,null,1),'application/json')) T('Fichier d\'audit généré ('+R.length+' entrées).','success'); return; }
+    var csv='﻿Date;Source;Action;État;Détail;Référence;Par\n'+R.map(function(o){ return [frDT(o.ts),o.srcLbl,o.action,o.ok?'ok':'échec',o.detail,o.ref,o.qui||o.mode||''].map(function(v){ return '"'+(''+(v==null?'':v)).replace(/"/g,'""')+'"'; }).join(';'); }).join('\n');
+    if(dl('marq-audit-'+stamp+'.csv',csv,'text/csv;charset=utf-8')) T('Export CSV généré ('+R.length+' entrées).','success'); };
+  try{ var _pp=window.pageParams; if(typeof _pp==='function'&&!_pp.__au){ window.pageParams=function(){ var h=_pp.apply(this,arguments); try{ if((''+h).indexOf('au-card')<0) h+=window.auditCard(); }catch(e){} return h; }; window.pageParams.__au=1; } }catch(e){}
+  var css=document.createElement('style'); css.id='audit-mod'; css.textContent=
+    '.au-card{margin-top:14px}.au-card .card-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.au-card .card-h h2{margin:0;font-size:15px}'
+   +'.au-filt{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center}.au-filt select{min-width:150px}.au-filt input[type=search]{flex:1;min-width:200px}.au-filt label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}'
+   +'.au-wrap{overflow:auto;max-height:520px}.au-tbl{width:100%;border-collapse:collapse;font-size:12.5px}.au-tbl th{text-align:left;font-weight:600;color:var(--muted,#8a8a93);padding:6px 8px;border-bottom:1px solid var(--line,#2a2a2e);white-space:nowrap;position:sticky;top:0;background:var(--card,#1a1a1f)}'
+   +'.au-tbl td{padding:6px 8px;border-bottom:1px solid var(--line,#2a2a2e);vertical-align:top;white-space:nowrap}.au-tbl td.au-det{white-space:normal;max-width:380px;overflow:hidden;text-overflow:ellipsis}.au-tbl tr.au-ko td{background:rgba(209,109,99,.08)}.au-ok{color:#6fae8a}.au-err{color:#d16d63;font-weight:600}.au-empty{padding:10px 0}';
+  document.head.appendChild(css);
 })();
 </script>
 
