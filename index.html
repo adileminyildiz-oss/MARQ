@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=677;
+var LAST_VER=678;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42134,7 +42134,7 @@ function testLienSignature() {
 </script>
 <script>
 /* ============================================================================
-   Mar'q — Nettoyage 6 : mise au propre page par page — passe 2 (v677)
+   Mar'q — Nettoyage 6 : mise au propre page par page — passe 2 (v677–v678)
    ----------------------------------------------------------------------------
    Relevé visuel des 25 écrans : le fond de la zone de travail remplit toujours
    l'écran (plus de bande noire sous les pages courtes) ; le panneau « documents
@@ -42142,7 +42142,8 @@ function testLienSignature() {
    YADA reprennent la police du système ; les en-têtes de tableau des Services
    ne sont plus collés aux tuiles ; les lignes « bientôt » et « en retard » de
    l'échéancier sont lisibles (teinte sombre, texte clair) ; les derniers bleus
-   de l'Étude de marché et du choix de destinataire passent au gris.
+   de l'Étude de marché et du choix de destinataire passent au gris ; la liste
+   des rubriques des Éditions n'affiche plus de caractères décoratifs (v678).
    100 % additif (feuille de style injectée en dernier + retouches de source
    sur les codes couleur restants).
    ============================================================================ */
@@ -42154,7 +42155,9 @@ function testLienSignature() {
    +S+'#view .yd-k b,'+S+'#view .ckp-k b,'+S+'#view .fp-k b{font-family:inherit!important;font-variant-numeric:tabular-nums}'
    +S+'#view .svc-mg-t th{padding-top:8px!important;padding-bottom:8px!important}'+S+'#view .svc-mg-wrap{margin-top:12px}'
    +S+'#view .svc-eche-row.soon{background:rgba(224,164,88,.10)!important;color:#f4f6fa!important}'+S+'#view .svc-eche-row.late{background:rgba(224,80,80,.10)!important;color:#f4f6fa!important}'+S+'#view .svc-eche-row.soon *,'+S+'#view .svc-eche-row.late *{color:inherit}'+S+'#view .svc-eche-row.soon .svc-eche-meta b{color:#e0b060!important}'+S+'#view .svc-eche-row.late .svc-eche-meta b{color:#f08a80!important}'
-   +S+'#view .cfc-grid{grid-template-columns:1fr 1fr 1.25fr}';
+   +S+'#view .cfc-grid{grid-template-columns:1fr 1fr 1.25fr}'
+   /* Éditions : liste des rubriques sans caractères décoratifs */
+   +S+'#view .ed2-cat-ic{display:none!important}'+S+'#view .ed2-cat{gap:8px}';
     document.head.appendChild(st); }catch(e){}
 })();
 </script>
