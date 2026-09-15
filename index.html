@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=682;
+var LAST_VER=683;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42476,6 +42476,74 @@ function testLienSignature() {
    +'.le-filt{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}.le-filt select{min-width:180px}.le-filt input{flex:1;min-width:200px}'
    +'.le-wrap{overflow:auto}.le-tbl{width:100%;border-collapse:collapse;font-size:12.5px}.le-tbl th{text-align:left;font-weight:600;color:var(--muted,#8a8a93);padding:6px 8px;border-bottom:1px solid var(--line,#2a2a2e);white-space:nowrap}'
    +'.le-tbl td{padding:7px 8px;border-bottom:1px solid var(--line,#2a2a2e);vertical-align:middle;white-space:nowrap}.le-tbl td.le-acts{text-align:right}.le-tbl td.le-acts .btn{margin-left:4px}.le-tbl a{color:inherit;text-decoration:underline;text-underline-offset:2px}.le-empty{padding:10px 0}';
+  document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Mar'q — Liens sans réponse : prévoyance + rappel automatique (v683)
+   Un lien envoyé (questionnaire, dépôt de pièces) resté sans réponse
+   après N jours remonte dans la Prévoyance ; rappel au client par la
+   passerelle e-mail (manuel ou automatique), plafonné. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__liensSuivi) return; window.__liensSuivi=1;
+  function E(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function cfg(){ var p=P(); var c=p.liensSuivi=p.liensSuivi||{}; if(!(c.relanceJ>0)) c.relanceJ=4; if(c.auto==null) c.auto=false; if(!(c.max>=0)) c.max=2; c.journal=c.journal||[]; return c; }
+  function J(){ return P().partagesLien=P().partagesLien||[]; }
+  function typeDe(u){ u=''+(u||''); if(/depot\.html/.test(u)) return 'depot'; if(/infos\.html/.test(u)) return 'infos'; return ''; }
+  function lblType(t){ return t==='depot'?'Dépôt de pièces':'Questionnaire'; }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function ageJ(ts){ return Math.floor((Date.now()-ts)/86400000); }
+  function entiteDe(no){ var b=B(); if(!no) return null; return ((b.dossiers||[]).filter(function(x){ return x.numeroDossier===no||x.ref===no; })[0])||((b.demandes||[]).filter(function(x){ return x.numeroDossier===no||((x.intake||{}).numeroDossier===no); })[0])||null; }
+  function nomDe(e){ try{ if(typeof demBestName==='function'&&(B().demandes||[]).indexOf(e)>=0){ var n=demBestName(e); if(n) return n; } }catch(x){} if(e.clientNom) return e.clientNom; try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c) return ((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||''; }catch(x){} return e.ref||e.numeroDossier||'Dossier'; }
+  function emailDe(e,g){ var d=(g&&g.dest)||''; if(/@/.test(d)) return d; try{ if(typeof infosEmailDe==='function'){ var m=infosEmailDe(e); if(m&&m!=='—') return m; } }catch(x){} if(e.clientEmail) return e.clientEmail; try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c&&c.email) return c.email; }catch(x){} return (e.intake&&e.intake.contact&&e.intake.contact.email)||''; }
+  function clos(e){ return !!(e.archived||/clôtur|cloture|refus|annul/i.test(e.statut||'')); }
+  function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
+  function repondu(g,e){ var t0=g.firstTs;
+    if(g.type==='infos'){ if(e.infosPortail&&tsOf(e.infosPortail.ts)>=t0) return true; return (e.infosRecues||[]).some(function(r){ return tsOf(r.ts)>=t0; }); }
+    if(e.depotPortail&&tsOf(e.depotPortail.ts)>=t0) return true;
+    var docs=e.docs||{}; for(var k in docs){ if((docs[k]||[]).some(function(f){ return tsOf(f.ts||f.date)>=t0; })) return true; }
+    var pc=e.pieces||{}; for(var k2 in pc){ if(pc[k2]&&pc[k2].recu&&tsOf(pc[k2].date)>=t0) return true; }
+    return false; }
+  /* groupes : un par (dossier, type de lien) */
+  window.liensGroupes=function(){ var m={}; J().slice().reverse().forEach(function(r){ var t=typeDe(r.url); if(!t||!r.numero) return; var k=r.numero+'|'+t; var g=m[k]; if(!g){ g=m[k]={key:k,numero:r.numero,type:t,url:r.url,firstTs:r.ts,lastTs:r.ts,dest:r.dest||'',relances:0}; } if(r.ts<g.firstTs) g.firstTs=r.ts; if(r.ts>=g.lastTs){ g.lastTs=r.ts; g.url=r.url||g.url; if(/@/.test(r.dest||'')||!g.dest) g.dest=r.dest||g.dest; } if(r.relance) g.relances++; });
+    return Object.keys(m).map(function(k){ var g=m[k]; g.e=entiteDe(g.numero); g.repondu=!!(g.e&&repondu(g,g.e)); g.age=ageJ(g.lastTs); g.ageTotal=ageJ(g.firstTs); return g; }); };
+  window.liensSansReponse=function(){ var c=cfg(); var due=[], epuises=[], attente=[]; liensGroupes().forEach(function(g){ if(!g.e||clos(g.e)||g.repondu) return; if(g.relances>=c.max&&g.age>=c.relanceJ){ epuises.push(g); return; } if(g.age>=c.relanceJ) due.push(g); else attente.push(g); }); return {due:due,epuises:epuises,attente:attente,cfg:c}; };
+  function corps(g){ var e=g.e||{}; var pre=(nomDe(e)||'').split(/\s+/)[0]||''; var cab=(function(){ try{ return (P().cabinet&&P().cabinet.nom)||'AEM CONSEIL'; }catch(x){ return 'AEM CONSEIL'; } })();
+    var quoi=g.type==='depot'?'les pièces justificatives de votre dossier (pièce d\'identité, justificatif de domicile)':'les informations demandées pour votre dossier';
+    return 'Bonjour'+(pre?(' '+pre):'')+',\n\nSauf erreur de notre part, nous n\'avons pas encore reçu '+quoi+(g.numero?(' '+g.numero):'')+'.\n\nVous pouvez les transmettre en quelques minutes via votre lien personnalisé :\n'+g.url+'\n\nSans ces éléments, nous ne pouvons pas poursuivre vos formalités. N\'hésitez pas à nous contacter en cas de difficulté.\n\nBien cordialement,\n'+cab; }
+  function sujet(g){ return 'Rappel : '+(g.type==='depot'?'pièces à déposer':'informations à compléter')+(g.numero?(' pour votre dossier '+g.numero):'')+' - AEM CONSEIL'; }
+  function journal(g,to,ok,mode,detail){ var c=cfg(); c.journal.unshift({ts:Date.now(),numero:g.numero,type:g.type,to:to,ok:!!ok,mode:mode,detail:detail||''}); if(c.journal.length>60) c.journal.length=60;
+    if(ok){ J().unshift({ts:Date.now(),canal:'e-mail',dest:to,url:g.url,numero:g.numero,relance:true}); } try{ save(); }catch(e){} }
+  /* rappel d'un groupe : silent = passerelle uniquement (sinon repli messagerie) */
+  window.liensRappeler=function(key,silent){ var g=liensGroupes().filter(function(x){ return x.key===key; })[0]; if(!g||!g.e){ if(!silent) T('Lien introuvable.','warn'); return false; }
+    var to=emailDe(g.e,g); if(!to){ journal(g,'',false,silent?'automatique':'manuel','aucune adresse e-mail'); if(!silent) T('Aucune adresse e-mail pour ce client : renseignez-la dans la fiche Client.','warn'); return false; }
+    var s=sujet(g), b=corps(g), ok=false; try{ if(typeof demEnvoiDirect==='function') ok=!!demEnvoiDirect(to,s,b); }catch(e){ ok=false; }
+    if(!ok&&!silent){ try{ window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(s)+'&body='+encodeURIComponent(b); ok=true; }catch(e){} }
+    journal(g,to,ok,silent?'automatique':'manuel',ok?'':'passerelle indisponible'); if(!silent) T(ok?('Rappel envoyé à '+to+'.'):'Rappel non envoyé : passerelle indisponible.',ok?'success':'warn'); return ok; };
+  window.liensRappelerTout=function(silent){ var r=liensSansReponse(); var n=0; r.due.forEach(function(g){ if(liensRappeler(g.key,true)) n++; }); if(!silent) T(n?(n+' rappel(s) envoyé(s).'):(r.due.length?'Aucun rappel envoyé : passerelle indisponible ou adresse manquante.':'Aucun lien en attente de rappel.'),n?'success':'info'); try{ if(typeof render==='function'&&!silent) render(); }catch(e){} return n; };
+  window.liensSuiviSet=function(k,v){ var c=cfg(); if(k==='auto') c.auto=!!v; else if(k==='relanceJ') c.relanceJ=Math.max(1,parseInt(v,10)||4); else if(k==='max') c.max=Math.max(0,parseInt(v,10)||0); try{ save(); }catch(e){} try{ render(); }catch(e){} };
+  /* ── Prévoyance : items ── */
+  function ouvrir(g){ try{ var e=g.e; var b=B(); if((b.dossiers||[]).indexOf(e)>=0){ state.page='espace'; state.espaceDossier=e.id; render(); } else if(typeof demOuvrirVue==='function'){ state.page='demandes'; demOuvrirVue(e.id); } else { state.page='demandes'; render(); } }catch(x){} }
+  try{ var _pi=window.prevItems; if(typeof _pi==='function'&&!_pi.__ls){ window.prevItems=function(){ var res=_pi.apply(this,arguments)||[]; try{ var pc=(P().prevoyance)||{}; var src={depot:'trw',infos:'fq'}; var srcs=pc.sources||{}; var r=liensSansReponse(); var add=[];
+        r.due.forEach(function(g){ if(srcs[src[g.type]]===false) return; add.push({key:'ls:'+g.key,src:src[g.type],niveau:'warn',cat:'aujourdhui',quand:today(),titre:nomDe(g.e)+' · '+lblType(g.type),detail:'lien envoyé il y a '+g.age+' j sans réponse'+(g.relances?(' · '+g.relances+' rappel(s) déjà envoyé(s)'):'')+' · rappel à envoyer',page:'params',open:function(){ ouvrir(g); }}); });
+        r.epuises.forEach(function(g){ if(srcs[src[g.type]]===false) return; add.push({key:'lse:'+g.key,src:src[g.type],niveau:'crit',cat:'retard',quand:today(),titre:nomDe(g.e)+' · '+lblType(g.type),detail:'sans réponse après '+g.relances+' rappel(s) ('+g.ageTotal+' j) : contacter le client',page:'params',open:function(){ ouvrir(g); }}); });
+        var seen={}; res.forEach(function(o){ seen[o.key]=1; }); add.forEach(function(o){ if(seen[o.key]) return; var sn=(pc.snooze||{})[o.key]; if(sn&&sn>Date.now()) return; o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); });
+        var ORD={retard:0,aujourdhui:1,semaine:2,mois:3,systeme:4}, NIV={crit:0,warn:1,info:2}; res.sort(function(a,b){ return (ORD[a.cat]-ORD[b.cat])||(NIV[a.niveau]-NIV[b.niveau])||((a.quand||'')>(b.quand||'')?1:-1); }); }catch(e){} return res; }; window.prevItems.__ls=1; } }catch(e){}
+  /* ── analyse automatique → rappels automatiques ── */
+  try{ var _ps=window.prevScan; if(typeof _ps==='function'&&!_ps.__ls){ window.prevScan=function(silent){ var out=_ps.apply(this,arguments); try{ if(cfg().auto){ var n=liensRappelerTout(true); if(n&&typeof toast==='function'&&!silent) toast(n+' rappel(s) de lien envoyé(s) automatiquement.',5000,'info'); } }catch(e){} return out; }; window.prevScan.__ls=1; } }catch(e){}
+  /* ── réglages dans la carte « Liens envoyés » ── */
+  window.liensSuiviHTML=function(){ var c=cfg(); var r=liensSansReponse(); var gw=false; try{ var g=(typeof demSyncCfg==='function')?demSyncCfg():{}; gw=!!(g&&g.url); }catch(e){}
+    var etat=r.due.length?('<b>'+r.due.length+'</b> lien'+(r.due.length>1?'s':'')+' sans réponse à rappeler'):(r.attente.length?(r.attente.length+' lien'+(r.attente.length>1?'s':'')+' en attente de réponse'):'aucun lien en attente');
+    if(r.epuises.length) etat+=' · <b class="ls-ko">'+r.epuises.length+'</b> sans réponse après '+c.max+' rappel'+(c.max>1?'s':'')+' (contacter le client)';
+    return '<div class="ls-cfg"><div class="ls-row"><label>Rappel si sans réponse après <input type="number" min="1" max="60" value="'+c.relanceJ+'" onchange="liensSuiviSet(\'relanceJ\',this.value)"> j</label><label>maximum <input type="number" min="0" max="10" value="'+c.max+'" onchange="liensSuiviSet(\'max\',this.value)"> rappel(s)</label><label><input type="checkbox" '+(c.auto?'checked':'')+' onchange="liensSuiviSet(\'auto\',this.checked)"> rappel automatique par la passerelle'+(gw?'':' <i>(passerelle non configurée)</i>')+'</label><button type="button" class="btn btn-sm'+(r.due.length?' btn-pri':'')+'" onclick="liensRappelerTout()"'+(r.due.length?'':' disabled')+'>Rappeler maintenant</button></div><div class="hint ls-etat">'+etat+'. Un lien est considéré comme répondu dès que les informations ou les pièces sont revenues dans le dossier ; les liens sans réponse remontent dans la Prévoyance.</div></div>'; };
+  try{ var _lc=window.liensEnvoyesCard; if(typeof _lc==='function'&&!_lc.__ls){ window.liensEnvoyesCard=function(){ var h=_lc.apply(this,arguments); try{ var i=h.indexOf('<div class="le-filt">'); if(i>0&&h.indexOf('ls-cfg')<0) h=h.slice(0,i)+liensSuiviHTML()+h.slice(i); }catch(e){} return h; }; window.liensEnvoyesCard.__ls=1; } }catch(e){}
+  var css=document.createElement('style'); css.id='liens-suivi-mod'; css.textContent='.ls-cfg{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line,#2a2a2e);border-radius:8px}.ls-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;font-size:12.5px}.ls-row label{display:inline-flex;align-items:center;gap:6px}.ls-row input[type=number]{width:58px;padding:3px 6px}.ls-etat{margin-top:8px}.ls-ko{color:#d16d63}';
   document.head.appendChild(css);
 })();
 </script>
