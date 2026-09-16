@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=705;
+var LAST_VER=706;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46314,12 +46314,12 @@ function testLienSignature() {
     (M.clients?M.clients():[]).forEach(function(c){ if(!c) return;
       var nom=c.nom||c.raison||c.societe||'—';
       var s=norm(c.siren||c.siret).slice(0,9);
-      if(s.length===9){ (parSiren[s]=parSiren[s]||[]).push(nom); }
-      var nn=norm(nom); if(nn) (parNom[nn]=parNom[nn]||[]).push(nom); });
+      if(s.length===9){ (parSiren[s]=parSiren[s]||[]).push({nom:nom,id:c.id}); }
+      var nn=norm(nom); if(nn) (parNom[nn]=parNom[nn]||[]).push({nom:nom,id:c.id}); });
     Object.keys(parSiren).forEach(function(s){ if(parSiren[s].length>1)
-      a.clients.push({quoi:'même SIREN '+s,noms:parSiren[s]}); });
+      a.clients.push({quoi:'même SIREN '+s,noms:parSiren[s].map(function(x){return x.nom;}),ids:parSiren[s].map(function(x){return x.id;})}); });
     Object.keys(parNom).forEach(function(n){ if(parNom[n].length>1)
-      a.clients.push({quoi:'même dénomination',noms:parNom[n]}); });
+      a.clients.push({quoi:'même dénomination',noms:parNom[n].map(function(x){return x.nom;}),ids:parNom[n].map(function(x){return x.id;})}); });
 
     a.registre=Object.keys(REG().attribues).length;
     return a;
@@ -46348,7 +46348,10 @@ function testLienSignature() {
       h+='</ul></div>'; }
 
     if(a.clients.length){ h+='<div class="nr-bloc warn"><h4>Comptes clients en double</h4><ul>';
-      a.clients.forEach(function(c){ h+='<li>'+E(c.quoi)+' : '+E(c.noms.join(' · '))+'</li>'; });
+      a.clients.forEach(function(c){ h+='<li>'+E(c.quoi)+' : '+E(c.noms.join(' · '))
+        +((c.ids&&c.ids.length===2&&typeof window.cliFusionOuvrir==='function')
+          ?(' <button class="btn btn-sm" onclick="cliFusionOuvrir(\''+E(c.ids[0])+'\',\''+E(c.ids[1])+'\')">Fusionner</button>'):'')
+        +'</li>'; });
       h+='</ul></div>'; }
 
     if(!ko) h+='<p class="nr-ok">Aucun numéro en double, aucune rupture de séquence, aucun compte client en double.</p>';
@@ -46440,6 +46443,132 @@ function testLienSignature() {
 
   /* Reprise au démarrage : les numéros déjà émis entrent au registre une fois. */
   try{ setTimeout(function(){ try{ reprise(); }catch(e){} },2500); }catch(e){}
+})();
+</script>
+<script>
+/* ===== Mar'q v706 — Fusionner deux comptes clients en double ===== */
+(function(){
+  if(window.__mqFus706) return; window.__mqFus706=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)); }
+  function enr(){ try{ if(M.enr) M.enr(); else if(typeof save==='function') save(); }catch(e){} }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4600,t||'info'); }catch(e){} }
+  function base(){ try{ return M.db?M.db():DB; }catch(e){ return DB; } }
+  function cli(id){ try{ return (typeof clientById==='function')?clientById(id):(base().clients||[]).filter(function(c){return c.id===id;})[0]; }catch(e){ return null; } }
+  function nom(c){ if(!c) return '—';
+    try{ if(M.nomClient){ var n=M.nomClient(c); if(n) return n; } }catch(e){}
+    return c.denomination||c.raison||c.societe||((c.prenom||'')+' '+(c.nom||'')).trim()||c.id||'—'; }
+
+  /* ---------- Report des références ----------
+     On parcourt toute la base plutôt qu'une liste de modules à tenir à jour :
+     seules les CLÉS qui désignent un client sont touchées, jamais un identifiant
+     rencontré au hasard. Les noms écrits sur les pièces émises ne sont pas
+     réécrits — une facture garde le libellé sous lequel elle a été émise. */
+  var CLE_ID=/^(clientId|cliId|clientID|idClient)$/;
+  var CLE_IDS=/^(clientIds|clientsIds)$/;
+
+  function reporter(vieux,neuf){
+    var n=0, vu=[];
+    function creuse(o){
+      if(!o||typeof o!=='object') return;
+      if(vu.indexOf(o)>=0) return; vu.push(o);
+      if(Array.isArray(o)){ for(var i=0;i<o.length;i++) creuse(o[i]); return; }
+      for(var k in o){ if(!Object.prototype.hasOwnProperty.call(o,k)) continue;
+        var v=o[k];
+        if(CLE_ID.test(k) && v===vieux){ o[k]=neuf; n++; continue; }
+        if(CLE_IDS.test(k) && Array.isArray(v)){
+          var av=v.join('|');
+          var l=v.map(function(x){ return x===vieux?neuf:x; })
+                 .filter(function(x,i,a){ return a.indexOf(x)===i; });
+          if(l.join('|')!==av){ o[k]=l; n++; }
+          continue; }
+        if(v&&typeof v==='object') creuse(v); }
+    }
+    try{ creuse(base()); }catch(e){}
+    return n;
+  }
+
+  /* ---------- Fiche : le maître garde ce qu'il a, l'autre comble les vides ---------- */
+  function vide(v){ return v==null || v==='' || (Array.isArray(v)&&!v.length); }
+  function completer(maitre,absorbe){
+    var pris=[];
+    for(var k in absorbe){ if(!Object.prototype.hasOwnProperty.call(absorbe,k)) continue;
+      if(k==='id'||k==='createdAt'||k==='noMerge') continue;
+      if(vide(maitre[k]) && !vide(absorbe[k])){ maitre[k]=absorbe[k]; pris.push(k); } }
+    return pris;
+  }
+  function remplis(c){ var n=0; for(var k in c){ if(k!=='id'&&!vide(c[k])) n++; } return n; }
+
+  window.cliFusionner=function(idMaitre,idAbsorbe){
+    var m=cli(idMaitre), a=cli(idAbsorbe);
+    if(!m||!a||m===a){ T('Fusion impossible : compte introuvable.','error'); return null; }
+    var nm=nom(m), na=nom(a);
+    var refs=reporter(a.id,m.id);
+    var pris=completer(m,a);
+    try{ var L=base().clients||[]; var i=L.indexOf(a); if(i>=0) L.splice(i,1); }catch(e){}
+    try{ if(window.MQNum){ var r=window.MQNum.registre();
+      (r.journal=r.journal||[]).push({ts:new Date().toISOString(),action:'fusion-client',numero:'',
+        type:'client',objet:'« '+na+' » absorbé par « '+nm+' » — '+refs+' rattachement(s)',id:m.id}); } }catch(e){}
+    enr();
+    T('« '+na+' » fusionné dans « '+nm+' » — '+refs+' rattachement(s) reporté(s)'
+      +(pris.length?(', '+pris.length+' champ(s) complété(s)'):'')+'.','success');
+    try{ if(typeof render==='function') render(); }catch(e){}
+    return {maitre:m.id,refs:refs,champs:pris};
+  };
+
+  /* ---------- Choix du compte à conserver ---------- */
+  function lignes(c,autre){
+    var L=[['Dénomination',nom(c)],['SIREN',c.siren||c.siret||'—'],['E-mail',c.email||'—'],
+           ['Téléphone',c.tel||c.telephone||'—'],['Adresse',[c.adresse,c.cp,c.ville].filter(Boolean).join(' ')||'—']];
+    var nd=0; try{ nd=(base().dossiers||[]).filter(function(d){ return (d.clientIds||[]).indexOf(c.id)>=0; }).length; }catch(e){}
+    L.push(['Dossiers',String(nd)]); L.push(['Champs renseignés',String(remplis(c))]);
+    return '<table class="fus-t">'+L.map(function(p){ return '<tr><th>'+E(p[0])+'</th><td>'+E(p[1])+'</td></tr>'; }).join('')+'</table>';
+  }
+
+  window.cliFusionOuvrir=function(idA,idB){
+    var a=cli(idA), b=cli(idB);
+    if(!a||!b){ T('Fusion impossible : compte introuvable.','error'); return; }
+    /* proposition : le plus renseigné, à égalité celui qui porte le plus de dossiers */
+    var dos=function(c){ try{ return (base().dossiers||[]).filter(function(d){ return (d.clientIds||[]).indexOf(c.id)>=0; }).length; }catch(e){ return 0; } };
+    var conseille=(remplis(a)!==remplis(b)) ? (remplis(a)>remplis(b)?a:b) : (dos(a)>=dos(b)?a:b);
+    var carte=function(c){ return '<div class="fus-c'+(c===conseille?' on':'')+'">'
+        +'<div class="fus-h"><b>'+E(nom(c))+'</b>'+(c===conseille?'<span class="fus-tag">proposé</span>':'')+'</div>'
+        +lignes(c)
+        +'<button class="btn btn-sm '+(c===conseille?'btn-pri':'')+'" onclick="cliFusionFaire(\''+E(c.id)+'\',\''+E(c===a?b.id:a.id)+'\')">Conserver ce compte</button></div>'; };
+    try{
+      openModal('Fusionner deux comptes clients',
+        '<p class="hint" style="margin:0 0 12px">Le compte conservé garde ses informations ; l\'autre comble ses vides, '
+       +'lui cède ses dossiers et ses rattachements, puis disparaît. Les pièces déjà émises gardent le nom sous lequel '
+       +'elles ont été établies.</p><div class="fus-g">'+carte(a)+carte(b)+'</div>',
+        '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>');
+    }catch(e){}
+  };
+
+  window.cliFusionFaire=function(idMaitre,idAbsorbe){
+    try{ closeModal(); }catch(e){}
+    window.cliFusionner(idMaitre,idAbsorbe);
+  };
+
+  if(M.style) M.style('fus-css',
+    '.fus-g{display:grid;grid-template-columns:1fr 1fr;gap:12px}'
+   +'@media(max-width:700px){.fus-g{grid-template-columns:1fr}}'
+   +'.fus-c{border:1px solid var(--bd);border-radius:10px;padding:10px 12px}'
+   +'.fus-c.on{border-color:rgba(130,185,255,.45)}'
+   +'.fus-h{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px}'
+   +'.fus-tag{font-size:10px;padding:1px 6px;border-radius:8px;border:1px solid var(--bd);opacity:.75}'
+   +'.fus-t{width:100%;border-collapse:collapse;font-size:11.5px;margin:0 0 10px}'
+   +'.fus-t th{text-align:left;font-weight:500;opacity:.7;padding:2px 6px 2px 0;white-space:nowrap}'
+   +'.fus-t td{padding:2px 0}');
+
+  /* ---------- Bouton dans « Mise en ordre du fichier » (module Clients) ---------- */
+  try{ var _cb=window.cliChaineCard;
+    if(typeof _cb==='function' && !_cb.__fus706){
+      window.cliChaineCard=function(){ var h=_cb.apply(this,arguments);
+        try{ h=(''+h).replace(/onclick="cliChaineIgnorer\('([^']+)','([^']+)'\)"[^>]*>Ce ne sont pas des doublons<\/button>/g,
+          function(tout,ia,ib){ return tout
+            +'<button class="btn btn-sm btn-pri" onclick="cliFusionOuvrir(\''+ia+'\',\''+ib+'\')">Fusionner</button>'; }); }catch(e){}
+        return h; };
+      window.cliChaineCard.__fus706=1; } }catch(e){}
 })();
 </script>
 </body>
