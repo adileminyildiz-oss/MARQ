@@ -57,6 +57,11 @@ const { chromium, URL_APP } = require('./_socle.cjs');
     out.compteurIntact = window.numCfg().compteurs[Y] === avantC;
     out.fourniAuRegistre = !!window.MQNum.registre().attribues['DOS-2099-777'];
 
+    /* Un dossier sans aucun numéro doit pouvoir en recevoir un depuis le contrôle */
+    DB.dossiers.push({ id: 'do-sans', clientIds: [], serviceIds: [], statut: 'Nouveau',
+                       createdAt: '2026-01-01', historique: [] });
+    out.sansAvant = window.numControle().dossiers.filter(x => /aucun num/.test(x.quoi)).length;
+
     /* Alignement des dossiers déjà en base (deux numéros différents) */
     const d0 = DB.dossiers.filter(x => x.id !== (d1 || {}).id)[0];
     d0.ref = 'DOS-2601'; d0.numeroDossier = 'DOS-' + Y + '-900';
@@ -66,6 +71,10 @@ const { chromium, URL_APP } = require('./_socle.cjs');
     out.apres = { ref: d0.ref, num: d0.numeroDossier };
     out.aligne = d0.ref === d0.numeroDossier && d0.ref === 'DOS-' + Y + '-900';
     out.restants = window.numControle().dossiers.length;
+    const sans = DB.dossiers.filter(x => x.id === 'do-sans')[0];
+    out.sansApres = { ref: sans.ref || null, num: sans.numeroDossier || null };
+    out.sansServi = !!(sans.ref && sans.ref === sans.numeroDossier);
+    out.sansAuRegistre = !!window.MQNum.registre().attribues[sans.ref];
     return out;
   });
 
@@ -80,6 +89,9 @@ const { chromium, URL_APP } = require('./_socle.cjs');
   dit(r.compteurIntact, 'un numéro fourni a quand même consommé le compteur');
   dit(r.fourniAuRegistre, 'le numéro fourni n’entre pas au registre');
   dit(r.aligne, 'alignement raté : ' + JSON.stringify(r.apres));
+  dit(r.sansAvant === 1, 'le dossier sans numéro n’était pas signalé');
+  dit(r.sansServi, 'le dossier sans numéro n’en a pas reçu : ' + JSON.stringify(r.sansApres));
+  dit(r.sansAuRegistre, 'le numéro attribué au dossier sans numéro n’est pas au registre');
   dit(r.restants === 0, r.restants + ' dossier(s) encore signalés après alignement');
   dit(erreurs.length === 0, 'pageerror : ' + erreurs.join(' | '));
 
