@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=696;
+var LAST_VER=700;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42609,7 +42609,7 @@ function testLienSignature() {
   function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',rapproChaine:'Rapprochement',tempsChaine:'Temps passé',etapeCourrier:'Courriers d\'étape',repriseChaine:'Reprise de dossier',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',rapproChaine:'Rapprochement',tempsChaine:'Temps passé',etapeCourrier:'Courriers d\'étape',repriseChaine:'Reprise de dossier',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',etiquettes:'Étiquettes',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -42621,7 +42621,7 @@ function testLienSignature() {
     /* journaux « chaîne » : tout objet de parametres qui porte un tableau journal (2 niveaux) */
     Object.keys(p).forEach(function(k){ var v=p[k]; if(!v||typeof v!=='object'||Array.isArray(v)) return;
       var seen=[]; if(Array.isArray(v.journal)) seen.push([k,v.journal]); Object.keys(v).forEach(function(k2){ var w=v[k2]; if(w&&typeof w==='object'&&!Array.isArray(w)&&Array.isArray(w.journal)) seen.push([k,w.journal]); });
-      seen.forEach(function(pair){ pair[1].forEach(function(j){ var ref=j.numero||j.num||j.rdv||j.to||j.ref||''; var action=j.step||j.etape||(j.type?('rappel '+j.type):'')||''; var det=j.detail||''; if(j.canal&&k==='liensSuivi') det=(j.canal+(det?(' · '+det):'')); push(pair[0],{ts:tsOf(j.ts),action:action,ok:j.ok,detail:det,qui:j.qui,mode:j.mode,ref:ref}); }); }); });
+      seen.forEach(function(pair){ pair[1].forEach(function(j){ var ref=j.numero||j.num||j.rdv||j.to||j.ref||''; var action=j.step||j.action||j.etape||(j.type?('rappel '+j.type):'')||''; var det=j.detail||''; if(j.canal&&k==='liensSuivi') det=(j.canal+(det?(' · '+det):'')); push(pair[0],{ts:tsOf(j.ts),action:action,ok:j.ok,detail:det,qui:j.qui,mode:j.mode,ref:ref}); }); }); });
     (p.incidents||[]).forEach(function(i){ push('incidents',{ts:tsOf(i.ts),action:i.titre||i.kind||'incident',ok:false,detail:(i.detail||'')+(i.page?(' · page '+i.page):''),mode:'',ref:''}); });
     (p.partagesLien||[]).forEach(function(r){ push('partagesLien',{ts:tsOf(r.ts),action:(r.relance?'rappel':'envoi')+' · '+typeLien(r.url)+' · '+(r.canal||''),ok:true,detail:r.url||'',ref:[r.numero,r.dest].filter(Boolean).join(' · ')}); });
     (B().dossiers||[]).forEach(function(d){ (d.historique||[]).forEach(function(h){ var ts=tsOf(h.ts||h.d||h.date); if(!ts) return; push('dossiers',{ts:ts,action:h.t||h.titre||h.action||'',ok:true,detail:h.detail||'',qui:h.qui||'',ref:[d.ref||d.numeroDossier,nomEnt(d)].filter(Boolean).join(' · ')}); }); });
@@ -45275,6 +45275,807 @@ function testLienSignature() {
     +'.rq-vide{font-size:11.5px;opacity:.65;font-style:italic}'
     +'.rq-note{margin-top:12px;font-size:11.5px;opacity:.72;line-height:1.55}';
   try{ if(M.style) M.style('rq-css',CSS); else { var st2=document.createElement('style'); st2.id='rq-css'; st2.textContent=CSS; document.head.appendChild(st2); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Temps passé porté en facture, dépassement signalé (v697)
+   Le temps saisi sur un dossier devient une ligne d'honoraires,
+   au taux du cabinet, sans jamais être facturé deux fois. Et
+   lorsqu'un dossier a coûté plus de temps que les honoraires ne
+   couvrent, la Prévoyance le dit avant la clôture. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__tempsFacture) return; window.__tempsFacture=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function eur(v){ return M.eur?M.eur(v):((+v||0).toFixed(2)+' €'); }
+  function auj(){ return M.auj?M.auj():new Date().toISOString().slice(0,10); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+  function hm(m){ return (typeof window.tempsHM==='function')?window.tempsHM(m):(Math.round(m)+' min'); }
+  function dossier(id){ return (B().dossiers||[]).filter(function(d){ return d.id===id; })[0]||null; }
+  function refD(d){ return S(d&&(d.ref||d.numeroDossier||d.id)); }
+
+  function cfg(){ var p=P(); p.tempsChaine=p.tempsChaine||{}; var c=p.tempsChaine;
+    c.lignes=c.lignes||[]; c.journal=c.journal||[]; if(c.taux==null) c.taux=60;
+    if(c.seuilDepassement==null) c.seuilDepassement=100; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+
+  /* ---------- ce qui reste à facturer ---------- */
+  window.tempsAFacturer=function(did){ var c=cfg();
+    var L=c.lignes.filter(function(x){ return x.dossierId===did&&!x.facture; });
+    var min=L.reduce(function(s,x){ return s+(+x.min||0); },0);
+    return {lignes:L,min:min,heures:min/60,taux:+c.taux||0,montant:min/60*(+c.taux||0)}; };
+
+  window.tempsLigneFacture=function(did){ var d=dossier(did); if(!d) return null;
+    var a=window.tempsAFacturer(did); if(!a.min) return null;
+    var h=Math.round(a.heures*100)/100;
+    return {des:'Temps passé — '+refD(d)+' ('+hm(a.min)+')',qte:h,pu:a.taux,u:'heure',av:0}; };
+
+  /* ---------- report en facture ---------- */
+  function marquer(did,ref){ var a=window.tempsAFacturer(did);
+    a.lignes.forEach(function(l){ l.facture=true; l.factureLe=auj(); if(ref) l.factureRef=ref; });
+    return a; }
+
+  window.tempsVersFacture=function(did){ var d=dossier(did); if(!d){ T('Dossier introuvable.','warn'); return null; }
+    var lg=window.tempsLigneFacture(did);
+    if(!lg){ T('Aucun temps à facturer sur ce dossier.','warn'); return null; }
+    var ajoute=false;
+    /* si un brouillon du facturier est déjà ouvert sur ce dossier, on y ajoute la ligne ;
+       sinon on ouvre une facture d'honoraires rattachée au dossier. */
+    var br=sur(function(){ return window.__invDraft||null; },null);
+    if(br&&br.dossierId===did&&br.statut!=='emise'&&typeof window.invAjouterLignes==='function'){
+      sur(function(){ window.invAjouterLignes([lg]); ajoute=true; },null); }
+    if(!ajoute&&typeof window.dosFacture==='function'){
+      sur(function(){ window.dosFacture(did); },null);
+      var br2=sur(function(){ return window.__invDraft||null; },null);
+      if(br2&&typeof window.invAjouterLignes==='function'){ sur(function(){ window.invAjouterLignes([lg]); ajoute=true; },null); } }
+    if(!ajoute){ T('Le facturier n’a pas pu être ouvert.','warn'); return null; }
+    var a=marquer(did,sur(function(){ return (window.__invDraft||{}).numero||''; },''));
+    jrn({action:'temps porté en facture',ref:refD(d),
+      detail:hm(a.min)+' · '+eur(a.montant)+' · '+a.lignes.length+' saisie(s)'});
+    enr(); rd();
+    T(hm(a.min)+' porté(s) en facture ('+eur(a.montant)+').','ok');
+    return {min:a.min,montant:a.montant,ligne:lg}; };
+
+  window.tempsRendreFacturable=function(did){ var c=cfg(); var n=0;
+    c.lignes.forEach(function(l){ if(l.dossierId===did&&l.facture){ delete l.facture; delete l.factureLe; delete l.factureRef; n++; } });
+    if(n){ jrn({action:'temps remis à facturer',ref:refD(dossier(did)),detail:n+' saisie(s)'}); enr(); rd();
+      T(n+' saisie(s) redevenue(s) facturable(s).','ok'); }
+    return n; };
+
+  /* ---------- dépassement ---------- */
+  window.tempsDepassements=function(){ var c=cfg(); var seuil=+c.seuilDepassement||0;
+    var out=[];
+    (B().dossiers||[]).forEach(function(d){ if(d.archived) return;
+      var r=sur(function(){ return window.tempsDossier(d.id); },null); if(!r||!r.min) return;
+      var cl=sur(function(){ return !!(d.wf||{}).cloture; },false);
+      if(cl) return;
+      var ecart=r.cout-r.facture;
+      if(r.facture>0&&ecart>seuil)
+        out.push({id:d.id,ref:refD(d),min:r.min,cout:r.cout,facture:r.facture,ecart:ecart,
+          motif:'le temps passé dépasse les honoraires de '+eur(ecart)});
+      else if(r.facture===0&&r.cout>seuil)
+        out.push({id:d.id,ref:refD(d),min:r.min,cout:r.cout,facture:0,ecart:r.cout,
+          motif:hm(r.min)+' passés sans aucun honoraire facturé'}); });
+    out.sort(function(a,b){ return b.ecart-a.ecart; });
+    return out; };
+  window.tempsSeuil=function(v){ var c=cfg(); var n=parseFloat((''+v).replace(',','.'));
+    c.seuilDepassement=(isNaN(n)||n<0)?0:n; enr(); rd(); };
+
+  try{ var _pi=window.prevItems; if(typeof _pi==='function'&&!_pi.__tf){
+    window.prevItems=function(){ var res=_pi.apply(this,arguments)||[];
+      try{ var pc=(P()).prevoyance||{}; if((pc.sources||{}).sys===false) return res;
+        var L=window.tempsDepassements(); if(!L.length) return res;
+        var d0=L[0];
+        var o={key:'tps:depassement',src:'sys',niveau:'alerte',cat:'systeme',quand:auj(),
+          titre:'Dossiers plus longs que prévu',
+          detail:L.length+' dossier(s) · le plus marqué : '+d0.ref+' — '+d0.motif,
+          page:'pilotage',open:function(){ try{ state.page='pilotage'; render(); }catch(x){} }};
+        if(!res.some(function(x){ return x.key===o.key; })){ var sn=(pc.snooze||{})[o.key];
+          if(!(sn&&sn>Date.now())){ o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); } }
+      }catch(e){} return res; };
+    window.prevItems.__tf=1; } }catch(e){}
+
+  /* ---------- carte des dépassements ---------- */
+  window.tempsDepassementCard=function(){ var c=cfg(); var L=window.tempsDepassements();
+    var reg='<div class="tf-seuil">Signaler à partir de <input type="number" min="0" step="10" value="'+(+c.seuilDepassement||0)
+      +'" onchange="tempsSeuil(this.value)"> € d’écart</div>';
+    if(!L.length) return '<div class="card tf-card"><div class="card-h"><h2>Dossiers plus longs que prévu</h2></div><div class="card-b">'
+      +reg+'<div class="tf-ok">Aucun dossier ne dépasse ce qu’il rapporte.</div></div></div>';
+    var rows=L.slice(0,20).map(function(x){
+      return '<tr><td>'+E(x.ref)+'</td><td class="tf-n">'+E(hm(x.min))+'</td>'
+        +'<td class="tf-n">'+E(eur(x.cout))+'</td><td class="tf-n">'+E(eur(x.facture))+'</td>'
+        +'<td class="tf-n tf-r">'+E(eur(x.ecart))+'</td><td>'+E(x.motif)+'</td></tr>'; }).join('');
+    return '<div class="card tf-card"><div class="card-h"><h2>Dossiers plus longs que prévu</h2>'
+      +'<span class="sub" style="margin-left:auto">'+L.length+' dossier(s)</span></div><div class="card-b">'
+      +reg
+      +'<table class="tf-t"><thead><tr><th>Dossier</th><th>Temps</th><th>Coût</th><th>Honoraires</th>'
+      +'<th>Écart</th><th>Ce qu’il faut savoir</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="tf-note">Les dossiers clôturés ne sont plus signalés. Un écart ne veut pas dire une erreur : '
+      +'il dit seulement que le forfait a coûté plus de temps que prévu, ce qui se règle au devis suivant.</div>'
+      +'</div></div>'; };
+
+  try{ var _pp=window.pagePilotage; if(typeof _pp==='function'&&!_pp.__tf){
+    window.pagePilotage=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('tf-card')<0) h+=tempsDepassementCard(); }catch(e){} return h; };
+    window.pagePilotage.__tf=1; } }catch(e){}
+
+  /* ---------- bouton sur la carte du dossier ---------- */
+  function greffe(){ try{
+    if(!(typeof state!=='undefined')) return;
+    var did=state.espaceDossier||state.dossierId; if(!did) return;
+    var v=document.getElementById('view'); if(!v) return;
+    var c=v.querySelector('.tp-card'); if(!c||c.querySelector('.tf-btn')) return;
+    var a=window.tempsAFacturer(did);
+    var head=c.querySelector('.card-h'); if(!head) return;
+    var b=document.createElement('button'); b.className='btn btn-sm btn-ghost tf-btn';
+    if(a.min){ b.textContent='Porter '+hm(a.min)+' en facture';
+      b.title=eur(a.montant)+' au taux du cabinet';
+      b.onclick=function(){ window.tempsVersFacture(did); }; }
+    else { b.textContent='Tout est facturé'; b.disabled=true;
+      b.title='Aucun temps en attente de facturation sur ce dossier'; }
+    head.appendChild(b);
+    var pil=v.querySelector('.tp-card .tp-list'); if(pil&&!c.querySelector('.tf-hint')){
+      var f=window.cfgFacture; var dejaN=cfg().lignes.filter(function(l){ return l.dossierId===did&&l.facture; }).length;
+      if(dejaN){ var s=document.createElement('div'); s.className='tf-hint';
+        s.innerHTML=dejaN+' saisie(s) déjà facturée(s) · <button class="btn btn-sm btn-ghost" onclick="tempsRendreFacturable(\''+did+'\')">les rendre facturables</button>';
+        pil.parentNode.insertBefore(s,pil); } }
+  }catch(e){} }
+  window.tempsFactureBouton=greffe;
+  try{ if(M.apresRendu) M.apresRendu(greffe,'tf',150);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__tf){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffe,150); return r; }; window.render.__tf=1; } } }catch(e){}
+
+  var CSS='.tf-seuil{font-size:12.5px;margin:0 0 12px}.tf-seuil input{width:80px;margin:0 4px}'
+    +'.tf-ok{padding:9px 12px;border-radius:8px;font-size:12.5px;'
+      +'background:rgba(90,200,140,.1);border:1px solid rgba(90,200,140,.3)}'
+    +'.tf-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.tf-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.6;'
+      +'padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.tf-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.tf-n{text-align:right;font-variant-numeric:tabular-nums}.tf-r{color:#e8907a}'
+    +'.tf-hint{font-size:11.5px;opacity:.72;margin:0 0 8px;display:flex;gap:8px;align-items:center}'
+    +'.tf-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}';
+  try{ if(M.style) M.style('tf-css',CSS); else { var st=document.createElement('style'); st.id='tf-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Mémoire des libellés bancaires (v698)
+   Un encaissement rattaché à la main apprend au logiciel qu'un
+   libellé de relevé désigne tel client. Les virements suivants du
+   même payeur sont alors reconnus d'emblée, même sans numéro de
+   facture. La mémoire se consulte et s'efface. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__memoLibelle) return; window.__memoLibelle=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function nz(v){ return (''+(v==null?'':v)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+  function frDT(v){ return M.dateheure?M.dateheure(v):''; }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+
+  function cfg(){ var p=P(); p.rapproChaine=p.rapproChaine||{}; var c=p.rapproChaine;
+    c.memoire=c.memoire||{}; c.journal=c.journal||[]; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+  function factures(){ return (P().facturier||[]); }
+  function facture(id){ return factures().filter(function(f){ return f.id===id; })[0]||null; }
+  function clientNom(f){ return S(f&&(f.clNom||f.clientNom)); }
+
+  /* Le noyau d'un libellé : ce qui identifie le payeur, une fois retirés
+     les mots de virement, les références de pièce, les dates et les nombres. */
+  var BRUIT=/^(vir|virement|sepa|prlv|prelevement|recu|reçu|de|du|des|la|le|les|par|cb|chq|cheque|inst|instantane|europeen|emis|recue|compte|ref|reference|facture|fact|fa|note|acompte|solde|paiement|reglement|regl|tiers|client|mr|mme|sarl|sas|sasu|eurl|sci|sa|snc)$/;
+  window.memoNoyau=function(lib){
+    var mots=nz(lib).split(' ').filter(function(w){
+      if(!w||w.length<3) return false;
+      if(/^\d+$/.test(w)) return false;
+      if(/^[a-z]{1,2}\d+$/.test(w)) return false;
+      if(BRUIT.test(w)) return false;
+      return true; });
+    return mots.slice(0,4).join(' '); };
+
+  /* apprentissage */
+  window.memoApprendre=function(lib,factureId){
+    var f=facture(factureId); if(!f) return null;
+    var noyau=window.memoNoyau(lib); if(!noyau||noyau.length<4) return null;
+    var nom=clientNom(f); if(!nom) return null;
+    var c=cfg(); var m=c.memoire[noyau];
+    if(m&&m.client===nom){ m.n=(m.n||1)+1; m.ts=Date.now(); }
+    else c.memoire[noyau]={client:nom,clientId:f.clientId||'',n:1,ts:Date.now(),exemple:S(lib).slice(0,70)};
+    jrn({action:'libellé retenu',ref:nom,detail:'« '+noyau+' » désigne désormais ce client'});
+    enr(); return noyau; };
+
+  window.memoClient=function(lib){ var noyau=window.memoNoyau(lib); if(!noyau) return null;
+    var c=cfg(); var m=c.memoire[noyau];
+    if(m) return {client:m.client,noyau:noyau,n:m.n||1,exact:true};
+    /* un noyau plus court peut suffire : « atlas btp travaux » reconnaît « atlas btp » */
+    var best=null; Object.keys(c.memoire).forEach(function(k){
+      if(k.length<4) return;
+      if(noyau.indexOf(k)>=0||k.indexOf(noyau)>=0){
+        var sc=Math.min(k.length,noyau.length);
+        if(!best||sc>best.sc) best={client:c.memoire[k].client,noyau:k,n:c.memoire[k].n||1,exact:false,sc:sc}; } });
+    return best; };
+
+  window.memoOublier=function(noyau){ var c=cfg(); if(!c.memoire[noyau]) return false;
+    var nom=c.memoire[noyau].client; delete c.memoire[noyau];
+    jrn({action:'libellé oublié',ref:nom,detail:'« '+noyau+' »'});
+    enr(); rd(); T('Libellé oublié.','ok'); return true; };
+  window.memoVider=function(){ var c=cfg(); var n=Object.keys(c.memoire).length; c.memoire={};
+    jrn({action:'mémoire vidée',detail:n+' libellé(s)'}); enr(); rd();
+    T(n+' libellé(s) oublié(s).','ok'); return n; };
+  window.memoListe=function(){ var c=cfg();
+    return Object.keys(c.memoire).map(function(k){ var m=c.memoire[k];
+      return {noyau:k,client:m.client,n:m.n||1,ts:m.ts||0,exemple:m.exemple||''}; })
+      .sort(function(a,b){ return (b.n-a.n)||(b.ts-a.ts); }); };
+
+  /* le rattachement à la main apprend */
+  try{ var _rm=window.rapproManuel;
+    if(typeof _rm==='function'&&!_rm.__me){
+      window.rapproManuel=function(i,fid){
+        var lib=sur(function(){ var r=(P().rapproChaine||{}).releve; return r&&r.props[i]?r.props[i].ligne.lib:''; },'');
+        var r=_rm.apply(this,arguments);
+        try{ if(fid&&lib) window.memoApprendre(lib,fid); }catch(e){}
+        return r; };
+      window.rapproManuel.__me=1; } }catch(e){}
+
+  /* la mémoire renforce la proposition */
+  try{ var _rp=window.rapproProposer;
+    if(typeof _rp==='function'&&!_rp.__me){
+      window.rapproProposer=function(lignes){
+        var out=_rp.apply(this,arguments)||[];
+        try{
+          var pris={}; out.forEach(function(p){ if(p.factureId) pris[p.factureId]=1; });
+          var F=factures().filter(function(f){
+            return f.type!=='devis'&&!f.paye&&f.statut!=='brouillon'&&f.statut!=='annulee'&&!pris[f.id]; });
+          out.forEach(function(p){ if(p.factureId) return;
+            var m=window.memoClient(p.ligne.lib); if(!m) return;
+            var n2=nz(m.client);
+            var cand=F.filter(function(f){ return !pris[f.id]&&nz(clientNom(f))===n2; });
+            if(!cand.length) return;
+            /* à client connu, on retient la facture dont le montant colle le mieux */
+            cand.sort(function(a,b){ return Math.abs(mt(a)-p.ligne.montant)-Math.abs(mt(b)-p.ligne.montant); });
+            var f=cand[0]; var d=Math.abs(mt(f)-p.ligne.montant);
+            if(d>Math.max(1,mt(f)*0.02)) return;      /* montant trop éloigné : on n'invente pas */
+            pris[f.id]=1;
+            p.factureId=f.id; p.numero=f.numero; p.client=clientNom(f); p.du=mt(f);
+            p.score=4; p.retenu=true;
+            p.motifs=['libellé déjà rencontré pour ce client'].concat(d<0.005?['montant identique']:['montant proche']); });
+        }catch(e){}
+        return out; };
+      window.rapproProposer.__me=1; } }catch(e){}
+  function mt(f){ try{ if(typeof window.invCalc==='function'){ var c=window.invCalc(f); if(c&&c.net!=null) return +c.net||0; } }catch(e){} return +f.ttc||0; }
+
+  /* le pointage apprend aussi, quand le rapprochement venait du numéro ou du montant */
+  try{ var _pt=window.rapproPointer;
+    if(typeof _pt==='function'&&!_pt.__me){
+      window.rapproPointer=function(){
+        var L=sur(function(){ var r=(P().rapproChaine||{}).releve;
+          return r?r.props.filter(function(x){ return x.retenu&&x.factureId; })
+            .map(function(x){ return {lib:x.ligne.lib,fid:x.factureId}; }):[]; },[]);
+        var r=_pt.apply(this,arguments);
+        try{ L.forEach(function(x){ window.memoApprendre(x.lib,x.fid); }); }catch(e){}
+        return r; };
+      window.rapproPointer.__me=1; } }catch(e){}
+
+  /* ---------- carte de la mémoire ---------- */
+  window.memoCard=function(){ var L=window.memoListe();
+    if(!L.length) return '';
+    var rows=L.slice(0,25).map(function(x){
+      return '<tr><td class="me-k">'+E(x.noyau)+'</td><td>'+E(x.client)+'</td>'
+        +'<td class="me-n">'+x.n+'</td><td class="me-e">'+E(x.exemple)+'</td>'
+        +'<td><button class="btn btn-sm btn-ghost" onclick="memoOublier(\''+E(x.noyau).replace(/'/g,'')+'\')">Oublier</button></td></tr>'; }).join('');
+    return '<div class="card me-card"><div class="card-h"><h2>Libellés bancaires reconnus</h2>'
+      +'<span class="sub" style="margin-left:auto">'+L.length+' libellé(s) appris</span>'
+      +'<button class="btn btn-sm btn-ghost" onclick="memoVider()">Tout oublier</button></div><div class="card-b">'
+      +'<table class="me-t"><thead><tr><th>Ce qui est reconnu</th><th>Client</th><th>Fois</th>'
+      +'<th>Exemple de libellé</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="me-note">Chaque encaissement pointé apprend au logiciel à quel client correspond un libellé de relevé. '
+      +'Les virements suivants du même payeur sont alors reconnus sans numéro de facture, à condition que le montant corresponde. '
+      +'Un libellé oublié cesse immédiatement d’être utilisé.</div>'
+      +'</div></div>'; };
+
+  try{ var _pf=window.pageFacturier; if(typeof _pf==='function'&&!_pf.__me){
+    window.pageFacturier=function(){ var h=_pf.apply(this,arguments);
+      try{ if((''+h).indexOf('me-card')<0) h+=memoCard(); }catch(e){} return h; };
+    window.pageFacturier.__me=1; } }catch(e){}
+  function greffe(){ try{
+    if(!(typeof state!=='undefined'&&state.page==='facturier')) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.me-card')) return;
+    var h=memoCard(); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h; v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  try{ if(M.apresRendu) M.apresRendu(greffe,'me',90);
+       else { var _rd=window.render; if(typeof _rd==='function'&&!_rd.__me){ window.render=function(){ var r=_rd.apply(this,arguments); setTimeout(greffe,90); return r; }; window.render.__me=1; } } }catch(e){}
+
+  var CSS='.me-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.me-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.6;'
+      +'padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.me-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.me-k{font-family:ui-monospace,Menlo,Consolas,monospace}'
+    +'.me-n{text-align:right;font-variant-numeric:tabular-nums;opacity:.75}'
+    +'.me-e{opacity:.6;font-size:11px}'
+    +'.me-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}';
+  try{ if(M.style) M.style('me-css',CSS); else { var st=document.createElement('style'); st.id='me-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+
+
+<script>
+/* ============================================================
+   Mar'q — Étiquettes libres (v700)
+   Des mots posés librement sur un dossier ou sur un client —
+   « urgent », « à relancer », « BTP », « dossier sensible » —
+   pour retrouver d'un coup d'œil ce qui va ensemble. Les
+   étiquettes se posent, se retirent, se renomment partout à la
+   fois, et filtrent la liste des dossiers. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__etiquettes) return; window.__etiquettes=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rd(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+  function qui(){ return sur(function(){ return S(auditUser()); },''); }
+
+  function cfg(){ var p=P(); p.etiquettes=p.etiquettes||{}; var c=p.etiquettes;
+    c.journal=c.journal||[]; return c; }
+  function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true; o.qui=o.qui||qui();
+    c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
+
+  var MAX=28;
+  window.etqNorm=function(s){ return S(s).replace(/\s+/g,' ').slice(0,MAX); };
+  function cle(s){ return window.etqNorm(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+  function entites(type){ var b=B(); return (type==='client')?(b.clients||[]):(b.dossiers||[]); }
+  function ent(type,id){ return entites(type).filter(function(x){ return x.id===id; })[0]||null; }
+  function nomDe(type,e){ if(!e) return '';
+    if(type==='client') return S(((e.prenom||'')+' '+(e.nom||'')).trim()||e.denomination||e.denom||'Client');
+    return S(e.ref||e.numeroDossier||'Dossier'); }
+
+  window.etqListe=function(type,id){ var e=ent(type,id); if(!e) return [];
+    if(!Array.isArray(e.etiquettes)) e.etiquettes=[];
+    return e.etiquettes.slice(); };
+
+  window.etqPoser=function(type,id,nom){ var e=ent(type,id); if(!e) return false;
+    nom=window.etqNorm(nom); if(!nom) return false;
+    if(!Array.isArray(e.etiquettes)) e.etiquettes=[];
+    var k=cle(nom);
+    if(e.etiquettes.some(function(x){ return cle(x)===k; })) return false;
+    e.etiquettes.push(nom);
+    jrn({action:'étiquette posée',ref:nomDe(type,e),detail:'« '+nom+' »'});
+    enr(); return true; };
+
+  window.etqRetirer=function(type,id,nom){ var e=ent(type,id); if(!e||!Array.isArray(e.etiquettes)) return false;
+    var k=cle(nom), av=e.etiquettes.length;
+    e.etiquettes=e.etiquettes.filter(function(x){ return cle(x)!==k; });
+    if(e.etiquettes.length===av) return false;
+    jrn({action:'étiquette retirée',ref:nomDe(type,e),detail:'« '+window.etqNorm(nom)+' »'});
+    enr(); rd(); return true; };
+
+  window.etqToutes=function(){ var map={};
+    ['dossier','client'].forEach(function(t){ entites(t).forEach(function(e){
+      (e.etiquettes||[]).forEach(function(x){ var k=cle(x); if(!k) return;
+        var o=map[k]||(map[k]={nom:window.etqNorm(x),dossiers:0,clients:0});
+        if(t==='client') o.clients++; else o.dossiers++; }); }); });
+    return Object.keys(map).map(function(k){ var o=map[k]; o.total=o.dossiers+o.clients; return o; })
+      .sort(function(a,b){ return (b.total-a.total)||a.nom.localeCompare(b.nom,'fr'); }); };
+
+  window.etqRenommer=function(ancien,nouveau){ nouveau=window.etqNorm(nouveau);
+    if(!nouveau){ T('Indiquez le nouveau nom de l’étiquette.','warn'); return 0; }
+    var ka=cle(ancien), n=0;
+    ['dossier','client'].forEach(function(t){ entites(t).forEach(function(e){
+      if(!Array.isArray(e.etiquettes)) return;
+      var touche=false;
+      e.etiquettes=e.etiquettes.map(function(x){ if(cle(x)!==ka) return x; touche=true; return nouveau; });
+      /* le renommage peut créer un doublon avec une étiquette déjà posée */
+      var vus={}; e.etiquettes=e.etiquettes.filter(function(x){ var k=cle(x); if(vus[k]) return false; vus[k]=1; return true; });
+      if(touche) n++; }); });
+    if(!n){ T('Aucune fiche ne portait cette étiquette.','warn'); return 0; }
+    jrn({action:'étiquette renommée',ref:window.etqNorm(ancien),detail:'devient « '+nouveau+' » · '+n+' fiche(s)'});
+    enr(); rd(); T('Étiquette renommée sur '+n+' fiche(s).','ok'); return n; };
+
+  window.etqEffacer=function(nom){ var k=cle(nom), n=0;
+    ['dossier','client'].forEach(function(t){ entites(t).forEach(function(e){
+      if(!Array.isArray(e.etiquettes)) return; var av=e.etiquettes.length;
+      e.etiquettes=e.etiquettes.filter(function(x){ return cle(x)!==k; });
+      if(e.etiquettes.length!==av) n++; }); });
+    if(!n) return 0;
+    if(cle(ST.filtre)===k) ST.filtre='';
+    jrn({action:'étiquette supprimée',ref:window.etqNorm(nom),detail:'retirée de '+n+' fiche(s)'});
+    enr(); rd(); T('Étiquette retirée de '+n+' fiche(s).','ok'); return n; };
+
+  window.etqPorte=function(type,id,nom){ var k=cle(nom);
+    return window.etqListe(type,id).some(function(x){ return cle(x)===k; }); };
+
+  /* ---------- pose depuis l'écran ---------- */
+  window.etqAjouter=function(type,id){ var e=ent(type,id); if(!e){ T('Fiche introuvable.','warn'); return; }
+    var dejas=window.etqListe(type,id).map(cle);
+    var libres=window.etqToutes().filter(function(o){ return dejas.indexOf(cle(o.nom))<0; }).slice(0,12);
+    var aide=libres.length?('Déjà employées : '+libres.map(function(o){ return o.nom; }).join(' · ')):
+      'Un mot court suffit : urgent, à relancer, BTP, dossier sensible…';
+    var poser=function(v){ if(!S(v)) return;
+      /* plusieurs étiquettes d'un coup, séparées par une virgule */
+      var n=0; S(v).split(',').forEach(function(x){ if(window.etqPoser(type,id,x)) n++; });
+      if(!n){ T('Cette étiquette est déjà posée.','warn'); return; }
+      rd(); T(n+' étiquette(s) posée(s).','ok'); };
+    if(typeof uiPrompt==='function')
+      uiPrompt('Étiquette à poser sur '+nomDe(type,e)+'\n\n'+aide,'',poser,
+        {title:'Nouvelle étiquette',okLabel:'Poser'});
+    else poser(window.prompt('Étiquette :','')); };
+
+  /* ---------- rendu des pastilles ---------- */
+  function teinte(nom){ var h=0, s=cle(nom);
+    for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360;
+    return h; }
+  window.etqChipsHTML=function(type,id,opts){ opts=opts||{};
+    var L=window.etqListe(type,id);
+    var h=L.map(function(x){ var t=teinte(x);
+      return '<span class="etq" style="--h:'+t+'">'+E(x)
+        +(opts.fixe?'':'<button type="button" class="etq-x" title="Retirer cette étiquette" '
+          +'onclick="etqRetirer(\''+E(type)+'\',\''+E(id)+'\',\''+E(x).replace(/'/g,'&#39;')+'\')">×</button>')
+        +'</span>'; }).join('');
+    if(!opts.fixe) h+='<button type="button" class="etq-add" title="Poser une étiquette" '
+      +'onclick="etqAjouter(\''+E(type)+'\',\''+E(id)+'\')">+ Étiquette</button>';
+    return '<div class="etq-strip" data-etq="'+E(type)+':'+E(id)+'">'+h+'</div>'; };
+
+  /* ---------- filtre de la liste des dossiers ---------- */
+  var ST={filtre:''};
+  window.etqFiltrer=function(nom){ ST.filtre=(cle(ST.filtre)===cle(nom))?'':window.etqNorm(nom); rd(); };
+  window.etqFiltreActif=function(){ return ST.filtre; };
+  function barreHTML(){ var L=window.etqToutes().filter(function(o){ return o.dossiers; });
+    if(!L.length) return '';
+    return '<div class="etq-bar"><span class="etq-lab">Étiquettes</span>'
+      +L.map(function(o){ var on=cle(ST.filtre)===cle(o.nom);
+        return '<button type="button" class="etq etq-f'+(on?' on':'')+'" style="--h:'+teinte(o.nom)+'" '
+          +'onclick="etqFiltrer(\''+E(o.nom).replace(/'/g,'&#39;')+'\')">'+E(o.nom)
+          +'<span class="etq-n">'+o.dossiers+'</span></button>'; }).join('')
+      +(ST.filtre?('<button type="button" class="btn btn-sm btn-ghost" onclick="etqFiltrer(\''+E(ST.filtre).replace(/'/g,'&#39;')+'\')">Tout voir</button>'):'')
+      +'</div>'; }
+
+  /* la liste des dossiers du Traitement se filtre par étiquette */
+  try{ var _eml=(typeof window.espMiniList==='function')?window.espMiniList:(typeof espMiniList==='function'?espMiniList:null);
+    if(_eml&&!_eml.__etq){
+      window.espMiniList=function(list,id){
+        var L=list||[];
+        if(ST.filtre) L=L.filter(function(d){ return window.etqPorte('dossier',d.id,ST.filtre); });
+        var h=''+_eml.call(this,L,id);
+        try{ var bar=barreHTML();
+          if(bar&&h.indexOf('etq-bar')<0&&h.indexOf('<div class="esp-mini-list">')>=0)
+            h=h.replace('<div class="esp-mini-list">',bar+'<div class="esp-mini-list">'); }catch(e){}
+        return h; };
+      window.espMiniList.__etq=1; } }catch(e){}
+
+  /* ---------- carte de gestion (Paramètres) ---------- */
+  window.etqCarte=function(){ var L=window.etqToutes();
+    var corps=L.length?('<table class="etq-t"><thead><tr><th>Étiquette</th><th>Dossiers</th><th>Clients</th><th></th></tr></thead><tbody>'
+      +L.map(function(o){ var n=E(o.nom).replace(/'/g,'&#39;');
+        return '<tr><td><span class="etq" style="--h:'+teinte(o.nom)+'">'+E(o.nom)+'</span></td>'
+          +'<td class="etq-c">'+o.dossiers+'</td><td class="etq-c">'+o.clients+'</td>'
+          +'<td class="etq-a"><button type="button" class="btn btn-sm btn-ghost" onclick="etqRenommerDemande(\''+n+'\')">Renommer</button>'
+          +'<button type="button" class="btn btn-sm btn-ghost" onclick="etqEffacerDemande(\''+n+'\')">Retirer partout</button></td></tr>'; }).join('')
+      +'</tbody></table>')
+      :'<div class="hint">Aucune étiquette posée pour l’instant. Ouvrez un dossier ou une fiche client, puis « + Étiquette ».</div>';
+    return '<div class="card etq-card"><div class="card-h"><h2>Étiquettes</h2>'
+      +'<span class="sub" style="margin-left:auto">'+L.length+' étiquette(s)</span></div><div class="card-b">'
+      +corps+'<div class="etq-note">Une étiquette est un mot libre posé sur un dossier ou sur une fiche client. '
+      +'Renommer une étiquette la renomme sur toutes les fiches qui la portent ; la retirer partout ne supprime rien d’autre.</div>'
+      +'</div></div>'; };
+
+  window.etqRenommerDemande=function(nom){
+    var go=function(v){ window.etqRenommer(nom,v); };
+    if(typeof uiPrompt==='function') uiPrompt('Nouveau nom de l’étiquette « '+nom+' » ?',nom,go,
+      {title:'Renommer l’étiquette',okLabel:'Renommer'});
+    else go(window.prompt('Nouveau nom :',nom)); };
+  window.etqEffacerDemande=function(nom){
+    var go=function(){ window.etqEffacer(nom); };
+    if(typeof uiConfirm==='function') uiConfirm('Retirer l’étiquette « '+nom+' » de toutes les fiches qui la portent ?',
+      go,{title:'Retirer l’étiquette',okLabel:'Retirer partout',danger:true});
+    else go(); };
+
+  try{ var _pp=(typeof window.pageParams==='function')?window.pageParams:(typeof pageParams==='function'?pageParams:null);
+    if(_pp&&!_pp.__etq){ window.pageParams=function(){ var h=_pp.apply(this,arguments);
+      try{ if((''+h).indexOf('etq-card')<0){ var i=(''+h).lastIndexOf('<div class="flow-note"');
+        h=(i>=0)?((''+h).slice(0,i)+window.etqCarte()+(''+h).slice(i)):(h+window.etqCarte()); } }catch(e){}
+      return h; }; window.pageParams.__etq=1; } }catch(e){}
+
+  /* ---------- pose des pastilles sur les écrans ---------- */
+  function poser(hote,type,id){ if(!hote||hote.querySelector('.etq-strip')) return;
+    var t=document.createElement('div'); t.innerHTML=window.etqChipsHTML(type,id);
+    hote.appendChild(t.firstElementChild); }
+  function decorer(){ try{ if(typeof state==='undefined') return;
+    if(state.page==='espace'&&state.espaceDossier) poser(document.querySelector('.tr-head .tr-id'),'dossier',state.espaceDossier);
+    if(state.page==='clients'&&state.cliSel){ var hd=document.querySelector('.cli-fiche-head');
+      poser(hd&&hd.firstElementChild,'client',state.cliSel); } }catch(e){} }
+  try{ if(M.apresRendu) M.apresRendu(decorer,'etq',60);
+       else { var _r=window.render; if(typeof _r==='function'&&!_r.__etq){
+         window.render=function(){ var o=_r.apply(this,arguments); setTimeout(decorer,60); return o; };
+         window.render.__etq=1; } } }catch(e){}
+  try{ var busy=false; var mo=new MutationObserver(function(){ if(busy) return; busy=true;
+        setTimeout(function(){ try{ decorer(); }finally{ busy=false; } },70); });
+      mo.observe(document.getElementById('view')||document.body,{childList:true,subtree:true}); }catch(e){}
+
+  /* le journal est repris tel quel par l'audit consolidé, qui parcourt
+     les journaux de DB.parametres ; il ne reste qu'à le nommer. */
+
+  var CSS='.etq-strip{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:7px}'
+    +'.etq{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:11px;line-height:1.6;'
+      +'border:1px solid hsl(var(--h,210) 55% 52% / .55);background:hsl(var(--h,210) 55% 52% / .13);color:inherit}'
+    +'.etq-x{border:0;background:transparent;color:inherit;opacity:.5;cursor:pointer;font-size:13px;line-height:1;padding:0 0 0 1px}'
+    +'.etq-x:hover{opacity:1}'
+    +'.etq-add{border:1px dashed var(--line,#3a3a41);background:transparent;color:inherit;opacity:.65;'
+      +'border-radius:999px;padding:2px 9px;font-size:11px;cursor:pointer;line-height:1.6}'
+    +'.etq-add:hover{opacity:1}'
+    +'.etq-bar{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin:0;padding:0 10px 9px}'
+    +'.etq-lab{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;opacity:.55;margin-right:2px}'
+    +'.etq-f{cursor:pointer}.etq-f.on{border-width:2px;font-weight:600}'
+    +'.etq-n{opacity:.6;font-variant-numeric:tabular-nums;margin-left:2px}'
+    +'.etq-t{width:100%;border-collapse:collapse;font-size:12px}'
+    +'.etq-t th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;opacity:.6;'
+      +'padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}'
+    +'.etq-t td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07)}'
+    +'.etq-c{text-align:right;font-variant-numeric:tabular-nums;width:72px}'
+    +'.etq-a{text-align:right;white-space:nowrap}'
+    +'.etq-note{margin-top:10px;font-size:11.5px;opacity:.72;line-height:1.55}';
+  try{ if(M.style) M.style('etq-css',CSS); else { var st=document.createElement('style'); st.id='etq-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+   Mar'q — Fil du dossier (v699)
+   Tout ce qui s'est passé sur un dossier, dans l'ordre, au même
+   endroit : étapes franchies, suivi, courriers, notes, devis et
+   factures, encaissements, temps passé. Consultable, filtrable,
+   imprimable, exportable. 100 % additif — aucune donnée créée.
+   ============================================================ */
+(function(){
+  if(window.__filDossier) return; window.__filDossier=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ return M.db?M.db():((typeof DB!=='undefined'&&DB)||{}); }
+  function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ if(M.dire) M.dire(m,t); else { try{ toast(m); }catch(e){} } }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function sur(f,d){ return M.sur?M.sur(f,d):(function(){ try{ return f(); }catch(e){ return d; } })(); }
+  function eur(v){ return M.eur?M.eur(v):((+v||0).toFixed(2)+' €'); }
+  function dossier(id){ return (B().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }
+
+  var CATS=[['etape','Étapes'],['suivi','Suivi'],['courrier','Courriers'],
+            ['note','Notes'],['facture','Facturation'],['temps','Temps passé']];
+  var LBL={}; CATS.forEach(function(c){ LBL[c[0]]=c[1]; });
+  var WFL={demande:'Demande',pieces:'Pièces',actes:'Actes',attestations:'Attestations',
+           immatriculation:'Immatriculation',cloture:'Clôture'};
+
+  /* ---------- dates ---------- */
+  function jourDe(v){ v=S(v); var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[1]+'-'+m[2]+'-'+m[3];
+    m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(m) return m[3]+'-'+m[2]+'-'+m[1];
+    return ''; }
+  function tsDeJour(j){ var t=Date.parse(j+'T12:00:00'); return isNaN(t)?0:t; }
+  function jourDeTs(ts){ try{ var d=new Date(ts);
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }catch(e){ return ''; } }
+  function frJour(j){ try{ var p=(''+j).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }catch(e){ return j; } }
+  function frHeure(ts){ try{ return new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function jourLong(j){ try{ var d=new Date(j+'T12:00:00');
+    return d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }catch(e){ return frJour(j); } }
+
+  function nomClient(d){ return sur(function(){
+    if(M.nomClient){ var n=M.nomClient(d); if(n) return n; }
+    var c=(B().clients||[]).filter(function(x){ return (d.clientIds||[]).indexOf(x.id)>=0; })[0];
+    if(c) return S(((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||c.denom||'');
+    return S(d.clientNom||''); },''); }
+  function refD(d){ return S(d.ref||d.numeroDossier||'Dossier'); }
+
+  /* ---------- rassemblement ---------- */
+  function ev(o){ if(!o.jour&&o.ts) o.jour=jourDeTs(o.ts);
+    if(!o.ts&&o.jour){ o.ts=tsDeJour(o.jour); o.approx=true; }
+    return o; }
+
+  window.filDossier=function(id){
+    var d=dossier(id); if(!d) return null;
+    var p=P(), out=[];
+
+    /* les étapes franchies, horodatées */
+    var etapesVues={};
+    Object.keys(d.wf||{}).forEach(function(k){ var v=(d.wf||{})[k];
+      if(k.indexOf('__')===0||!WFL[k]||!(+v>1e11)) return;
+      etapesVues[WFL[k]]=1;
+      out.push(ev({ts:+v,cat:'etape',titre:'Étape « '+WFL[k]+' » validée'})); });
+
+    /* le suivi du dossier, tel qu'il s'est écrit au fil de l'eau */
+    (d.historique||[]).forEach(function(h){ var t=S(h.t); if(!t) return;
+      var m=t.match(/^Étape « (.+) » validée$/);
+      if(m&&etapesVues[m[1]]) return;              /* déjà porté par l'étape horodatée */
+      out.push(ev({jour:jourDe(h.d),cat:'suivi',titre:t})); });
+
+    /* les notes prises sur le dossier */
+    var TN={note:'Note',appel:'Appel',rdv:'Rendez-vous',afaire:'À faire'};
+    (d.notesList||[]).forEach(function(n){
+      out.push(ev({ts:+n.ts||0,cat:'note',titre:(TN[n.type]||'Note')+(n.type==='afaire'&&n.fait?' · fait':''),
+        detail:S(n.txt),qui:S(n.qui)})); });
+
+    /* devis, factures et encaissements du dossier */
+    (p.facturier||[]).forEach(function(f){ if(f.dossierId!==id) return;
+      var mt=sur(function(){ var c=window.invCalc(f); return c&&c.net!=null?+c.net:+f.ttc||0; },+f.ttc||0);
+      var quoi=(f.type==='devis'?'Devis':'Facture')+' '+S(f.numero||'');
+      var j=jourDe(f.dateEmise)||jourDe(f.date)||(f.ts?jourDeTs(f.ts):'');
+      if(j||f.ts) out.push(ev({jour:j,ts:(!j&&f.ts)?+f.ts:0,cat:'facture',
+        titre:quoi+' — '+eur(mt),detail:S(f.clNom||f.clientNom||'')}));
+      if(f.paye) out.push(ev({jour:jourDe(f.paye.date)||jourDeTs(+f.paye.ts||Date.now()),cat:'facture',
+        titre:'Encaissement de '+quoi+' — '+eur(+f.paye.montant||mt),
+        detail:S(f.paye.mode||'')+(f.paye.releve&&f.paye.releve.lib?(' · '+S(f.paye.releve.lib)):'')})); });
+
+    /* temps passé */
+    ((p.tempsChaine||{}).lignes||[]).forEach(function(l){ if(l.dossierId!==id) return;
+      var h=Math.floor((+l.min||0)/60), mn=(+l.min||0)%60;
+      out.push(ev({jour:jourDe(l.date)||jourDeTs(+l.ts||0),cat:'temps',
+        titre:'Temps passé — '+(h?h+' h':'')+(mn?(h?' ':'')+mn+' min':(h?'':'0 min')),
+        detail:S(l.objet)+(l.facture?' · porté en facture':'')})); });
+
+    /* liens envoyés au client */
+    var ref=refD(d), no=S(d.numeroDossier);
+    (p.partagesLien||[]).forEach(function(r){ var n=S(r.numero);
+      if(!n||(n!==ref&&n!==no)) return;
+      var quoi=/depot\.html/.test(''+r.url)?'lien de dépôt de pièces'
+        :(/questionnaire\.html|infos\.html/.test(''+r.url)?'questionnaire':'lien');
+      out.push(ev({ts:+r.ts||0,cat:'courrier',titre:'Envoi d’un '+quoi+(r.canal?(' par '+r.canal):''),
+        detail:S(r.dest)})); });
+
+    out=out.filter(function(x){ return x.ts>0; });
+    out.sort(function(a,b){ return (b.ts-a.ts)||(a.approx?1:-1); });
+    return {id:id,ref:ref,nom:nomClient(d),formalite:S(d.formalite||d.formaliteType||''),evts:out}; };
+
+  /* ---------- affichage ---------- */
+  var ST={id:'',cat:'',sens:'recent'};
+  window.filCat=function(c){ ST.cat=c||''; peindre(); };
+  window.filSens=function(){ ST.sens=(ST.sens==='recent')?'ancien':'recent'; peindre(); };
+
+  function retenus(F){ var L=F.evts.slice();
+    if(ST.cat) L=L.filter(function(x){ return x.cat===ST.cat; });
+    if(ST.sens==='ancien') L=L.slice().reverse();
+    return L; }
+
+  function listeHTML(F){ var L=retenus(F);
+    if(!L.length) return '<div class="fl-vide">Rien à montrer pour ce filtre.</div>';
+    var h='', jour=null;
+    L.forEach(function(x){
+      if(x.jour!==jour){ jour=x.jour;
+        h+='<div class="fl-jour">'+E(jourLong(jour))+'</div>'; }
+      h+='<div class="fl-it fl-'+E(x.cat)+'">'
+        +'<span class="fl-h">'+E(x.approx?'—':frHeure(x.ts))+'</span>'
+        +'<span class="fl-c">'+E(LBL[x.cat]||'')+'</span>'
+        +'<span class="fl-t"><b>'+E(x.titre)+'</b>'
+        +(x.detail?('<em>'+E(x.detail)+'</em>'):'')
+        +(x.qui?('<i>'+E(x.qui)+'</i>'):'')+'</span></div>'; });
+    return h; }
+
+  function barreHTML(F){ var n={}; F.evts.forEach(function(x){ n[x.cat]=(n[x.cat]||0)+1; });
+    var chips='<button type="button" class="fl-chip'+(ST.cat?'':' on')+'" onclick="filCat(\'\')">Tout <span>'+F.evts.length+'</span></button>'
+      +CATS.filter(function(c){ return n[c[0]]; }).map(function(c){
+        return '<button type="button" class="fl-chip'+(ST.cat===c[0]?' on':'')+'" onclick="filCat(\''+c[0]+'\')">'
+          +E(c[1])+' <span>'+n[c[0]]+'</span></button>'; }).join('');
+    return '<div class="fl-bar">'+chips
+      +'<button type="button" class="btn btn-sm btn-ghost fl-sens" onclick="filSens()">'
+      +(ST.sens==='recent'?'Du plus récent':'Du plus ancien')+'</button>'
+      +'<button type="button" class="btn btn-sm" onclick="filImprimer()">Imprimer</button>'
+      +'<button type="button" class="btn btn-sm btn-ghost" onclick="filCSV()">Exporter (CSV)</button></div>'; }
+
+  function corpsHTML(F){
+    return '<div class="fl-wrap">'+barreHTML(F)
+      +'<div class="fl-list" id="fl-list">'+listeHTML(F)+'</div></div>'; }
+
+  function peindre(){ var F=window.filDossier(ST.id); if(!F) return;
+    var w=document.querySelector('.fl-wrap'); if(!w) return;
+    var t=document.createElement('div'); t.innerHTML=corpsHTML(F);
+    w.replaceWith(t.firstElementChild); }
+
+  window.filOuvrir=function(id){ var F=window.filDossier(id);
+    if(!F){ T('Dossier introuvable.','warn'); return; }
+    ST.id=id; ST.cat=''; ST.sens='recent';
+    if(!F.evts.length){ T('Ce dossier n’a encore aucun événement.','info'); return; }
+    var titre='Fil du dossier · '+F.ref+(F.nom?(' — '+F.nom):'');
+    if(typeof openModal==='function')
+      openModal(E(titre),corpsHTML(F),'<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'); };
+
+  /* ---------- export ---------- */
+  window.filCSV=function(id){ var F=window.filDossier(id||ST.id); if(!F) return;
+    var L=retenus(F);
+    var lignes=L.map(function(x){ return [frJour(x.jour),x.approx?'':frHeure(x.ts),
+      LBL[x.cat]||x.cat,x.titre,x.detail||'',x.qui||'']; });
+    var nom='fil-'+(F.ref||'dossier').replace(/[^A-Za-z0-9_-]+/g,'-')+'.csv';
+    if(M.csv) M.csv(['Date','Heure','Nature','Événement','Détail','Par'],lignes,nom);
+    T(L.length+' événement(s) exporté(s).','ok'); };
+
+  /* ---------- impression ---------- */
+  var PRINT='body{margin:0;background:#f2f2f3;font:12.5px/1.55 "Segoe UI",system-ui,Arial,sans-serif;color:#111}'
+    +'.fl-doc{width:210mm;min-height:297mm;box-sizing:border-box;padding:16mm 15mm 18mm;margin:0 auto;background:#fff}'
+    +'.fl-top{border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}'
+    +'.fl-top h1{margin:0;font-size:21px}.fl-top .s{color:#555;font-size:12px;margin-top:3px}'
+    +'.fl-d-jour{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:700;color:#444;'
+      +'border-bottom:1px solid #ccc;padding-bottom:3px;margin:14px 0 6px}'
+    +'.fl-d-it{display:flex;gap:10px;padding:4px 0;page-break-inside:avoid;border-bottom:1px solid #eee}'
+    +'.fl-d-h{flex:none;width:42px;color:#666;font-variant-numeric:tabular-nums}'
+    +'.fl-d-c{flex:none;width:92px;color:#666;font-size:11px}'
+    +'.fl-d-t{min-width:0}.fl-d-t em{display:block;color:#555;font-style:normal;font-size:11.5px}'
+    +'.fl-foot{margin-top:18px;padding-top:9px;border-top:1px solid #ccc;font-size:11.5px;color:#444}'
+    +'@page{size:A4;margin:0}@media print{body{background:#fff}}';
+
+  function jourDeTs2(){ return M.auj?M.auj():jourDeTs(Date.now()); }
+  window.filDocHTML=function(id){ var F=window.filDossier(id||ST.id); if(!F) return '';
+    var L=retenus(F), h='', jour=null;
+    L.forEach(function(x){ if(x.jour!==jour){ jour=x.jour; h+='<div class="fl-d-jour">'+E(jourLong(jour))+'</div>'; }
+      h+='<div class="fl-d-it"><span class="fl-d-h">'+E(x.approx?'—':frHeure(x.ts))+'</span>'
+        +'<span class="fl-d-c">'+E(LBL[x.cat]||'')+'</span>'
+        +'<span class="fl-d-t"><b>'+E(x.titre)+'</b>'
+        +(x.detail?('<em>'+E(x.detail)+'</em>'):'')+(x.qui?('<em>'+E(x.qui)+'</em>'):'')+'</span></div>'; });
+    var cab=sur(function(){ return S((P().cabinet||{}).nom)||'AEM CONSEIL'; },'AEM CONSEIL');
+    return '<div class="fl-doc"><div class="fl-top"><h1>Fil du dossier '+E(F.ref)+'</h1>'
+      +'<div class="s">'+E(F.nom||'')+(F.formalite?(' · '+E(F.formalite)):'')
+      +' · '+L.length+' événement'+(L.length>1?'s':'')
+      +(ST.cat?(' · '+E(LBL[ST.cat])):'')+'</div></div>'
+      +(h||'<div class="fl-d-it">Aucun événement.</div>')
+      +'<div class="fl-foot">'+E(cab)+' — édité le '+E(frJour(jourDeTs2()))+'</div></div>'; };
+
+  window.filImprimer=function(id){ var F=window.filDossier(id||ST.id);
+    if(!F){ T('Rien à imprimer.','warn'); return; }
+    var html=window.filDocHTML(id||ST.id);
+    var w=null; try{ w=window.open('','_blank'); }catch(e){}
+    if(!w){ T('Autorisez les fenêtres pour imprimer le fil du dossier.','warn'); return; }
+    w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fil du dossier '
+      +E(F.ref)+'</title><style>'+PRINT+'</style></head><body>'+html
+      +'<script>setTimeout(function(){window.print();},250);<\/script></body></html>');
+    w.document.close(); };
+
+  /* ---------- accès : bouton dans le Traitement ---------- */
+  try{ var _tc=window.espTraitementCard;
+    if(typeof _tc==='function'&&!_tc.__fl){
+      window.espTraitementCard=function(d){ var h=_tc.apply(this,arguments);
+        try{ if(d&&d.id&&(''+h).indexOf('filOuvrir')<0){
+          var b='<button class="tr-b" onclick="filOuvrir(\''+d.id+'\')">'
+            +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            +'<path d="M6 3v18"/><circle cx="6" cy="7" r="2"/><circle cx="6" cy="15" r="2"/><path d="M10 7h9M10 15h6"/></svg>'
+            +'<span>Fil du dossier</span></button>';
+          var i=h.lastIndexOf('</div></div></div>');
+          if(i>0) h=h.slice(0,i)+b+h.slice(i); } }catch(e){}
+        return h; };
+      window.espTraitementCard.__fl=1; } }catch(e){}
+
+  var CSS='.fl-wrap{min-width:0}'
+    +'.fl-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}'
+    +'.fl-chip{border:1px solid var(--line,#3a3a41);background:transparent;color:inherit;border-radius:999px;'
+      +'padding:3px 11px;font-size:11.5px;cursor:pointer;line-height:1.5}'
+    +'.fl-chip span{opacity:.55;margin-left:3px;font-variant-numeric:tabular-nums}'
+    +'.fl-chip.on{border-color:currentColor;font-weight:600}'
+    +'.fl-sens{margin-left:auto}'
+    +'.fl-list{max-height:62vh;overflow:auto;padding-right:4px}'
+    +'.fl-jour{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;opacity:.6;font-weight:700;'
+      +'margin:14px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--line,#2a2a2e)}'
+    +'.fl-jour:first-child{margin-top:0}'
+    +'.fl-it{display:flex;gap:10px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.055);font-size:12px}'
+    +'.fl-h{flex:none;width:40px;opacity:.55;font-variant-numeric:tabular-nums}'
+    +'.fl-c{flex:none;width:92px;opacity:.55;font-size:11px}'
+    +'.fl-t{min-width:0}.fl-t b{font-weight:600}'
+    +'.fl-t em,.fl-t i{display:block;font-style:normal;opacity:.62;font-size:11px}'
+    +'.fl-vide{opacity:.6;font-size:12px;padding:14px 2px}';
+  try{ if(M.style) M.style('fl-css',CSS); else { var st=document.createElement('style'); st.id='fl-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
 })();
 </script>
 </body>
