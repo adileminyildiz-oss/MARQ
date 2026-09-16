@@ -1718,7 +1718,13 @@ function creerDossierDepuis(id,noNav){
     c={id:uid('c'),prenom:parts[0]||'',nom:parts.slice(1).join(' ')||parts[0]||'Client',email:d.clientEmail,tel:d.clientTel,
       adresse:'',parts:0,capital:0,activites:[],associes:[],createdAt:today()};
     DB.clients.push(c);}
-  const ref='DOS-'+(DB.seq.dossier++);
+  /* v704 : un seul générateur de numéro de dossier — celui réglé dans les Paramètres.
+     Un numéro déjà fourni par le questionnaire fait foi : on le reprend au lieu d'en
+     tirer un second, sinon la fiche porterait deux numéros et le compteur avancerait
+     pour rien. */
+  const fourni=(''+((d.numeroDossier||(d.intake&&d.intake.numeroDossier))||'')).trim();
+  const ref=fourni||((typeof window.numDossierNext==='function')?window.numDossierNext():('DOS-'+(DB.seq.dossier++)));
+  try{ if(fourni&&window.MQNum&&window.MQNum.inscrire) window.MQNum.inscrire(fourni,'dossier','Dossier',''); }catch(e){}
   const dos={id:uid('do'),ref,clientIds:[c.id],serviceIds:[],statut:'Qualification',assigneA:d.assigneA,createdAt:today(),
     historique:[{d:today(),t:'Créé depuis la demande de '+d.clientNom}]};
   /* Phase 4 — pré-remplissage automatique de la fiche client depuis le questionnaire (d.intake) → actes pré-remplis */
@@ -1770,7 +1776,8 @@ const dossierMontant=d=>d.serviceIds.reduce((s,id)=>{const v=svcById(id);return 
 function assigneTag(d){return '';}
 
 function modalNewDossier(){
-  const dos={id:'',ref:'DOS-'+DB.seq.dossier,clientIds:[],serviceIds:[],statut:'Nouveau',assigneA:''};
+  const apercu=(typeof window.numDossierPreview==='function')?window.numDossierPreview():('DOS-'+DB.seq.dossier);
+  const dos={id:'',ref:apercu,clientIds:[],serviceIds:[],statut:'Nouveau',assigneA:''};
   modalDossier(null,dos);
 }
 function modalDossier(id,draft){
@@ -1795,7 +1802,10 @@ function saveDossier(id,newref){
   if(id){const d=DB.dossiers.find(x=>x.id===id);const chg=d.statut!==stat;
     d.statut=stat;d.clientIds=[...window._dcl];d.serviceIds=[...window._dsv];
     if(chg)(d.historique=d.historique||[]).push({d:today(),t:'Statut → '+stat});
-  }else{DB.dossiers.unshift({id:uid('do'),ref:newref,clientIds:[...window._dcl],serviceIds:[...window._dsv],
+  }else{
+    /* v704 : l'aperçu n'était qu'un aperçu — le numéro se tire ici, à l'enregistrement. */
+    const ref=(typeof window.numDossierNext==='function')?window.numDossierNext():newref;
+    DB.dossiers.unshift({id:uid('do'),ref:ref,numeroDossier:ref,clientIds:[...window._dcl],serviceIds:[...window._dsv],
     statut:stat,createdAt:today(),historique:[{d:today(),t:'Dossier créé'}]});DB.seq.dossier++;}
   save();closeModal();toast('Dossier enregistré');render();
 }
@@ -3337,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=703;
+var LAST_VER=704;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -11559,7 +11569,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   /* Attribue un numéro configuré à la création d'un dossier (si absent) */
   if(typeof window.creerDossierDepuis==='function'){var _cd=window.creerDossierDepuis;
     window.creerDossierDepuis=function(){var d=_cd.apply(this,arguments);
-      try{ if(d&&!( (''+(d.numeroDossier||'')).trim() )){ d.numeroDossier=window.numDossierNext(); if(typeof save==='function')save(); } }catch(e){}
+      try{ if(d&&!( (''+(d.numeroDossier||'')).trim() )){
+        /* v704 : le dossier porte déjà sa référence — on la reprend au lieu de tirer
+           un second numéro, sinon la même fiche en afficherait deux différents. */
+        var r=(''+(d.ref||'')).trim();
+        d.numeroDossier = r || window.numDossierNext();
+        if(typeof save==='function')save(); } }catch(e){}
       return d;};}
 
   window.numCfgSave=function(){var c=window.numCfg();var g=function(x){return document.getElementById(x);};
@@ -42415,7 +42430,7 @@ function testLienSignature() {
   function entite(id){ var B=(typeof DB!=='undefined'&&DB)||window.DB||{}; return ((B.dossiers||[]).filter(function(x){ return x.id===id; })[0])||((B.demandes||[]).filter(function(x){ return x.id===id; })[0])||null; }
   window.lienDepotPartagerId=function(id){ var d=entite(id); if(!d){ try{ toast('Dossier introuvable.',null,'warn'); }catch(e){} return; }
     var url=''; try{ url=(typeof depotLien==='function')?depotLien(d):''; }catch(e){}
-    if(!url){ /* dossier sans numéro : on en attribue un, comme pour le questionnaire */ try{ if(!d.numeroDossier&&!d.ref){ d.numeroDossier='DOS-'+new Date().getFullYear()+'-'+String(Math.floor(Math.random()*900000+100000)); if(typeof save==='function') save(); url=depotLien(d); } }catch(e){} }
+    if(!url){ /* dossier sans numéro : on en attribue un, comme pour le questionnaire */ try{ if(!d.numeroDossier&&!d.ref){ d.numeroDossier=(typeof window.numDossierNext==='function')?window.numDossierNext():('DOS-'+new Date().getFullYear()+'-'+String(Math.floor(Math.random()*900000+100000))); if(typeof save==='function') save(); url=depotLien(d); } }catch(e){} }
     if(!url){ try{ toast('Impossible de générer le lien de dépôt pour ce dossier.',null,'warn'); }catch(e){} return; }
     if(typeof lienDepotPartager==='function') lienDepotPartager(d); else if(typeof lienPartager==='function') lienPartager(url,{numero:d.numeroDossier||d.ref||''}); };
   function bouton(d){ return '<button type="button" class="btn btn-sm btn-pri dl-btn" onclick="lienDepotPartagerId(\''+E(d.id)+'\')" title="Envoyer au client le lien sécurisé pour déposer ses pièces (e-mail, WhatsApp, SMS, QR code)">Envoyer le lien de dépôt</button>'; }
@@ -46117,6 +46132,16 @@ function testLienSignature() {
     r.attribues[fin]={type:type||'',objet:objet||'',id:id||'',ts:ts()};
     enr(); return fin;
   }
+  /* Consigne un numéro imposé de l'extérieur (questionnaire, reprise) sans le déplacer :
+     s'il était déjà pris, on ne le change pas — le doublon est signalé par le contrôle. */
+  function inscrire(num,type,objet,id){
+    num=''+(num||''); if(!num) return num;
+    var r=REG(), e=r.attribues[num];
+    if(e && e.id!==id){ noter({action:'doublon',numero:num,type:type||'',objet:objet||'',id:id||''}); enr(); return num; }
+    r.attribues[num]={type:type||'',objet:objet||'',id:id||'',ts:ts()};
+    noter({action:'attribution',numero:num,type:type||'',objet:objet||'',id:id||''}); enr(); return num;
+  }
+
   /* Propose un numéro libre sans le consommer (brouillons). */
   function proposer(num){ var fin=''+(num||''), n=0; while(!libre(fin) && n++<9999) fin=suivant(fin); return fin; }
 
@@ -46140,7 +46165,7 @@ function testLienSignature() {
   }
 
   window.MQNum={ registre:REG, libre:libre, suivant:suivant, proposer:proposer,
-                 attribuer:attribuer, reprise:reprise };
+                 attribuer:attribuer, inscrire:inscrire, reprise:reprise };
 
   /* ---------- Greffes sur les générateurs ---------- */
   /* Factures / devis / avoirs : proposition libre au brouillon, attribution ferme à l'émission. */
@@ -46179,6 +46204,18 @@ function testLienSignature() {
         return attribuer(v,'dossier','Dossier',''); };
       window.numDossierNext.__num703=1; } }catch(e){}
 
+  /* Dossiers créés par le formulaire : même générateur que partout ailleurs.
+     Trois numérotations coexistaient — DOS-3 (modale), DOS00001 (formulaire),
+     DOS-2026-001 (format configuré) — et la même fiche pouvait en porter deux. */
+  try{ if(typeof window.formTakeDossierNum==='function' && typeof window.numDossierNext==='function'
+        && !window.formTakeDossierNum.__num704){
+      window.formTakeDossierNum=function(){ return window.numDossierNext(); };
+      window.formTakeDossierNum.__num704=1; }
+    if(typeof window.formNextDossierNum==='function' && typeof window.numDossierPreview==='function'
+        && !window.formNextDossierNum.__num704){
+      window.formNextDossierNum=function(){ return window.numDossierPreview(); };
+      window.formNextDossierNum.__num704=1; } }catch(e){}
+
   /* Demandes */
   try{ var _dc=window.demCodeGen;
     if(typeof _dc==='function' && !_dc.__num703){
@@ -46195,12 +46232,6 @@ function testLienSignature() {
         return attribuer(v,'service','Traitement',''); };
       window.formTakeServiceNum.__num703=1; } }catch(e){}
 
-  try{ var _dn=window.formTakeDossierNum;
-    if(typeof _dn==='function' && !_dn.__num703){
-      window.formTakeDossierNum=function(){ var v=_dn.apply(this,arguments), n=0;
-        while(!libre(v) && n++<200) v=_dn.apply(this,arguments);
-        return attribuer(v,'dossier','Dossier',''); };
-      window.formTakeDossierNum.__num703=1; } }catch(e){}
 
   /* ---------- Contrôle de cohérence ---------- */
   function norm(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
@@ -46297,6 +46328,7 @@ function testLienSignature() {
       h+='</ul></details>'; }
 
     h+='<div class="row-btns"><button class="btn" onclick="numReprise()">Reprendre les numéros existants</button>'
+      +(a.dossiers.length?'<button class="btn" onclick="numAligner()">Aligner les numéros de dossier</button>':'')
       +'<button class="btn" onclick="numExport()">Exporter le registre (CSV)</button></div>'
       +'</div></div>';
     return h;
@@ -46305,6 +46337,29 @@ function testLienSignature() {
   window.numReprise=function(){ var n=reprise();
     T(n?(n+' numéro(s) inscrit(s) au registre.'):'Tous les numéros en circulation sont déjà au registre.','success');
     try{ if(typeof render==='function') render(); }catch(e){} };
+
+  /* Aligne ref et numeroDossier sur les dossiers déjà en base.
+     Le numéro configuré fait foi ; s'il manque, la référence en tient lieu. */
+  window.numAligner=function(){
+    var l=[]; dossiers().forEach(function(d){ if(!d) return;
+      var r=(''+(d.ref||'')).trim(), n=(''+(d.numeroDossier||'')).trim();
+      if(r&&n&&r!==n) l.push({d:d,de:r,vers:n});
+      else if(r&&!n) l.push({d:d,de:'',vers:r});
+      else if(!r&&n) l.push({d:d,de:'',vers:n}); });
+    if(!l.length){ T('Chaque dossier ne porte déjà qu\'un seul numéro.','success'); return; }
+    var chg=l.filter(function(x){ return x.de; });
+    var faire=function(){
+      l.forEach(function(x){ x.d.ref=x.vers; x.d.numeroDossier=x.vers;
+        if(!REG().attribues[x.vers]) REG().attribues[x.vers]={type:'dossier',objet:'Dossier',id:x.d.id||'',ts:ts(),reprise:1};
+        if(x.de) noter({action:'alignement',numero:x.vers,avant:x.de,type:'dossier',objet:'Dossier',id:x.d.id||''}); });
+      enr(); T(l.length+' dossier(s) alignés sur un numéro unique.','success');
+      try{ if(typeof render==='function') render(); }catch(e){} };
+    if(chg.length && typeof uiConfirm==='function')
+      uiConfirm(chg.length+' dossier(s) portent deux numéros. La référence affichée deviendra le numéro configuré ('
+        +chg.slice(0,3).map(function(x){ return x.de+' → '+x.vers; }).join(', ')+(chg.length>3?'…':'')
+        +'). Cette référence apparaît partout dans le logiciel.',faire,{okLabel:'Aligner'});
+    else faire();
+  };
 
   window.numExport=function(){
     var r=REG(), l=[['Numéro','Type','Objet','Identifiant','Attribué le','Reprise']];

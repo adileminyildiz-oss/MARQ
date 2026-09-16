@@ -25,8 +25,11 @@ await ev(()=>{ closeModal(); render(); }); await p.waitForTimeout(300);
 w=await ev(()=>document.querySelectorAll('.esp-tabpanel[data-tab="pieces"] .dl-btn').length);
 T('Après re-rendu : un seul bouton (idempotent)', w===1, 'n='+w);
 // dossier sans numéro
-w=await ev(()=>{ DB.dossiers.push({id:'do-n',clientIds:['c1'],serviceIds:[],statut:'Nouveau',createdAt:'2026-09-01',historique:[]}); lienDepotPartagerId('do-n'); const d=DB.dossiers[1]; return {no:d.numeroDossier,url:(document.getElementById('pl-url')||{}).value}; });
-T('Dossier sans numéro : numéro attribué puis lien généré', /^DOS-\d{4}-\d{6}$/.test(w.no||'')&&w.url.indexOf('depot.html?d='+w.no)>=0, JSON.stringify(w));
+w=await ev(()=>{ DB.dossiers.push({id:'do-n',clientIds:['c1'],serviceIds:[],statut:'Nouveau',createdAt:'2026-09-01',historique:[]}); lienDepotPartagerId('do-n'); const d=DB.dossiers[1]; return {no:d.numeroDossier,url:(document.getElementById('pl-url')||{}).value,registre:!!(window.MQNum&&window.MQNum.registre().attribues[d.numeroDossier])}; });
+/* v704 : le numéro de repli n'est plus tiré au hasard — c'est le générateur configuré
+   (donc au format des Paramètres, inscrit au registre et garanti unique). */
+T('Dossier sans numéro : numéro attribué au format configuré, inscrit au registre, puis lien généré',
+  /^DOS-\d{4}-\d{3,6}$/.test(w.no||'')&&w.url.indexOf('depot.html?d='+w.no)>=0&&w.registre, JSON.stringify(w));
 await ev(()=>{ closeModal(); state.espaceDossier='do-t'; render(); try{ trwGo('pieces'); }catch(e){} }); await p.waitForTimeout(300); await p.screenshot({path:'v681-depot-btn.png'});
 await p.click('.esp-tabpanel[data-tab="pieces"] .card-h .dl-btn'); await p.waitForTimeout(400); await p.screenshot({path:'v681-depot-modal.png'});
 T('0 erreur de page', errs.length===0, errs.join(' | '));
