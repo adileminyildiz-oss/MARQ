@@ -29,7 +29,7 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Roy', prenom: 'Ana', naissance: '1988-01-01', nationalite: 'Française', adresse: '3 rue Neuve Lyon' },
     associes: [{ nom: 'Roy', prenom: 'Ana', apport: '600', parts: '600' }, { nom: 'Sy', prenom: 'Omar', apport: '400', parts: '400' }],
     contact: { nom: 'Roy', prenom: 'Ana', email: 'ana@omega.fr' } };
-  const d = { id: 't-ag', clientNom: 'Ana Roy', clientEmail: 'ana@omega.fr', statut: 'Qualification', intake };
+  const d = { id: 't-ag', clientNom: 'Ana Roy', clientEmail: 'ana@omega.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(d);
   const dos = creerDossierDepuis(d.id, true);
   const c = clientById(dos.clientIds[0]);

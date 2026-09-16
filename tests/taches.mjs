@@ -30,7 +30,9 @@ const r = await page.evaluate(() => {
       direction: { nom: 'N' + id, prenom: 'P', naissance: '1980-01-01', nationalite: 'Française', adresse: '1 rue Paris' },
       associes: [{ nom: 'N' + id, prenom: 'P', apport: '600', parts: '600' }, { nom: 'M' + id, prenom: 'Q', apport: '400', parts: '400' }],
       contact: { nom: 'N' + id, prenom: 'P', email: mail } };
-    const dd = { id: 'dd-' + id, clientNom: 'Client ' + id, clientEmail: mail, statut: 'Qualification', intake };
+    const dd = { id: 'dd-' + id, clientNom: 'Client ' + id, clientEmail: mail, statut: 'Qualification',
+      /* seule une demande de CRÉATION de société ouvre un dossier de Traitement */
+      serviceSouhaite: 'Création de SAS', intake };
     DB.demandes.unshift(dd);
     return creerDossierDepuis(dd.id, true);
   };

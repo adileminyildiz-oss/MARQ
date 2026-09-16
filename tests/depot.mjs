@@ -28,7 +28,7 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Faure', prenom: 'Léa', naissance: '1987-02-02', nationalite: 'Française', adresse: '7 rue du Port Nantes' },
     associes: [{ nom: 'Faure', prenom: 'Léa', apport: '600', parts: '600' }, { nom: 'Blin', prenom: 'Théo', apport: '400', parts: '400' }],
     contact: { nom: 'Faure', prenom: 'Léa', email: 'lea@gamma.fr' } };
-  const dd = { id: 't-dep', clientNom: 'Léa Faure', clientEmail: 'lea@gamma.fr', statut: 'Qualification', intake };
+  const dd = { id: 't-dep', clientNom: 'Léa Faure', clientEmail: 'lea@gamma.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(dd);
   const d = creerDossierDepuis(dd.id, true);
   const out = {};

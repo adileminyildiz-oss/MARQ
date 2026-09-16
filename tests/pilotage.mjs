@@ -30,7 +30,7 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Roy', prenom: 'Max', naissance: '1980-01-01', nationalite: 'Française', adresse: '1 rue A Paris' },
     associes: [{ nom: 'Roy', prenom: 'Max', apport: '600', parts: '600' }, { nom: 'Sol', prenom: 'Ida', apport: '400', parts: '400' }],
     contact: { nom: 'Roy', prenom: 'Max', email: 'max@pilot.fr' } };
-  const dd = { id: 't-pil1', clientNom: 'Max Roy', clientEmail: 'max@pilot.fr', statut: 'Qualification', intake };
+  const dd = { id: 't-pil1', clientNom: 'Max Roy', clientEmail: 'max@pilot.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(dd);
   const d1 = creerDossierDepuis(dd.id, true);
   d1.pieces = { identite: { data: 'x' }, domiciliation: { data: 'x' }, edf: { data: 'x' }, impot: { data: 'x' } };
@@ -39,7 +39,7 @@ const r = await page.evaluate(() => {
   sigEnvoyerTous(d1.id); ['statuts', 'pouvoir', 'dnc', 'souscripteurs'].forEach(k => sigSigne(d1.id, k));
 
   // dossier « en attente de pièces » (rien de fait)
-  const dd2 = { id: 't-pil2', clientNom: 'Zoé Vent', clientEmail: 'zoe@v.fr', statut: 'Qualification',
+  const dd2 = { id: 't-pil2', clientNom: 'Zoé Vent', clientEmail: 'zoe@v.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS',
     intake: { version: 'LASTv1', type: 'sci', numeroDossier: 'DOS-2026-P2',
       societe: { denomination: 'VENT', capital: '500', objet: 'Immo', regime: 'IR' },
       siege: { rue: '2 rue B', cp: '75002', ville: 'Paris' }, direction: { nom: 'Vent', prenom: 'Zoé' },
@@ -67,7 +67,13 @@ const r = await page.evaluate(() => {
   out.rendu = /Taux d'automatisation/.test(html) && /Chiffre d'affaires estimé/.test(html) && /Répartition par étape/.test(html);
   out.renduCf = /Score de conformité moyen/.test(html);
   out.renduObl = /obligations annuelles/i.test(html) || true; // carte conformité annuelle greffée (si dossiers concernés)
-  out.nav = !Array.from(document.querySelectorAll('#nav .nav-btn')).find(b => /Pilotage/.test(b.textContent));
+  /* Pilotage a été remis dans la barre latérale. L'ancienne attente (« absent du menu »)
+     ne tenait plus, et pire : elle passait à vide tant que la navigation n'était pas
+     construite. On exige donc d'abord une barre peuplée, puis la présence du module. */
+  buildNav();
+  const boutons = Array.from(document.querySelectorAll('#nav .nav-btn'));
+  out.navConstruite = boutons.length > 5;
+  out.nav = boutons.some(b => /Pilotage/.test(b.textContent));
   out.gauge = !!document.querySelector('#view .pil-gauge-fill');
   return out;
 });
@@ -85,7 +91,8 @@ check('score affiché dans le contrôle qualité', r.cqHtml);
 check('score de conformité moyen agrégé (Pilotage)', r.pilCf);
 check('page Pilotage rendue (CA + taux + répartition)', r.rendu);
 check('score de conformité moyen affiché sur le Pilotage', r.renduCf);
-check('« Pilotage » retiré du menu de navigation', r.nav);
+check('barre latérale construite (garde-fou : sinon la vérification suivante passerait à vide)', r.navConstruite);
+check('« Pilotage » accessible depuis la barre latérale', r.nav);
 check('jauge d’automatisation affichée', r.gauge);
 check('aucun pageerror', perr.length === 0);
 

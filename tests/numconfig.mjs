@@ -47,14 +47,14 @@ const r = await page.evaluate(() => {
   c.prefix = 'DOS'; c.annee = true; c.taille = 3; c.compteurs = {};
 
   // création de dossier sans numéro d'intake → numéro attribué par la config
-  const dd = { id: 'dd-num', clientNom: 'Zoé', clientEmail: 'z@z.fr', statut: 'Qualification',
+  const dd = { id: 'dd-num', clientNom: 'Zoé', clientEmail: 'z@z.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS',
     intake: { version: 'LASTv1', type: 'sas', societe: { denomination: 'NUM', capital: '1000', objet: 'X', regime: 'IS' }, siege: { rue: 'r', cp: '75001', ville: 'Paris' }, direction: { nom: 'Z', prenom: 'A' }, associes: [{ nom: 'Z', prenom: 'A', parts: '1000' }], contact: { nom: 'Z', prenom: 'A', email: 'z@z.fr' } } };
   DB.demandes.unshift(dd);
   const d1 = creerDossierDepuis(dd.id, true);
   out.assigned = d1.numeroDossier === 'DOS-' + Y + '-001';
 
   // création avec numéro d'intake fourni → préservé
-  const dd2 = { id: 'dd-num2', clientNom: 'Bo', clientEmail: 'b@b.fr', statut: 'Qualification',
+  const dd2 = { id: 'dd-num2', clientNom: 'Bo', clientEmail: 'b@b.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS',
     intake: { version: 'LASTv1', type: 'sarl', numeroDossier: 'DOS-2099-777', societe: { denomination: 'NUM2', capital: '1000', objet: 'X', regime: 'IS' }, siege: { rue: 'r', cp: '75001', ville: 'Paris' }, direction: { nom: 'B', prenom: 'O' }, associes: [{ nom: 'B', prenom: 'O', parts: '1000' }], contact: { nom: 'B', prenom: 'O', email: 'b@b.fr' } } };
   DB.demandes.unshift(dd2);
   const d2 = creerDossierDepuis(dd2.id, true);

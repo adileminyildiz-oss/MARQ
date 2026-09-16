@@ -32,7 +32,7 @@ const r = await page.evaluate(() => {
     associes: [{ nom: 'Martin', prenom: 'Claire', apport: '600', parts: '600', role: 'Présidente' }, { nom: 'Durand', prenom: 'Paul', apport: '400', parts: '400' }],
     contact: { nom: 'Martin', prenom: 'Claire', email: 'claire@innov.fr', tel: '0600000000' }
   };
-  const d = { id: 't-actes', clientNom: 'Claire Martin', clientEmail: 'claire@innov.fr', clientTel: '', statut: 'Qualification', intake: intake, formalite: 'sas', numeroDossier: intake.numeroDossier, dossierId: '' };
+  const d = { id: 't-actes', clientNom: 'Claire Martin', clientEmail: 'claire@innov.fr', clientTel: '', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake: intake, formalite: 'sas', numeroDossier: intake.numeroDossier, dossierId: '' };
   DB.demandes.unshift(d);
 
   const dos = creerDossierDepuis(d.id, true); // noNav

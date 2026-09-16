@@ -31,7 +31,9 @@ const r = await page.evaluate(() => {
       direction: { nom: 'Martin', prenom: 'Jean', naissance: '1985-05-05', nationalite: 'Française', adresse: '3 rue Test Paris' },
       associes: [{ nom: 'Martin', prenom: 'Jean', apport: '600', parts: '600' }, { nom: 'Petit', prenom: 'Ana', apport: '400', parts: '400' }],
       contact: { nom: 'Martin', prenom: 'Jean', email: mail } };
-    const dd = { id: 't-mod-' + forme, clientNom: 'Jean Martin ' + forme, clientEmail: mail, statut: 'Qualification', intake };
+    const dd = { id: 't-mod-' + forme, clientNom: 'Jean Martin ' + forme, clientEmail: mail, statut: 'Qualification',
+      /* seule une demande de CRÉATION de société ouvre un dossier de Traitement */
+      serviceSouhaite: 'Création de ' + forme, intake };
     DB.demandes.unshift(dd);
     return creerDossierDepuis(dd.id, true);
   };

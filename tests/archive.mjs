@@ -28,7 +28,7 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Noël', prenom: 'Eva', naissance: '1990-01-01', nationalite: 'Française', adresse: '2 quai Ouest Bordeaux' },
     associes: [{ nom: 'Noël', prenom: 'Eva', apport: '600', parts: '600' }, { nom: 'Roux', prenom: 'Sami', apport: '400', parts: '400' }],
     contact: { nom: 'Noël', prenom: 'Eva', email: 'eva@delta.fr' } };
-  const dd = { id: 't-arch', clientNom: 'Eva Noël', clientEmail: 'eva@delta.fr', statut: 'Qualification', intake };
+  const dd = { id: 't-arch', clientNom: 'Eva Noël', clientEmail: 'eva@delta.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(dd);
   const d = creerDossierDepuis(dd.id, true);
   d.pieces = { identite: { data: 'x' }, domiciliation: { data: 'x' }, edf: { data: 'x' }, impot: { data: 'x' } };

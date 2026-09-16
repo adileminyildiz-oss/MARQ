@@ -28,7 +28,9 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Roy', prenom: 'Ana', adresse: '3 rue Neuve Lyon' },
     associes: [{ nom: 'Roy', prenom: 'Ana', apport: '600' }, { nom: 'Sy', prenom: 'Omar', apport: '400' }],
     contact: { nom: 'Roy', prenom: 'Ana', email: 'ana@omega.fr' } };
-  const dd = { id: 't-sig', clientNom: 'Ana Roy', clientEmail: 'ana@omega.fr', statut: 'Qualification', intake };
+  const dd = { id: 't-sig', clientNom: 'Ana Roy', clientEmail: 'ana@omega.fr', statut: 'Qualification',
+    /* seule une demande de CRÉATION de société ouvre un dossier de Traitement */
+    serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(dd);
   const d = creerDossierDepuis(dd.id, true);
   const out = {};

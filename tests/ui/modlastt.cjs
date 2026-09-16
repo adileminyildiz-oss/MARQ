@@ -1,0 +1,30 @@
+const { chromium, URL_APP } = require('./_socle.cjs');
+let ok=0,ko=0; const T=(n,c,d)=>{ if(c){ok++;console.log('  ✓ '+n);} else {ko++;console.log('  ✗ '+n+' — '+(d||''));} };
+(async()=>{ const b=await chromium.launch(); const p=await b.newPage({viewport:{width:1500,height:1000}}); const errs=[]; p.on('pageerror',e=>{ if(!/ServiceWorker/.test(e.message)) errs.push(e.message.slice(0,200)); }); p.on('dialog',d=>d.accept());
+await p.goto(URL_APP); await p.waitForTimeout(900);
+await p.evaluate(()=>{ if(typeof _authGranted==='function')_authGranted(); }); await p.waitForTimeout(2000);
+const ev=(f,a)=>p.evaluate(f,a);
+await ev(()=>{ const D=86400000, H=3600000, now=Date.now(); DB.parametres=DB.parametres||{}; DB.parametres.prevoyance=null;
+  DB.parametres.cfChaine={journal:[{ts:now-2*H,step:'Mensualités',ok:true,detail:'2 générées',mode:'automatique'},{ts:now-1*H,step:'Relances',ok:false,detail:'passerelle indisponible',mode:'manuel',qui:'Karim'}]};
+  DB.parametres.agChaine={journal:[{ts:now-3*D,step:'Rappels J-1',ok:false,detail:'passerelle indisponible',mode:'automatique'}]};
+  DB.parametres.factPresta={chaine:{journal:[{ts:now-5*D,step:'Relève',ok:true,detail:'4 factures',mode:'automatique'}]}};
+  DB.parametres.cxChaine={journal:[{ts:now-6*H,step:'Exécution globale',ok:true,detail:'Demandes → dossier : 1 dossier créé',mode:'manuel'}]};
+  DB.parametres.fqChaine={journal:[]}; DB.parametres.cliChaine={journal:[]};
+  state.page='params'; render(); });
+await p.waitForTimeout(500);
+let w=await ev(()=>{ const out={}; document.querySelectorAll('.mod-pause-it').forEach(el=>{ const id=(el.querySelector('input').getAttribute('onchange').match(/modPauseSet\('([^']+)'/)||[])[1]; const s=el.querySelector('.mp-last'); out[id]={txt:s?s.textContent:'',ko:!!(s&&s.classList.contains('mp-ko')),none:!!(s&&s.classList.contains('mp-none'))}; }); return out; });
+T('Modules en pause › Fiscal : « dernière exécution auto il y a 2 h · Mensualités · ok » (la relance manuelle plus récente n\'est pas retenue comme exécution auto)', /dernière exécution auto il y a 2 h · Mensualités · ok/.test(w.conformite.txt)&&!w.conformite.ko, JSON.stringify(w.conformite));
+T('Agenda : exécution auto en échec il y a 3 j (teinte échec)', /il y a 3 j · Rappels J-1 · échec/.test(w.agenda.txt)&&w.agenda.ko, JSON.stringify(w.agenda));
+T('Factures prestataires : relève auto il y a 5 j · ok', /il y a 5 j · Relève · ok/.test(w.facturier.txt), JSON.stringify(w.facturier));
+T('Demandes : repli sur la dernière action du centre d\'exécution mentionnant les demandes (manuelle, il y a 6 h)', /dernière action il y a 6 h · Exécution globale · ok/.test(w.demandes.txt), JSON.stringify(w.demandes));
+T('Formulaire / Clients sans journal : « aucune exécution enregistrée » en italique', w.formulaire.none&&w.clients.none&&/aucune exécution enregistrée/.test(w.formulaire.txt), JSON.stringify({f:w.formulaire,c:w.clients}));
+// idempotence après re-rendu + toggle
+await ev(()=>{ render(); modPauseSet('agenda',true); }); await p.waitForTimeout(300);
+w=await ev(()=>({n:[...document.querySelectorAll('.mod-pause-it')].filter(el=>el.querySelectorAll('.mp-last').length!==1).length,paused:!!document.querySelector('.mod-pause-it.on .mp-last')})); await ev(()=>modPauseSet('agenda',false));
+T('Après re-rendu et mise en pause : exactement une ligne par module, aussi sur le module en pause', w.n===0&&w.paused, JSON.stringify(w));
+// automatisations (Prévoyance › Paramètres)
+w=await ev(()=>{ const out={}; document.querySelectorAll('.pv-auto').forEach(el=>{ const obj=(el.querySelector('input').getAttribute('onchange').match(/prevAutoSet\('([^']+)'/)||[])[1]; const s=el.querySelector('.mp-last'); out[obj]=out[obj]||(s?s.textContent:''); }); return out; });
+T('Automatisations : cfChaine → Mensualités (auto, 2 h), factPresta.chaine → Relève (5 j), demChaine → centre d\'exécution, edChaine → aucune exécution', /il y a 2 h · Mensualités · ok/.test(w.cfChaine||'')&&/il y a 5 j · Relève · ok/.test(w['factPresta.chaine']||'')&&/Exécution globale/.test(w.demChaine||'')&&/aucune exécution/.test(w.edChaine||''), JSON.stringify(w));
+await p.evaluate(()=>{ const el=document.querySelector('.mod-pause-card'); el&&el.scrollIntoView(); }); await p.waitForTimeout(200); await p.screenshot({path:'v686-modules.png'});
+T('0 erreur de page', errs.length===0, errs.join(' | '));
+console.log('TOTAL', ok, 'ok /', ko, 'ko'); await b.close(); process.exit(ko?1:0); })();

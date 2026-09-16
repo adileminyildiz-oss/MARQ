@@ -49,14 +49,23 @@ const r = await page.evaluate(async () => {
   // 3) Fiche de paie — chiffres EXACTS (garde-fou de calibration ALR CONSEIL)
   const doc = { id: 'pg', k: 'fichepaie', data: { tauxH: '12.50', heures: '151.67', at: '0.70', pas: '0', reduc: '463.09', navBase: '90.80', navPct: '50', abs: [{ lib: 'Absence', h: '49' }] } };
   window.pfPaieExactOpen(doc); await wait(150);
-  const live = (document.querySelector('#pf-ov .pe-live') || {}).textContent || '';
-  const norm = s => s.replace(/ | |\s/g, ''); // enlève espaces (fines incluses)
-  const L = norm(live);
+  /* L'ouverture pré-remplit une mutuelle par défaut (1,00 % salarié / 1,50 % patronal).
+     La calibration d'origine a été relevée sur un bulletin SANS mutuelle : on la remet
+     donc à zéro APRÈS l'ouverture, sans quoi on comparerait deux choses différentes.
+     La valeur par défaut est vérifiée à part, juste en dessous. */
+  out.paieMutDefaut = String(doc.data.mutS) + '/' + String(doc.data.mutP);
+  doc.data.mutS = '0'; doc.data.mutP = '0';
+  /* Les chiffres se lisent sur le bulletin : le bandeau de résumé ne porte plus le brut
+     ni le net imposable, mais « à payer / cotisations employeur / coût total ». */
+  const bulletin = String(window.paieExactDoc(doc)).replace(/<[^>]+>/g, ' ');
+  const norm = s => String(s).replace(/[\s\u00a0\u202f]/g, '');
+  const L = norm(bulletin);
+  const aUn = (...v) => v.some(x => L.indexOf(x) >= 0);
   out.paie = {
-    brut: L.indexOf('1283,38') >= 0,
-    netImp: (L.indexOf('1052,49') >= 0 || L.indexOf('1052,50') >= 0),
-    netPay: L.indexOf('1015,93') >= 0,
-    raw: live
+    brut: aUn('1283,38', '1283.38'),
+    netImp: aUn('1052,49', '1052,50', '1052.49', '1052.50'),
+    netPay: aUn('1015,93', '1015.93'),
+    raw: (document.querySelector('#pf-ov .pe-live') || {}).textContent || ''
   };
   if (window.pfClose) pfClose();
 
@@ -275,6 +284,7 @@ check('ouverture Devis', r.open.devis > 0);
 check('paie : brut exact 1 283,38', r.paie.brut);
 check('paie : net imposable exact 1 052,49', r.paie.netImp);
 check('paie : net à payer exact 1 015,93', r.paie.netPay);
+check('paie : mutuelle par défaut 1,00 / 1,50' + (r.paieMutDefaut === '1.00/1.50' ? '' : ' — obtenu ' + r.paieMutDefaut), r.paieMutDefaut === '1.00/1.50');
 check('modèle calibré : ouverture via PF_TPL/__calTpls', r.calOpen);
 check('auto-remplissage : fiche de paie (employeur)', r.fill.paieEmp);
 check('auto-remplissage : contrat BTP 1re partie', r.fill.btpFirst);

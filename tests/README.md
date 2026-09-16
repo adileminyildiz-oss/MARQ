@@ -240,3 +240,39 @@ installation spécifique : `PLAYWRIGHT_PKG=/chemin/vers/playwright node tests/e2
 2. Lancer `node tests/regression.mjs` **et** `node tests/e2e.mjs` — les deux
    doivent rester tout vert.
 3. Incrémenter `LAST_VER` (index.html), `CACHE` (sw.js), `version.json`.
+
+---
+
+## Comment les tests tournent
+
+Trois familles, toutes lancées par l'intégration continue à chaque poussée
+sur `main` (`.github/workflows/tests.yml`) :
+
+| famille | emplacement | lancement local |
+|---|---|---|
+| non-régression (périmètre réduit) | `tests/regression.mjs` | `node tests/regression.mjs` |
+| documents remplissables | `tests/pdffill.mjs` | `node tests/pdffill.mjs` |
+| suites par module | `tests/*.mjs` | `node tests/actes.mjs` … |
+| suites d'interface | `tests/ui/*.cjs` | `node tests/ui/lancer.mjs` |
+
+Le lanceur d'interface accepte des noms de suites (`node tests/ui/lancer.mjs
+kebabt etqt`) et lance par vagues de huit : au-delà, les Chromium se gênent et
+produisent des échecs de minutage qui n'en sont pas. `MARQ_TESTS_PAR_VAGUE`
+change la largeur.
+
+Deux variables d'environnement, utiles hors poste de développement :
+
+- `PLAYWRIGHT_PKG` — chemin du paquet Playwright, si `require('playwright')`
+  ne le trouve pas ;
+- `MARQ_HTML` — chemin de l'`index.html` à tester, si ce n'est pas celui du
+  dépôt.
+
+### Ce qui garde la fiche de paie honnête
+
+`pdffill.mjs` compare trois montants à un bulletin réel (ALR CONSEIL) :
+brut **1 283,38**, net imposable **1 052,50**, net à payer **1 015,93**.
+Ce relevé a été fait **sans mutuelle** ; l'ouverture de la fiche pré-remplit
+depuis une mutuelle par défaut (1,00 % salarié / 1,50 % patronal), que le test
+remet à zéro pour comparer ce qui est comparable — et vérifie séparément.
+Si ces montants bougent, c'est le moteur de paie qui a changé : à examiner
+avant de toucher aux valeurs attendues.

@@ -29,7 +29,7 @@ const r = await page.evaluate(() => {
     direction: { nom: 'Fabre', prenom: 'Nora', naissance: '1988-03-03', nationalite: 'Française', adresse: '10 avenue des Lilas Lyon' },
     associes: [{ nom: 'Fabre', prenom: 'Nora', apport: '3000', parts: '3000' }, { nom: 'Girard', prenom: 'Elias', apport: '2000', parts: '2000' }],
     contact: { nom: 'Fabre', prenom: 'Nora', email: 'nora@orion.tech' } };
-  const dd = { id: 't-ged1', clientNom: 'Nora Fabre', clientEmail: 'nora@orion.tech', statut: 'Qualification', intake };
+  const dd = { id: 't-ged1', clientNom: 'Nora Fabre', clientEmail: 'nora@orion.tech', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake };
   DB.demandes.unshift(dd);
   const d = creerDossierDepuis(dd.id, true);
   const c = clientById(d.clientIds[0]) || {};

@@ -30,7 +30,7 @@ const r = await page.evaluate(() => {
     siege: { rue: '5 avenue Foch', cp: '75116', ville: 'Paris', type: 'Domiciliation chez le dirigeant' },
     direction: { nom: 'Bernard', prenom: 'Luc', adresse: '5 avenue Foch, 75116 Paris', naissance: '1985-03-02', nationalite: 'Française' },
     contact: { nom: 'Bernard', prenom: 'Luc', email: 'luc@alpha.fr' } };
-  const d = { id: 't-ctrl', clientNom: 'Luc Bernard', clientEmail: 'luc@alpha.fr', statut: 'Qualification', intake: intake, dossierId: '' };
+  const d = { id: 't-ctrl', clientNom: 'Luc Bernard', clientEmail: 'luc@alpha.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS', intake: intake, dossierId: '' };
   DB.demandes.unshift(d);
   const dos = creerDossierDepuis(d.id, true);
 

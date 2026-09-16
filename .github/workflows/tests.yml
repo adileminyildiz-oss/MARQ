@@ -27,16 +27,24 @@ jobs:
           console.log("scripts "+n+" · erreurs "+bad);
           process.exit(bad?1:0);'
 
-      - name: Cohérence de version (badge / sw.js / version.json)
+      - name: Cohérence de version (badge / version.json) et service worker
         run: |
           node -e '
           const fs=require("fs");
           const ver=(fs.readFileSync("index.html","utf8").match(/var LAST_VER=(\d+)/)||[])[1];
-          const cache=(fs.readFileSync("sw.js","utf8").match(/last-v(\d+)/)||[])[1];
           const vj=JSON.parse(fs.readFileSync("version.json","utf8")).version;
-          console.log("badge="+ver+" sw="+cache+" version.json="+vj);
-          const ok = ver && cache===ver && String(vj)===String(ver);
-          process.exit(ok?0:1);'
+          const sw=fs.readFileSync("sw.js","utf8");
+          /* Le badge et version.json doivent concorder : la mise à jour automatique
+             compare l'un à l'autre. Le service worker, lui, est un kill-switch figé
+             (il vide les caches et se désinscrit) : son numéro ne suit pas les
+             versions. Ce qui doit rester vrai, c'\''est qu'\''il n'\''intercepte rien —
+             un worker « cache-first » réintroduit ici rendrait de vieilles versions. */
+          const fetchHandler=/addEventListener\s*\(\s*.fetch./.test(sw);
+          console.log("badge="+ver+" version.json="+vj+" sw intercepte="+fetchHandler);
+          const okVer = ver && String(vj)===String(ver);
+          if(!okVer) console.log("ECHEC : le badge et version.json divergent.");
+          if(fetchHandler) console.log("ECHEC : sw.js intercepte les requêtes (risque de version périmée servie).");
+          process.exit(okVer && !fetchHandler ? 0 : 1);'
 
       - name: Installation de Playwright (Chromium)
         run: npm i -D playwright && npx playwright install --with-deps chromium
@@ -46,6 +54,24 @@ jobs:
 
       - name: Documents remplissables (docs + fiche de paie exacte + calibration + auto-remplissage)
         run: node tests/pdffill.mjs
+
+      - name: Suites par module (tests/*.mjs)
+        run: |
+          echec=0
+          for f in tests/*.mjs; do
+            case "$(basename "$f")" in
+              regression.mjs|pdffill.mjs|portal.mjs) continue ;;  # lancées à part
+            esac
+            if node "$f" > /tmp/sortie.txt 2>&1; then
+              echo "  ok  $(basename "$f" .mjs) : $(tail -1 /tmp/sortie.txt)"
+            else
+              echo "  ÉCHEC $(basename "$f" .mjs)"; tail -20 /tmp/sortie.txt; echec=1
+            fi
+          done
+          exit $echec
+
+      - name: Suites d'interface (tests/ui/)
+        run: node tests/ui/lancer.mjs
 
       - name: Serveur portail — tests smoke
         working-directory: server/portal

@@ -33,13 +33,20 @@ const r = await page.evaluate(async () => {
   window.confirm = () => true;
 
   // 1) Navigation réduite à 3 pages + redirection des pages inconnues
-  out.navTrim = Array.isArray(PAGES) && PAGES.map(p => p.id).join(',') === 'cockpit,demandes,espace,formulaire,editions,facturier,tvarembours,agenda,clients,pilotage,prestataires,services,params';
+  /* Liste exacte des pages : une page retirée ou ajoutée sans intention doit se voir. */
+  out.navAttendue = 'cockpit,demandes,espace,formulaire,etudemarche,conformite,editions,factpresta,yada,facturier,tvarembours,agenda,clients,pilotage,prestataires,services,params';
+  out.navReelle = Array.isArray(PAGES) ? PAGES.map(p => p.id).join(',') : '';
+  out.navTrim = out.navReelle === out.navAttendue;
   state.page = 'facturation'; render(); out.redirect = (state.page === 'facturation') ? true : true; // dispatch inconnu → pageDemandes
   const badHTML = document.getElementById('view').innerHTML;
   out.redirectSafe = badHTML.length > 50;
   buildNav(); const navHTML = document.getElementById('nav').innerHTML;
   out.navHasCore = /Demandes/.test(navHTML) && /Traitement/.test(navHTML) && /Paramètres/.test(navHTML);
-  out.navNoOld = !/Facturation|Devis|Rentabilité|Suivi|Rapprochement/.test(navHTML);
+  /* Les PAGES retirées ne doivent pas revenir. On vise les identifiants de page,
+     et non des mots du libellé : « Facturation » est aujourd'hui un titre de
+     section au-dessus de « Factures & devis », ce qui est voulu. */
+  const pagesRetirees = ['facturation', 'devis', 'marge', 'suivi', 'rappro', 'tiers'];
+  out.navNoOld = Array.isArray(PAGES) && !PAGES.some(p => pagesRetirees.indexOf(p.id) >= 0);
 
   // 2) Rendu des 3 pages
   ['demandes', 'espace', 'params'].forEach(p => { state.page = p; render(); out['page_' + p] = document.getElementById('view').innerHTML.length; });
@@ -76,7 +83,9 @@ const r = await page.evaluate(async () => {
     'pageSuivi', 'recModal', 'recCard', 'secCard', 'meGet', 'demStats',
     'tresoPrevision', 'finSanteCard', 'iaCopilote', 'collabAuth', 'isCollab', 'relancesAutoCard',
     'pageFacturation', 'pageDevis', 'pageRappro', 'pageTiers', 'factNum', 'devisView',
-    'devisTransformer', 'factRelancer', 'fluxPipelineCard', 'espFacture', 'espDevis', 'lastGateCollabTry'];
+    'devisTransformer', 'fluxPipelineCard', 'espFacture', 'espDevis', 'lastGateCollabTry'];
+  /* factRelancer est sorti de cette liste : la chaîne de facturation l'a réintroduit
+     volontairement (relance des factures échues), il est appelé par factChaineExecuter. */
   out.retires = gone.filter(n => typeof window[n] !== 'undefined');
 
   // 8) Génération de documents (conception du dossier) toujours présente
@@ -87,10 +96,10 @@ const r = await page.evaluate(async () => {
 
 await browser.close();
 
-check('nav (demandes,espace,formulaire,editions,pilotage,params)', r.navTrim);
+check('liste des pages inchangée' + (r.navTrim ? '' : ' — attendu ' + r.navAttendue + ' · obtenu ' + r.navReelle), r.navTrim);
 check('page inconnue → rendu sûr (redirection)', r.redirectSafe);
 check('barre latérale = Demandes/Traitement/Paramètres', r.navHasCore);
-check('barre latérale sans anciennes pages', r.navNoOld);
+check('pages retirées non revenues', r.navNoOld);
 check('page Demandes rendue', r.page_demandes > 50);
 check('page Traitement rendue', r.page_espace > 50);
 check('page Paramètres rendue', r.page_params > 50);
@@ -99,7 +108,7 @@ check('Demandes : 4 onglets (réception/qualif/envoi/pièces)', r.tabs);
 check('détail d’une demande', r.detail === true);
 check('helpers du cœur (initials/validators/piecesRequises/demCode)', r.helpers);
 check('estimation du coût conservée', r.coutEstim);
-check('modules retirés absents', Array.isArray(r.retires) && r.retires.length === 0);
+check('modules retirés absents' + ((r.retires||[]).length ? ' — encore présents : ' + r.retires.join(', ') : ''), Array.isArray(r.retires) && r.retires.length === 0);
 check('génération des documents présente', r.docsGen);
 check('aucun pageerror', perr.length === 0);
 
