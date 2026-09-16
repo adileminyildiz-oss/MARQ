@@ -7,3 +7,6 @@ node_modules/
 test-results/
 .DS_Store
 tests/ui/*.png
+# Captures écrites à la racine par les suites de tests (tests/*.mjs)
+/v[0-9]*-*.png
+/q-*.png

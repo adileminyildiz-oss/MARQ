@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=702;
+var LAST_VER=703;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -42609,7 +42609,7 @@ function testLienSignature() {
   function T(m,t){ try{ t={ok:'success',ko:'error',err:'error',warn:'warn',info:'info',success:'success',error:'error'}[t]||null; if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
   function B(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
   function P(){ var b=B(); b.parametres=b.parametres||{}; return b.parametres; }
-  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',rapproChaine:'Rapprochement',tempsChaine:'Temps passé',etapeCourrier:'Courriers d\'étape',repriseChaine:'Reprise de dossier',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',etiquettes:'Étiquettes',dossiers:'Dossiers',demandes:'Demandes'};
+  var LBL={prevoyance:'Prévoyance',cxChaine:'Centre d\'exécution',coChaine:'Coffre-fort & portail',factChaine:'Facturation',agChaine:'Agenda',cfChaine:'Fiscal',cliChaine:'Clients',fqChaine:'Questionnaire',echChaine:'Échéancier',sgChaine:'Signatures',veChaine:'Veille',emChaine:'Étude de marché',edChaine:'Éditions',jcChaine:'Justificatifs',tvrChaine:'Remboursement TVA',ydChaine:'Export YADA',factPresta:'Factures prestataires',prefChaine:'Pré-remplissage',rapproChaine:'Rapprochement',tempsChaine:'Temps passé',etapeCourrier:'Courriers d\'étape',repriseChaine:'Reprise de dossier',sauvegarde:'Sauvegardes',fileEnvoi:'Messages à envoyer',santeChaine:'Bilan de santé',liensSuivi:'Rappels de liens',incidents:'Incidents',partagesLien:'Liens envoyés',etiquettes:'Étiquettes',numeros:'Registre des numéros',dossiers:'Dossiers',demandes:'Demandes'};
   function lbl(k){ return LBL[k]||k.replace(/Chaine$/,''); }
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
@@ -46079,6 +46079,277 @@ function testLienSignature() {
     +'.fl-t em,.fl-t i{display:block;font-style:normal;opacity:.62;font-size:11px}'
     +'.fl-vide{opacity:.6;font-size:12px;padding:14px 2px}';
   try{ if(M.style) M.style('fl-css',CSS); else { var st=document.createElement('style'); st.id='fl-css'; st.textContent=CSS; document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script>
+/* ===== Mar'q v703 — Registre des numéros : unicité et non-réemploi ===== */
+(function(){
+  if(window.__mqNum703) return; window.__mqNum703=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)); }
+  function P(){ try{ return M.par?M.par():(DB.parametres=DB.parametres||{}); }catch(e){ return {}; } }
+  function enr(){ try{ if(M.enr) M.enr(); else if(typeof save==='function') save(); }catch(e){} }
+  function ts(){ return new Date().toISOString(); }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4200,t||'info'); }catch(e){} }
+
+  /* ---------- Le registre : rien n'en sort jamais ---------- */
+  function REG(){ var p=P(); var r=p.numeros=p.numeros||{};
+    r.attribues=r.attribues||{}; if(!Array.isArray(r.journal)) r.journal=[]; return r; }
+
+  function suivant(num){
+    var m=(''+num).match(/^([\s\S]*?)(\d+)(\D*)$/);
+    if(!m) return num+'-2';
+    var w=m[2].length, k=parseInt(m[2],10)+1, s=String(k);
+    return m[1]+(s.length<w?s.padStart(w,'0'):s)+m[3];
+  }
+  function libre(num,id){ var e=REG().attribues[''+num]; return !e || (id && e.id===id); }
+
+  function noter(o){ var r=REG(); o.ts=ts(); r.journal.push(o);
+    if(r.journal.length>3000) r.journal=r.journal.slice(-3000); }
+
+  /* Attribue définitivement un numéro : s'il est déjà pris, on avance jusqu'au premier libre. */
+  function attribuer(num,type,objet,id){
+    num=''+(num||''); if(!num) return num;
+    var r=REG(), fin=num, n=0;
+    while(!libre(fin,id) && n++<9999) fin=suivant(fin);
+    if(fin!==num) noter({action:'conflit',numero:fin,avant:num,type:type||'',objet:objet||'',id:id||''});
+    else noter({action:'attribution',numero:fin,type:type||'',objet:objet||'',id:id||''});
+    r.attribues[fin]={type:type||'',objet:objet||'',id:id||'',ts:ts()};
+    enr(); return fin;
+  }
+  /* Propose un numéro libre sans le consommer (brouillons). */
+  function proposer(num){ var fin=''+(num||''), n=0; while(!libre(fin) && n++<9999) fin=suivant(fin); return fin; }
+
+  /* ---------- Reprise : les numéros déjà en base entrent au registre ---------- */
+  function docs(){ try{ return (P().facturier)||[]; }catch(e){ return []; } }
+  function dossiers(){ try{ return M.dossiers?M.dossiers():[]; }catch(e){ return []; } }
+  function demandes(){ try{ return Array.isArray(DB.demandes)?DB.demandes:[]; }catch(e){ return []; } }
+
+  function reprise(){
+    var r=REG(), n=0;
+    function pose(num,type,objet,id){ num=''+(num||''); if(!num) return;
+      if(!r.attribues[num]){ r.attribues[num]={type:type,objet:objet,id:id||'',ts:ts(),reprise:1}; n++; } }
+    docs().forEach(function(f){ if(f && f.statut==='emise') pose(f.numero,f.type||'facture','Facture',f.id); });
+    dossiers().forEach(function(d){ if(!d) return;
+      pose(d.numeroDossier,'dossier','Dossier',d.id);
+      pose(d.ref,'dossier','Dossier',d.id);
+      pose(d.numeroService,'service','Traitement',d.id); });
+    demandes().forEach(function(d){ if(d) pose(d.code,'demande','Demande',d.id); });
+    if(n){ noter({action:'reprise',numero:'',type:'',objet:String(n)+' numéro(s) repris',id:''}); enr(); }
+    return n;
+  }
+
+  window.MQNum={ registre:REG, libre:libre, suivant:suivant, proposer:proposer,
+                 attribuer:attribuer, reprise:reprise };
+
+  /* ---------- Greffes sur les générateurs ---------- */
+  /* Factures / devis / avoirs : proposition libre au brouillon, attribution ferme à l'émission. */
+  try{ var _inv=window.invNumPourType;
+    if(typeof _inv==='function' && !_inv.__num703){
+      window.invNumPourType=function(type){ return proposer(_inv.apply(this,arguments)); };
+      window.invNumPourType.__num703=1; } }catch(e){}
+
+  try{ var _em=window.invEmettre;
+    if(typeof _em==='function' && !_em.__num703){
+      window.invEmettre=function(){
+        var d=window.__invDraft, avant='';
+        try{ if(d && d.statut!=='emise'){ avant=''+(d.numero||'');
+          d.numero=attribuer(avant,d.type||'facture','Facture',d.id||''); } }catch(e){}
+        var r=_em.apply(this,arguments);
+        try{ if(d && d.id && d.numero){ var e2=REG().attribues[d.numero]; if(e2 && !e2.id){ e2.id=d.id; enr(); } }
+             if(avant && d && d.numero!==avant) T('Numéro '+avant+' déjà attribué — la pièce porte '+d.numero+'.','warn'); }catch(e){}
+        return r; };
+      window.invEmettre.__num703=1; } }catch(e){}
+
+  /* Suppression : le numéro reste consommé (une facture émise s'annule par un avoir). */
+  try{ var _del=window.invDel;
+    if(typeof _del==='function' && !_del.__num703){
+      window.invDel=function(id){
+        try{ var f=docs().filter(function(x){ return x.id===id; })[0];
+             if(f && f.statut==='emise' && f.numero){
+               noter({action:'suppression',numero:''+f.numero,type:f.type||'facture',objet:'Facture supprimée',id:id||''}); enr(); } }catch(e){}
+        return _del.apply(this,arguments); };
+      window.invDel.__num703=1; } }catch(e){}
+
+  /* Dossiers */
+  try{ var _nd=window.numDossierNext;
+    if(typeof _nd==='function' && !_nd.__num703){
+      window.numDossierNext=function(){ var v=_nd.apply(this,arguments), n=0;
+        while(!libre(v) && n++<200) v=_nd.apply(this,arguments); /* le compteur avance avec */
+        return attribuer(v,'dossier','Dossier',''); };
+      window.numDossierNext.__num703=1; } }catch(e){}
+
+  /* Demandes */
+  try{ var _dc=window.demCodeGen;
+    if(typeof _dc==='function' && !_dc.__num703){
+      window.demCodeGen=function(){ var v=_dc.apply(this,arguments), n=0;
+        while(!libre(v) && n++<200) v=_dc.apply(this,arguments);
+        return attribuer(v,'demande','Demande',''); };
+      window.demCodeGen.__num703=1; } }catch(e){}
+
+  /* Traitements (numéro de service) */
+  try{ var _sn=window.formTakeServiceNum;
+    if(typeof _sn==='function' && !_sn.__num703){
+      window.formTakeServiceNum=function(nature){ var v=_sn.apply(this,arguments), n=0;
+        while(!libre(v) && n++<200) v=_sn.apply(this,arguments);
+        return attribuer(v,'service','Traitement',''); };
+      window.formTakeServiceNum.__num703=1; } }catch(e){}
+
+  try{ var _dn=window.formTakeDossierNum;
+    if(typeof _dn==='function' && !_dn.__num703){
+      window.formTakeDossierNum=function(){ var v=_dn.apply(this,arguments), n=0;
+        while(!libre(v) && n++<200) v=_dn.apply(this,arguments);
+        return attribuer(v,'dossier','Dossier',''); };
+      window.formTakeDossierNum.__num703=1; } }catch(e){}
+
+  /* ---------- Contrôle de cohérence ---------- */
+  function norm(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  window.numControle=function(){
+    var a={doublons:[],sequences:[],dossiers:[],clients:[],registre:0,pieces:0};
+    var vus={};
+    function voir(num,quoi,qui){ num=''+(num||''); if(!num) return; a.pieces++;
+      if(vus[num]){ if(vus[num].n===1) a.doublons.push({numero:num,a:vus[num].quoi+' · '+vus[num].qui,b:quoi+' · '+qui});
+                    vus[num].n++; }
+      else vus[num]={n:1,quoi:quoi,qui:qui}; }
+
+    docs().forEach(function(f){ if(f && f.statut==='emise') voir(f.numero,'Facture',f.clNom||'—'); });
+    dossiers().forEach(function(d){ if(!d) return;
+      voir(d.numeroDossier,'Dossier',nomDoss(d));
+      voir(d.numeroService,'Traitement',nomDoss(d)); });
+    demandes().forEach(function(d){ if(d) voir(d.code,'Demande',d.clientNom||d.client||'—'); });
+
+    /* Séquences de facturation : numéros attribués que plus aucune pièce ne porte.
+       Le registre sert de référence — un trou en début de série est vu comme les autres. */
+    var TYPES_FACT=/^(facture|devis|avoir|acompte|situation|solde)$/;
+    var vivants={}, series={};
+    function serie(num,dans){ var m=(''+num).match(/^([A-Z]+-\d{4})-(\d+)$/); if(!m) return;
+      var s=series[m[1]]=series[m[1]]||{vus:{},reg:{}}; s[dans][+m[2]]=1; }
+    docs().forEach(function(f){ if(f&&f.statut==='emise'&&f.numero){ vivants[f.numero]=1; serie(f.numero,'vus'); } });
+    var att=REG().attribues;
+    Object.keys(att).forEach(function(k){ if(TYPES_FACT.test(att[k].type||'')) serie(k,'reg'); });
+    Object.keys(series).forEach(function(k){ var s=series[k];
+      var tous=Object.keys(s.vus).concat(Object.keys(s.reg)).map(Number);
+      if(!tous.length) return;
+      var lo=Math.min.apply(null,tous), hi=Math.max.apply(null,tous), trous=[];
+      for(var i=lo;i<=hi;i++) if(!s.vus[i]) trous.push(i);
+      if(trous.length) a.sequences.push({serie:k,trous:trous,de:lo,a:hi}); });
+
+    /* Dossiers : sans numéro, ou portant deux numéros différents */
+    function nomDoss(d){ try{ if(M.nomClient){ var n=M.nomClient(d); if(n) return n; } }catch(e2){}
+      return d.nom||d.societe||d.denomination||d.clientNom||d.raison||d.ref||d.numeroDossier||d.id||'—'; }
+    dossiers().forEach(function(d){ if(!d) return; var nom=nomDoss(d);
+      if(!d.numeroDossier && !d.ref) a.dossiers.push({nom:nom,quoi:'aucun numéro de dossier'});
+      else if(d.ref && d.numeroDossier && d.ref!==d.numeroDossier)
+        a.dossiers.push({nom:nom,quoi:'deux numéros : '+d.ref+' et '+d.numeroDossier}); });
+
+    /* Clients : même SIREN ou même dénomination */
+    var parSiren={}, parNom={};
+    (M.clients?M.clients():[]).forEach(function(c){ if(!c) return;
+      var nom=c.nom||c.raison||c.societe||'—';
+      var s=norm(c.siren||c.siret).slice(0,9);
+      if(s.length===9){ (parSiren[s]=parSiren[s]||[]).push(nom); }
+      var nn=norm(nom); if(nn) (parNom[nn]=parNom[nn]||[]).push(nom); });
+    Object.keys(parSiren).forEach(function(s){ if(parSiren[s].length>1)
+      a.clients.push({quoi:'même SIREN '+s,noms:parSiren[s]}); });
+    Object.keys(parNom).forEach(function(n){ if(parNom[n].length>1)
+      a.clients.push({quoi:'même dénomination',noms:parNom[n]}); });
+
+    a.registre=Object.keys(REG().attribues).length;
+    return a;
+  };
+
+  window.numCarte=function(){
+    var a=window.numControle(), r=REG();
+    var ko=a.doublons.length+a.dossiers.length+a.clients.length+a.sequences.length;
+    var h='<div class="card numreg-card" id="numreg-card"><div class="card-h"><h3>Numérotation — unicité et non-réemploi</h3>'
+      +'<span class="nr-badge '+(ko?'ko':'ok')+'">'+(ko?(ko+' point'+(ko>1?'s':'')+' à voir'):'Aucun doublon')+'</span></div>'
+      +'<div class="card-b">'
+      +'<p class="nr-int">Chaque numéro émis est inscrit au registre et n\'en ressort jamais : supprimer une pièce ne libère plus son numéro. '
+      +'<b>'+a.registre+'</b> numéro'+(a.registre>1?'s':'')+' au registre, <b>'+a.pieces+'</b> en circulation.</p>';
+
+    if(a.doublons.length){ h+='<div class="nr-bloc ko"><h4>Numéros portés par deux pièces</h4><ul>';
+      a.doublons.forEach(function(d){ h+='<li><b>'+E(d.numero)+'</b> — '+E(d.a)+' <i>et</i> '+E(d.b)+'</li>'; });
+      h+='</ul></div>'; }
+
+    if(a.sequences.length){ h+='<div class="nr-bloc warn"><h4>Ruptures de séquence de facturation</h4><ul>';
+      a.sequences.forEach(function(s){ h+='<li>Série <b>'+E(s.serie)+'</b> ('+s.de+' à '+s.a+') — manque '
+        +E(s.trous.slice(0,12).join(', '))+(s.trous.length>12?'…':'')+'</li>'; });
+      h+='</ul><p class="nr-note">Une facture émise s\'annule par un avoir, jamais par une suppression : la séquence doit rester continue (CGI, ann. II, art. 242 nonies A).</p></div>'; }
+
+    if(a.dossiers.length){ h+='<div class="nr-bloc warn"><h4>Dossiers</h4><ul>';
+      a.dossiers.forEach(function(d){ h+='<li>'+E(d.nom)+' — '+E(d.quoi)+'</li>'; });
+      h+='</ul></div>'; }
+
+    if(a.clients.length){ h+='<div class="nr-bloc warn"><h4>Comptes clients en double</h4><ul>';
+      a.clients.forEach(function(c){ h+='<li>'+E(c.quoi)+' : '+E(c.noms.join(' · '))+'</li>'; });
+      h+='</ul></div>'; }
+
+    if(!ko) h+='<p class="nr-ok">Aucun numéro en double, aucune rupture de séquence, aucun compte client en double.</p>';
+
+    var j=(r.journal||[]).slice(-8).reverse();
+    if(j.length){ h+='<details class="nr-j"><summary>Derniers mouvements du registre ('+(r.journal||[]).length+')</summary><ul>';
+      j.forEach(function(e){ var q=(e.action==='conflit')?('<b>'+E(e.numero)+'</b> attribué à la place de '+E(e.avant))
+          :(e.action==='suppression')?('<b>'+E(e.numero)+'</b> — pièce supprimée, numéro conservé')
+          :(e.action==='reprise')?E(e.objet)
+          :('<b>'+E(e.numero)+'</b> — '+E(e.objet||e.type));
+        h+='<li>'+(M.dateheure?M.dateheure(e.ts):E(e.ts))+' · '+q+'</li>'; });
+      h+='</ul></details>'; }
+
+    h+='<div class="row-btns"><button class="btn" onclick="numReprise()">Reprendre les numéros existants</button>'
+      +'<button class="btn" onclick="numExport()">Exporter le registre (CSV)</button></div>'
+      +'</div></div>';
+    return h;
+  };
+
+  window.numReprise=function(){ var n=reprise();
+    T(n?(n+' numéro(s) inscrit(s) au registre.'):'Tous les numéros en circulation sont déjà au registre.','success');
+    try{ if(typeof render==='function') render(); }catch(e){} };
+
+  window.numExport=function(){
+    var r=REG(), l=[['Numéro','Type','Objet','Identifiant','Attribué le','Reprise']];
+    Object.keys(r.attribues).sort().forEach(function(k){ var e=r.attribues[k];
+      l.push([k,e.type||'',e.objet||'',e.id||'',e.ts||'',e.reprise?'oui':'']); });
+    try{ if(M.telecharger&&M.csv) M.telecharger('registre-numeros.csv',M.csv(l),'text/csv');
+         else throw 0; }catch(e){
+      try{ var b=new Blob(['﻿'+l.map(function(x){return x.map(function(c){return '"'+(''+c).replace(/"/g,'""')+'"';}).join(';');}).join('\n')],{type:'text/csv'});
+        var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='registre-numeros.csv'; a.click(); }catch(e2){} }
+    T('Registre exporté.','success'); };
+
+  /* ---------- Carte dans Paramètres, rangée avec « Numérotation des dossiers » ----------
+     Les Paramètres redistribuent leurs cartes en tiroirs (.sp-slot) au moment du rendu :
+     une carte ajoutée à la chaîne de pageParams arriverait après ce tri, donc en bas de
+     toutes les pages. On la pose après coup dans le tiroir qui traite déjà la numérotation. */
+  function poserCarte(){
+    try{
+      /* la coque des Paramètres n'existe que sur cet écran : sa présence sert de garde */
+      if(!document.querySelector('.sp-wrap')) return;
+      var hote=document.querySelector('.sp-slot[data-slot="trt/num"]')
+            || document.querySelector('.sp-main') || null;
+      if(!hote) return;
+      var v=document.getElementById('numreg-card');
+      if(v && v.parentNode) v.parentNode.removeChild(v);
+      var box=document.createElement('div'); box.innerHTML=window.numCarte();
+      hote.appendChild(box.firstChild);
+    }catch(e){}
+  }
+  window.numPoserCarte=poserCarte;
+  if(M.apresRendu) M.apresRendu(poserCarte,'num703',80); else setTimeout(poserCarte,300);
+
+  if(M.style) M.style('nr-css',
+    '.numreg-card .nr-badge{font-size:11px;padding:2px 8px;border-radius:9px;border:1px solid var(--bd)}'
+   +'.numreg-card .nr-badge.ok{color:var(--ok,#7fd18a)}.numreg-card .nr-badge.ko{color:var(--ko,#e2a1a1)}'
+   +'.nr-int{font-size:12px;opacity:.85;margin:0 0 10px}'
+   +'.nr-bloc{border:1px solid var(--bd);border-radius:8px;padding:8px 10px;margin:0 0 8px}'
+   +'.nr-bloc.ko{border-color:rgba(226,161,161,.5)}.nr-bloc.warn{border-color:rgba(214,190,130,.45)}'
+   +'.nr-bloc h4{margin:0 0 6px;font-size:12px;font-weight:600}'
+   +'.nr-bloc ul{margin:0;padding-left:16px;font-size:12px}.nr-bloc li{margin:2px 0}'
+   +'.nr-note{font-size:11px;opacity:.7;margin:6px 0 0}'
+   +'.nr-ok{font-size:12px;opacity:.8;margin:0 0 8px}'
+   +'.nr-j{font-size:11px;opacity:.8;margin:4px 0 10px}.nr-j ul{margin:6px 0 0;padding-left:16px}');
+
+  /* Reprise au démarrage : les numéros déjà émis entrent au registre une fois. */
+  try{ setTimeout(function(){ try{ reprise(); }catch(e){} },2500); }catch(e){}
 })();
 </script>
 </body>

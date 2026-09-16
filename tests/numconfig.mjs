@@ -51,7 +51,11 @@ const r = await page.evaluate(() => {
     intake: { version: 'LASTv1', type: 'sas', societe: { denomination: 'NUM', capital: '1000', objet: 'X', regime: 'IS' }, siege: { rue: 'r', cp: '75001', ville: 'Paris' }, direction: { nom: 'Z', prenom: 'A' }, associes: [{ nom: 'Z', prenom: 'A', parts: '1000' }], contact: { nom: 'Z', prenom: 'A', email: 'z@z.fr' } } };
   DB.demandes.unshift(dd);
   const d1 = creerDossierDepuis(dd.id, true);
-  out.assigned = d1.numeroDossier === 'DOS-' + Y + '-001';
+  // v703 : le format vient de la config, mais le registre interdit de retomber sur un numéro
+  // déjà porté — un compteur remis à zéro avance jusqu'au premier libre au lieu de doublonner.
+  const dejaPorte = n => DB.dossiers.filter(x => x !== d1 && (x.numeroDossier === n || x.ref === n)).length > 0;
+  out.assigned = new RegExp('^DOS-' + Y + '-\\d{3}$').test(d1.numeroDossier) && !dejaPorte(d1.numeroDossier);
+  const compteurApresD1 = numCfg().compteurs[Y];
 
   // création avec numéro d'intake fourni → préservé
   const dd2 = { id: 'dd-num2', clientNom: 'Bo', clientEmail: 'b@b.fr', statut: 'Qualification', serviceSouhaite: 'Création de SAS',
@@ -60,7 +64,7 @@ const r = await page.evaluate(() => {
   const d2 = creerDossierDepuis(dd2.id, true);
   out.preserve = d2.numeroDossier === 'DOS-2099-777';
   // le compteur n'a pas bougé pour le dossier à numéro fourni
-  out.noConsume = numCfg().compteurs[Y] === 1;
+  out.noConsume = numCfg().compteurs[Y] === compteurApresD1;
 
   // enregistrement via la carte
   document.body.insertAdjacentHTML('beforeend', '<div>' + numDossierCard() + '</div>');
@@ -83,7 +87,7 @@ check('next incrémente + persiste par année', r.next);
 check('aperçu suivant = 003', r.previewAfter);
 check('format personnalisé AEM-0001 (sans année, 4 chiffres)', r.custom);
 check('compteur de départ éditable (→ 0042)', r.startAt);
-check('création sans n° d’intake → n° attribué par la config', r.assigned);
+check('création sans n° d’intake → n° au format config, libre de tout doublon', r.assigned);
 check('n° d’intake fourni → préservé', r.preserve);
 check('n° fourni ne consomme pas le compteur', r.noConsume);
 check('enregistrement via la carte (YADA-…-00011)', r.saved);
