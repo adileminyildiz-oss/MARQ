@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=700;
+var LAST_VER=701;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -44260,7 +44260,10 @@ function testLienSignature() {
 
   function cfg(){ var p=P(); p.actionsGroupees=p.actionsGroupees||{}; var c=p.actionsGroupees;
     if(c.actif==null) c.actif=true;
-    if(c.seuil==null) c.seuil=3;
+    if(c.seuil==null) c.seuil=2;
+    /* dès deux actions sur une même ligne, les points prennent le relais.
+       Reprise unique des bases restées sur un ancien seuil. */
+    if(!c.__s2){ c.__s2=1; delete c.__s4; if(c.seuil>2) c.seuil=2; }
     return c; }
 
   /* conteneurs à ne jamais regrouper : ce ne sont pas des actions de ligne */
