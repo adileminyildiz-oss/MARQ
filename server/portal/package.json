@@ -1,0 +1,18 @@
+{
+  "name": "marq-portail-serveur",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend léger du portail client Mar'q (documents partagés en lecture seule). http natif, zéro dépendance runtime.",
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node --check server.js && node --check lib/config.js && node --check lib/crypto.js && node --check lib/store.js && node --check lib/ratelimit.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "license": "UNLICENSED"
+}

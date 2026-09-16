@@ -1,6 +1,9 @@
 node_modules/
-package-lock.json
-package.json
+# Ancrées à la racine : sans la barre oblique, la règle vaut à toute profondeur
+# et masquait server/portal/package.json — le serveur du portail se retrouvait
+# au dépôt sans son manifeste, donc impossible à démarrer depuis un clone neuf.
+/package-lock.json
+/package.json
 test-results/
 .DS_Store
 tests/ui/*.png
