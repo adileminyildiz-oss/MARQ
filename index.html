@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=704;
+var LAST_VER=705;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46186,14 +46186,49 @@ function testLienSignature() {
         return r; };
       window.invEmettre.__num703=1; } }catch(e){}
 
-  /* Suppression : le numéro reste consommé (une facture émise s'annule par un avoir). */
+  /* Suppression d'une pièce émise : l'avoir d'abord.
+     Une facture émise s'annule par un avoir, pas en l'effaçant — sinon la séquence
+     de facturation est trouée et la pièce disparaît des livres. Le devis, qui
+     n'engage rien, reste librement supprimable. Le numéro, lui, reste consommé
+     dans tous les cas : il ne repartira jamais à une autre pièce. */
+  var TITRES_P={facture:'Facture',avoir:'Avoir',acompte:'Facture d\'acompte',
+                situation:'Situation de travaux',solde:'Décompte définitif'};
+  function protegee(f){ return !!(f && f.statut==='emise' && (f.type||'facture')!=='devis'); }
+
+  window.numAvoirPuis=function(id){ try{ closeModal(); }catch(e){}
+    try{ if(typeof window.invAvoir==='function') window.invAvoir(id);
+         else T('L\'avoir ne peut pas être préparé depuis cet écran.','warn'); }catch(e){} };
+
+  window.numSupprimerQuandMeme=function(id){ try{ closeModal(); }catch(e){}
+    try{ var f=docs().filter(function(x){ return x.id===id; })[0];
+         if(f && f.numero) noter({action:'suppression',numero:''+f.numero,type:f.type||'facture',
+                                  objet:'Pièce émise supprimée — numéro conservé',id:id||''});
+         enr(); }catch(e){}
+    try{ var arr=docs(), i=arr.findIndex(function(x){ return x.id===id; });
+         if(i>=0){ arr.splice(i,1); if(typeof save==='function')save(); }
+         if(typeof render==='function') render();
+         T('Pièce supprimée. Son numéro reste consommé et la rupture est signalée dans le contrôle de numérotation.','warn');
+    }catch(e){} };
+
   try{ var _del=window.invDel;
     if(typeof _del==='function' && !_del.__num703){
       window.invDel=function(id){
-        try{ var f=docs().filter(function(x){ return x.id===id; })[0];
-             if(f && f.statut==='emise' && f.numero){
-               noter({action:'suppression',numero:''+f.numero,type:f.type||'facture',objet:'Facture supprimée',id:id||''}); enr(); } }catch(e){}
-        return _del.apply(this,arguments); };
+        var f=null; try{ f=docs().filter(function(x){ return x.id===id; })[0]; }catch(e){}
+        if(!protegee(f)) return _del.apply(this,arguments);
+        var lbl=TITRES_P[f.type||'facture']||'Pièce';
+        try{
+          openModal(lbl+' '+E(f.numero)+' — déjà émise',
+            '<p class="hint" style="margin:0 0 10px">Cette pièce est émise : elle porte un numéro '
+           +'et figure dans les livres. La voie correcte pour l\'annuler est un <b>avoir</b>, '
+           +'qui la neutralise en la laissant à sa place.</p>'
+           +'<p class="hint" style="margin:0">La supprimer creuserait un trou dans la séquence de '
+           +'facturation, que la réglementation veut continue (CGI, ann. II, art. 242 nonies A). '
+           +'Son numéro, lui, resterait consommé dans tous les cas.</p>',
+            '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'
+           +'<button class="btn btn-danger" onclick="numSupprimerQuandMeme(\''+id+'\')">Supprimer quand même</button>'
+           +'<button class="btn btn-pri" onclick="numAvoirPuis(\''+id+'\')">Créer l\'avoir</button>');
+        }catch(e){ return _del.apply(this,arguments); }
+      };
       window.invDel.__num703=1; } }catch(e){}
 
   /* Dossiers */
