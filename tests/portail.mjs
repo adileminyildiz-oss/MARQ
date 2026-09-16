@@ -20,7 +20,7 @@ const pageA = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
 pageA.on('pageerror', e => { const s = '' + e; if (!/ServiceWorker/.test(s)) perr.push('A:' + s); });
 await pageA.addInitScript(() => { try { localStorage.setItem('last-gate-ok', '1'); } catch (e) {} });
 await pageA.goto(pathToFileURL(path.resolve('index.html')).href, { waitUntil: 'networkidle' });
-await pageA.waitForTimeout(300);
+await pageA.waitForFunction(() => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'), { timeout: 20000 });
 
 const a = await pageA.evaluate(() => {
   window.confirm = () => true; window.toast = () => {};

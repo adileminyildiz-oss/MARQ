@@ -4,7 +4,7 @@ let ok=0,ko=0; const A=(c,m)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko++;
   const b=await chromium.launch(); const pg=await b.newPage({viewport:{width:1700,height:1080}});
   const errs=[]; pg.on('pageerror',e=>{ if(!/ServiceWorker/.test(''+e)) errs.push(''+e); });
   await pg.goto(URL_APP); await pg.waitForTimeout(400);
-  await pg.evaluate(()=>{ try{_authGranted();}catch(e){} }); await pg.waitForTimeout(3400);
+  await pg.evaluate(()=>{ try{_authGranted();}catch(e){} }); await pg.waitForFunction(() => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'), { timeout: 20000 });
 
   /* base neuve */
   const neuf=await pg.evaluate(()=>{ delete DB.parametres.actionsGroupees;

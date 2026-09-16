@@ -13,7 +13,8 @@ const url=pathToFileURL(path.resolve('index.html')).href;
 const b=await chromium.launch(); const p=await b.newPage({viewport:{width:1280,height:1000}});
 const perr=[]; p.on('pageerror',e=>{const s=''+e; if(!/ServiceWorker/.test(s))perr.push(s);});
 await p.addInitScript(()=>{try{localStorage.setItem('last-gate-ok','1');localStorage.setItem('last-role','admin');}catch(e){}});
-await p.goto(url,{waitUntil:'networkidle'}); await p.waitForTimeout(300);
+await p.goto(url,{waitUntil:'networkidle'}); 
+await p.waitForFunction(() => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'), { timeout: 20000 });
 const r=await p.evaluate(()=>{
   window.confirm=()=>true; window.toast=()=>{};
   DB.clients=DB.clients||[]; DB.clients.push({id:'c-df',denomination:'DOCFOLDER',forme:'SAS',capital:'5000',president:'A',associes:[{nom:'A',parts:'1000'}],activites:['Conseil'],email:'a@d.fr'});

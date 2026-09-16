@@ -8,7 +8,7 @@ const { chromium, URL_APP } = require('./_socle.cjs');
   page.on('pageerror', e => { if (!/ServiceWorker/.test(e.message)) erreurs.push(e.message); });
   await page.goto(URL_APP, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { try { window._authGranted && window._authGranted(); } catch (e) {} });
-  await page.waitForTimeout(3400);
+  await page.waitForFunction(() => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'), { timeout: 20000 });
 
   const r = await page.evaluate(() => {
     const out = {};

@@ -26,7 +26,9 @@ page.on('pageerror', e => { const s = '' + e; if (/ServiceWorker/i.test(s)) retu
 page.on('console', m => { if (m.type() === 'error') { const s = m.text(); if (!/ServiceWorker|Failed to load resource/i.test(s)) perr.push('console:' + s); } });
 await page.addInitScript(() => { try { localStorage.setItem('last-gate-ok', '1'); } catch (e) {} });
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForTimeout(300);
+await page.waitForFunction(
+  () => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'),
+  { timeout: 20000 });   // l'application le dit elle-même : plus de passe de démarrage en attente
 
 const r = await page.evaluate(async () => {
   const out = {};

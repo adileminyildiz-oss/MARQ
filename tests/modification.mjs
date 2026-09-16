@@ -18,7 +18,9 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const perr = []; page.on('pageerror', e => { const s = '' + e; if (!/ServiceWorker/.test(s)) perr.push(s); });
 await page.addInitScript(() => { try { localStorage.setItem('last-gate-ok', '1'); } catch (e) {} });
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForTimeout(300);
+await page.waitForFunction(
+  () => window.marqPret && window.marqPret() && document.querySelector('#nav .nav-btn'),
+  { timeout: 20000 });   // l'application le dit elle-même : plus de passe de démarrage en attente
 
 const r = await page.evaluate(() => {
   window.confirm = () => true; window.toast = () => {};

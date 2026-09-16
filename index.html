@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=707;
+var LAST_VER=708;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46097,6 +46097,23 @@ function testLienSignature() {
 })();
 </script>
 <script>
+/* ===== Mar'q v708 — Amorçage observable =====
+   Les suites de test attendaient un délai fixe après le chargement : 300 ms pour
+   les unes, 3 400 ms pour les autres. Le premier ne suffisait pas — l'application
+   travaillait encore — et le second faisait attendre pour rien. Les passes de
+   démarrage se déclarent désormais occupées, et marqPret() dit quand tout est posé. */
+(function(){
+  if(window.marqPret) return;
+  window.__marqAttente=0;
+  window.marqOccupe=function(d){ window.__marqAttente=Math.max(0,(window.__marqAttente|0)+(d|0)); };
+  window.marqPret=function(){
+    try{ if((window.__marqAttente|0)>0) return false;
+         return !!document.querySelector('#nav .nav-btn, #sec-lock, #gate, .gate'); }
+    catch(e){ return false; }
+  };
+})();
+</script>
+<script>
 /* ===== Mar'q v703 — Registre des numéros : unicité et non-réemploi ===== */
 (function(){
   if(window.__mqNum703) return; window.__mqNum703=1;
@@ -46464,8 +46481,22 @@ function testLienSignature() {
    +'.nr-ok{font-size:12px;opacity:.8;margin:0 0 8px}'
    +'.nr-j{font-size:11px;opacity:.8;margin:4px 0 10px}.nr-j ul{margin:6px 0 0;padding-left:16px}');
 
-  /* Reprise au démarrage : les numéros déjà émis entrent au registre une fois. */
-  try{ setTimeout(function(){ try{ reprise(); }catch(e){} },2500); }catch(e){}
+  /* Reprise au démarrage : les numéros déjà émis entrent au registre, une seule fois.
+     Au premier rendu plutôt qu'après un délai : à ce moment la base est chargée,
+     et l'application n'a plus de travail en attente derrière elle. */
+  try{ if(window.marqOccupe) window.marqOccupe(1);
+    var fait=false, tours=0;
+    var lance=function(){ if(fait) return; fait=true;
+      try{ reprise(); }catch(e){}
+      try{ if(window.marqOccupe) window.marqOccupe(-1); }catch(e){} };
+    /* On attend que l'interface soit construite — à ce moment la base est
+       restaurée. Un greffon sur render ne tiendrait pas : d'autres modules
+       réenveloppent render après le chargement et emporteraient le nôtre. */
+    var guet=setInterval(function(){
+      var pret=false; try{ pret=!!document.querySelector('#nav .nav-btn'); }catch(e){}
+      if(pret || ++tours>60){ clearInterval(guet); lance(); }
+    },100);
+  }catch(e){ try{ if(window.marqOccupe) window.marqOccupe(-1); }catch(e2){} }
 })();
 </script>
 <script>
