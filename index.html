@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=706;
+var LAST_VER=707;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46259,13 +46259,28 @@ function testLienSignature() {
         return attribuer(v,'demande','Demande',''); };
       window.demCodeGen.__num703=1; } }catch(e){}
 
-  /* Traitements (numéro de service) */
-  try{ var _sn=window.formTakeServiceNum;
-    if(typeof _sn==='function' && !_sn.__num703){
-      window.formTakeServiceNum=function(nature){ var v=_sn.apply(this,arguments), n=0;
-        while(!libre(v) && n++<200) v=_sn.apply(this,arguments);
-        return attribuer(v,'service','Traitement',''); };
-      window.formTakeServiceNum.__num703=1; } }catch(e){}
+  /* Traitements : le numéro de service suit le format réglé pour les dossiers
+     (même séparateur, même année, même longueur) — seul le préfixe change selon
+     la nature : CR pour une création, MD pour une modification. Il restait sur
+     un CR00001 à cinq chiffres, sans année, hors du format commun. */
+  function servPrefixe(nature){ return (nature==='modification')?'MD':'CR'; }
+  function servCompteurs(pre){ var s=P().numService=P().numService||{}; 
+    s.compteurs=s.compteurs||{}; s.compteurs[pre]=s.compteurs[pre]||{}; return s.compteurs[pre]; }
+  function servFormat(pre,n,an){ var c={sep:'-',annee:true,taille:3};
+    try{ if(typeof window.numCfg==='function'){ var x=window.numCfg();
+      c.sep=(x.sep==null)?'-':x.sep; c.annee=!!x.annee; c.taille=(x.taille>0)?x.taille:3; } }catch(e){}
+    return pre+c.sep+(c.annee?((an||String(new Date().getFullYear()))+c.sep):'')+String(n).padStart(c.taille,'0'); }
+
+  window.formNextServiceNum=function(nature){ var pre=servPrefixe(nature), y=String(new Date().getFullYear());
+    return proposer(servFormat(pre,(servCompteurs(pre)[y]||0)+1,y)); };
+  window.formNextServiceNum.__num707=1;
+
+  window.formTakeServiceNum=function(nature){ var pre=servPrefixe(nature), y=String(new Date().getFullYear());
+    var C=servCompteurs(pre), n=(C[y]||0)+1, v=servFormat(pre,n,y), tours=0;
+    while(!libre(v) && tours++<999){ n++; v=servFormat(pre,n,y); }
+    C[y]=n; enr();
+    return attribuer(v,'service','Traitement',''); };
+  window.formTakeServiceNum.__num707=1;
 
 
   /* ---------- Contrôle de cohérence ---------- */
@@ -46312,14 +46327,21 @@ function testLienSignature() {
     /* Clients : même SIREN ou même dénomination */
     var parSiren={}, parNom={};
     (M.clients?M.clients():[]).forEach(function(c){ if(!c) return;
-      var nom=c.nom||c.raison||c.societe||'—';
+      /* la fiche client porte son nom sous des clés différentes selon l'origine
+         (dénomination pour une société, prénom + nom pour un particulier) */
+      var nom=''; try{ if(M.nomClient) nom=M.nomClient(c)||''; }catch(e2){}
+      nom=nom||c.denomination||c.raison||c.societe||((c.prenom||'')+' '+(c.nom||'')).trim()||c.nom||'—';
       var s=norm(c.siren||c.siret).slice(0,9);
       if(s.length===9){ (parSiren[s]=parSiren[s]||[]).push({nom:nom,id:c.id}); }
       var nn=norm(nom); if(nn) (parNom[nn]=parNom[nn]||[]).push({nom:nom,id:c.id}); });
-    Object.keys(parSiren).forEach(function(s){ if(parSiren[s].length>1)
-      a.clients.push({quoi:'même SIREN '+s,noms:parSiren[s].map(function(x){return x.nom;}),ids:parSiren[s].map(function(x){return x.id;})}); });
-    Object.keys(parNom).forEach(function(n){ if(parNom[n].length>1)
-      a.clients.push({quoi:'même dénomination',noms:parNom[n].map(function(x){return x.nom;}),ids:parNom[n].map(function(x){return x.id;})}); });
+    /* un même groupe peut se reconnaître au SIREN ET à la dénomination :
+       on ne le signale qu'une fois, par le critère le plus sûr */
+    var vusG={};
+    function poseGroupe(quoi,l){ var k=l.map(function(x){return x.id;}).sort().join('|');
+      if(vusG[k]) return; vusG[k]=1;
+      a.clients.push({quoi:quoi,noms:l.map(function(x){return x.nom;}),ids:l.map(function(x){return x.id;})}); }
+    Object.keys(parSiren).forEach(function(s){ if(parSiren[s].length>1) poseGroupe('même SIREN '+s,parSiren[s]); });
+    Object.keys(parNom).forEach(function(n){ if(parNom[n].length>1) poseGroupe('même dénomination',parNom[n]); });
 
     a.registre=Object.keys(REG().attribues).length;
     return a;
@@ -46332,7 +46354,8 @@ function testLienSignature() {
       +'<span class="nr-badge '+(ko?'ko':'ok')+'">'+(ko?(ko+' point'+(ko>1?'s':'')+' à voir'):'Aucun doublon')+'</span></div>'
       +'<div class="card-b">'
       +'<p class="nr-int">Chaque numéro émis est inscrit au registre et n\'en ressort jamais : supprimer une pièce ne libère plus son numéro. '
-      +'<b>'+a.registre+'</b> numéro'+(a.registre>1?'s':'')+' au registre, <b>'+a.pieces+'</b> en circulation.</p>';
+      +'<b>'+a.registre+'</b> numéro'+(a.registre>1?'s':'')+' au registre, <b>'+a.pieces+'</b> en circulation. '
+      +'Le numéro de traitement (CR / MD) suit le même format que le numéro de dossier réglé ci-dessus.</p>';
 
     if(a.doublons.length){ h+='<div class="nr-bloc ko"><h4>Numéros portés par deux pièces</h4><ul>';
       a.doublons.forEach(function(d){ h+='<li><b>'+E(d.numero)+'</b> — '+E(d.a)+' <i>et</i> '+E(d.b)+'</li>'; });
