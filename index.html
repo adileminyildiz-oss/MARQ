@@ -3337,7 +3337,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=701;
+var LAST_VER=702;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -44422,14 +44422,14 @@ function testLienSignature() {
 
   var CSS='.kb-cache{display:none !important}'
     +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots,.kb-dots{'
-      +'position:relative;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;gap:2.5px;'
-      +'padding:4px 5px;margin:0;min-width:0;min-height:0;width:auto;height:auto;line-height:1;'
+      +'position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;'
+      +'padding:5px 4px;margin:0;min-width:0;min-height:0;width:auto;height:auto;line-height:1;'
       +'background:transparent !important;background-image:none !important;border:0 !important;'
       +'border-radius:4px;box-shadow:none !important;outline:0;'
       +'color:inherit;font:inherit;cursor:pointer;opacity:.55;transition:opacity .12s}'
-    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:26px;height:22px;'
+    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:22px;height:26px;'
       +'transform:translate(-50%,-50%);border-radius:5px}'
-    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:26px;height:22px;'
+    +'.kb-dots::after{content:"";position:absolute;left:50%;top:50%;width:22px;height:26px;'
       +'transform:translate(-50%,-50%);border-radius:5px}'
     +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-dots{opacity:0;transition:opacity .13s}'
     +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .kb-host:hover .kb-dots,'
