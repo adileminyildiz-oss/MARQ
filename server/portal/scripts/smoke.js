@@ -101,6 +101,52 @@ function assert(cond, msg) {
   f = await req('GET', '/portal/file/cf2', null, auth);
   assert(f.status === 403, 'file cf2 (autre client) refusé -> cloisonnement OK');
 
+  /* 6) sauvegardes hors machine (v714) — le serveur conserve un bloc opaque */
+  const NIR = '185067812345642';
+  let b = await req('POST', '/admin/backup', { blob: 'peu importe' }, { 'X-Cabinet-Token': 'mauvais' });
+  assert(b.status === 401, 'dépôt de sauvegarde refusé avec un mauvais secret cabinet');
+
+  b = await req('POST', '/admin/backup', {}, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(b.status === 400, 'dépôt sans bloc refusé');
+
+  /* une sauvegarde chiffrée côté cabinet : le serveur n'en voit qu'une enveloppe */
+  const enveloppe = 'MQS1.aXZpdmlpdml2aXY=.Y2hpZmZyZW1lbnRvcGFxdWU=';
+  b = await req('POST', '/admin/backup', { ts: Date.now(), ver: 714, chiffre: true, poste: 'poste-test', blob: enveloppe },
+    { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(b.status === 200 && b.json.id, 'sauvegarde déposée -> identifiant renvoyé');
+  const idSauv = b.json.id;
+
+  let ls = await req('GET', '/admin/backups', null, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(ls.status === 200 && ls.json.sauvegardes.length === 1, 'la sauvegarde est listée');
+  assert(ls.json.sauvegardes[0].chiffre === true && ls.json.sauvegardes[0].ver === 714
+    && ls.json.sauvegardes[0].poste === 'poste-test', 'métadonnées conservées (chiffrée, version, poste)');
+  assert(ls.json.sauvegardes[0].blob === undefined, "la liste ne renvoie pas le contenu, seulement les métadonnées");
+
+  let g = await req('GET', '/admin/backup?id=' + encodeURIComponent(idSauv), null, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(g.status === 200 && g.json.blob === enveloppe, 'la sauvegarde est rendue à l\u2019identique');
+  g = await req('GET', '/admin/backup?id=inconnue', null, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(g.status === 404, 'sauvegarde inconnue -> 404');
+
+  /* le serveur ne peut pas lire : rien de sensible n'atterrit en clair sur son disque */
+  b = await req('POST', '/admin/backup', { ts: Date.now(), chiffre: true, blob: 'MQS1.aXY=.' + Buffer.from('bloc-chiffre').toString('base64') },
+    { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  const surDisque = fs.readdirSync(path.join(DIR, 'backups')).map(function (f) {
+    return fs.readFileSync(path.join(DIR, 'backups', f), 'utf8'); }).join('\n');
+  assert(surDisque.indexOf(NIR) < 0, 'aucun numéro de sécurité sociale lisible dans les fichiers du serveur');
+  assert(surDisque.indexOf('MQS1.') === 0 || /MQS1\./.test(surDisque), 'les fichiers conservés sont des enveloppes');
+
+  /* rotation : au-delà du plafond, les plus anciennes partent */
+  process.env.BACKUPS_MAX = '30';
+  ls = await req('GET', '/admin/backups', null, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(ls.json.sauvegardes.length === 2, 'deux sauvegardes conservées');
+  assert(ls.json.sauvegardes[0].ts >= ls.json.sauvegardes[1].ts, 'la plus récente vient en premier');
+
+  let sup = await req('POST', '/admin/backup-delete', { id: idSauv }, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(sup.status === 200, 'suppression d\u2019une sauvegarde');
+  ls = await req('GET', '/admin/backups', null, { 'X-Cabinet-Token': 'secret-cabinet-test' });
+  assert(ls.json.sauvegardes.length === 1 && ls.json.sauvegardes[0].id !== idSauv, 'la sauvegarde supprimée a disparu de l\u2019index');
+  assert(!fs.existsSync(path.join(DIR, 'backups', idSauv + '.blob')), 'son fichier a disparu aussi — pas d\u2019orphelin');
+
   serveur.close();
   console.log(echecs === 0 ? '\nTOUS LES TESTS PASSENT ✓' : '\n' + echecs + ' ÉCHEC(S) ✗');
   process.exit(echecs === 0 ? 0 : 1);

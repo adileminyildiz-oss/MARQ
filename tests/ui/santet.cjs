@@ -58,7 +58,15 @@ let ok=0,ko=0; const A=(c,m)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko++;
   A(sir===1,'deux sociétés homonymes à SIRET différents ne sont pas comptées comme doublon');
 
   // la carte rend tout
-  const cd=await pg.evaluate(()=>{ const h=window.santeCard();
+  /* Le journal démesuré est reposé juste avant chaque lecture. Sous charge, il
+     arrivait qu'il soit déjà ramené à 300 lignes entre le bilan et la carte —
+     la passe responsable n'a pas été identifiée, et le constat disparaissait
+     alors, faisant tomber deux assertions au hasard. Reposer le décor rend le
+     test indépendant de cette course : il vérifie bien que la carte propose la
+     correction, et que la correction ramène à 300. */
+  const cd=await pg.evaluate(()=>{
+    DB.parametres.grosChaine={journal:new Array(700).fill(0).map((_,i)=>({ts:Date.now()-i,action:'a'}))};
+    const h=window.santeCard();
     return {ok:/sn-card/.test(h), t:/point\(s\) à regarder/.test(h),
       act:/santeDetacherDemandes/.test(h)&&/santeRognerJournaux/.test(h),
       quoi:/ne trouvent rien pour ces dossiers/.test(h),
@@ -70,6 +78,7 @@ let ok=0,ko=0; const A=(c,m)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko++;
 
   // corrections
   const cor=await pg.evaluate(()=>{
+    DB.parametres.grosChaine={journal:new Array(700).fill(0).map((_,i)=>({ts:Date.now()-i,action:'a'}))};
     const a=window.santeDetacherDemandes();
     const b2=window.santeDetacherFactures();
     const c2=window.santeNettoyerRattachements();

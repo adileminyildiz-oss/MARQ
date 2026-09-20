@@ -46,7 +46,7 @@ const config = {
   JWT_SECRET: process.env.JWT_SECRET || '',
 
   // Origine(s) autorisée(s) pour le CORS. Liste séparée par des virgules.
-  // Exemple : "https://last.aemconseil.eu". "*" autorise toutes les origines
+  // Exemple : "https://marq.aemconseil.eu". "*" autorise toutes les origines
   // (à réserver au développement).
   ALLOWED_ORIGIN: (process.env.ALLOWED_ORIGIN || 'http://localhost:8787')
     .split(',')

@@ -13,6 +13,9 @@
  *   GET  /portal/file/:id                      -> octets du fichier                 (auth Bearer)
  *
  * Endpoints cabinet (protégés par le secret CABINET_TOKEN) :
+ *   POST /admin/backup, GET /admin/backups, GET /admin/backup, POST /admin/backup-delete
+ *     → dépôt hors machine de la base du cabinet. Le serveur conserve un bloc
+ *       OPAQUE : chiffré côté poste, il ne peut pas en lire le contenu.
  *   POST /admin/sync  { cabinet, clients:[{name,code}], docs:[...], files?:{...} }
  *   POST /admin/file  { id, data }   (data = dataURL ou base64)  — upload isolé
  *
@@ -205,6 +208,44 @@ function adminEvents(req, res, query) {
   return envoyerJSON(res, 200, { events: events });
 }
 
+// POST /admin/backup  { ts, ver, chiffre, poste, blob }  -> dépôt d'une sauvegarde
+// Le blob est opaque pour le serveur : chiffré côté cabinet, il ne peut pas être lu ici.
+async function adminBackup(req, res) {
+  if (!verifierCabinet(req, res)) return;
+  let corps;
+  try { corps = JSON.parse((await lireCorps(req, config.MAX_ADMIN_BODY)).toString('utf8') || '{}'); }
+  catch (e) { return envoyerJSON(res, 413, { error: 'Sauvegarde trop volumineuse ou JSON invalide.' }); }
+  if (!corps.blob) return envoyerJSON(res, 400, { error: 'Champ requis : blob.' });
+  try {
+    const r = store.enregistrerSauvegarde(corps, corps.blob);
+    return envoyerJSON(res, 200, { ok: true, id: r.entree.id, ts: r.entree.ts, taille: r.entree.taille, total: r.total, purgees: r.purgees });
+  } catch (e) { return envoyerJSON(res, 400, { error: e.message }); }
+}
+
+// GET /admin/backups?limit=30  -> métadonnées des sauvegardes conservées
+function adminBackups(req, res, query) {
+  if (!verifierCabinet(req, res)) return;
+  return envoyerJSON(res, 200, { sauvegardes: store.listerSauvegardes(query.limit) });
+}
+
+// GET /admin/backup?id=...  -> une sauvegarde (bloc chiffré tel qu'il a été déposé)
+function adminBackupGet(req, res, query) {
+  if (!verifierCabinet(req, res)) return;
+  const r = store.lireSauvegarde(String(query.id || ''));
+  if (!r) return envoyerJSON(res, 404, { error: 'Sauvegarde introuvable.' });
+  return envoyerJSON(res, 200, { id: r.entree.id, ts: r.entree.ts, chiffre: r.entree.chiffre, ver: r.entree.ver, blob: r.blob });
+}
+
+// POST /admin/backup-delete  { id }
+async function adminBackupDelete(req, res) {
+  if (!verifierCabinet(req, res)) return;
+  let corps;
+  try { corps = JSON.parse((await lireCorps(req, 4096)).toString('utf8') || '{}'); }
+  catch (e) { return envoyerJSON(res, 400, { error: 'JSON invalide.' }); }
+  const ok = store.supprimerSauvegarde(String(corps.id || ''));
+  return envoyerJSON(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Sauvegarde introuvable.' });
+}
+
 // POST /portal/upload  { nom, type, data }  (auth Bearer client) -> dépôt d'une pièce
 async function portalUpload(req, res) {
   const k = authClient(req, res);
@@ -294,6 +335,10 @@ const serveur = http.createServer(function (req, res) {
     if (chemin === '/admin/uploads' && req.method === 'GET') return adminUploads(req, res, parsed.query || {});
     if (chemin === '/admin/upload-delete' && req.method === 'POST') return adminUploadDelete(req, res);
     if (chemin === '/admin/revoke' && req.method === 'POST') return adminRevoke(req, res);
+    if (chemin === '/admin/backup' && req.method === 'POST') return adminBackup(req, res);
+    if (chemin === '/admin/backup' && req.method === 'GET') return adminBackupGet(req, res, parsed.query || {});
+    if (chemin === '/admin/backups' && req.method === 'GET') return adminBackups(req, res, parsed.query || {});
+    if (chemin === '/admin/backup-delete' && req.method === 'POST') return adminBackupDelete(req, res);
     const mu = chemin.match(/^\/admin\/upload\/([^/]+)$/);
     if (mu && req.method === 'GET') return adminUploadFile(req, res, decodeURIComponent(mu[1]));
 

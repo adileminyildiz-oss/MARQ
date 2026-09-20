@@ -14,19 +14,23 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { hasherCode } = require('./crypto');
 
 let DIR = null;
 let FILES_DIR = null;
+let BACKUPS_DIR = null;
 
 function init(dataDir) {
   DIR = dataDir;
   FILES_DIR = path.join(DIR, 'files');
+  BACKUPS_DIR = path.join(DIR, 'backups');
   fs.mkdirSync(FILES_DIR, { recursive: true });
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
   // Crée les JSON manquants.
-  for (const f of ['clients.json', 'docs.json', 'meta.json']) {
+  for (const f of ['clients.json', 'docs.json', 'meta.json', 'backups.json']) {
     const p = path.join(DIR, f);
-    if (!fs.existsSync(p)) fs.writeFileSync(p, f === 'meta.json' ? '{"cabinet":""}' : '{}');
+    if (!fs.existsSync(p)) fs.writeFileSync(p, f === 'meta.json' ? '{"cabinet":""}' : (f === 'backups.json' ? '[]' : '{}'));
   }
 }
 
@@ -284,6 +288,81 @@ function enregistrerFichier(id, data) {
   ecrireFichier(id, decoderContenu(data));
 }
 
+/* =====================================================================
+ * SAUVEGARDES HORS MACHINE (v714)
+ * Le cabinet dépose ici une copie de sa base. Le serveur ne stocke qu'un
+ * BLOC OPAQUE : quand le chiffrement au repos est actif côté cabinet, ce
+ * bloc est une enveloppe AES-256-GCM dont la clé ne quitte jamais le
+ * poste — le serveur ne peut donc pas lire ce qu'il conserve, et n'a
+ * aucun besoin de le pouvoir.
+ * Index dans backups.json (métadonnées seules), contenu dans backups/.
+ * ===================================================================== */
+const BACKUPS_MAX = parseInt(process.env.BACKUPS_MAX || '30', 10);
+
+function lireIndexSauvegardes() {
+  try {
+    const t = JSON.parse(fs.readFileSync(path.join(DIR, 'backups.json'), 'utf8'));
+    return Array.isArray(t) ? t : [];
+  } catch (e) { return []; }
+}
+function ecrireIndexSauvegardes(liste) {
+  const tmp = path.join(DIR, 'backups.json.tmp');
+  fs.writeFileSync(tmp, JSON.stringify(liste, null, 2));
+  fs.renameSync(tmp, path.join(DIR, 'backups.json'));
+}
+function cheminSauvegarde(id) {
+  if (!idSur(id)) throw new Error('identifiant de sauvegarde invalide');
+  return path.join(BACKUPS_DIR, id + '.blob');
+}
+
+function enregistrerSauvegarde(meta, blob) {
+  const texte = String(blob == null ? '' : blob);
+  if (!texte) throw new Error('sauvegarde vide');
+  const ts = parseInt(meta && meta.ts, 10) || Date.now();
+  const id = String(ts) + '-' + crypto.randomBytes(6).toString('hex');
+  fs.writeFileSync(cheminSauvegarde(id), texte, 'utf8');
+
+  const entree = {
+    id: id,
+    ts: ts,
+    iso: new Date(ts).toISOString(),
+    taille: Buffer.byteLength(texte, 'utf8'),
+    ver: parseInt(meta && meta.ver, 10) || 0,
+    chiffre: !!(meta && meta.chiffre),
+    poste: String((meta && meta.poste) || '').slice(0, 80),
+  };
+  let liste = lireIndexSauvegardes();
+  liste.unshift(entree);
+  liste.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+
+  /* Rotation : au-delà du plafond, les plus anciennes sont effacées —
+     index et fichier ensemble, pour ne jamais laisser d'orphelin. */
+  const trop = liste.slice(BACKUPS_MAX);
+  liste = liste.slice(0, BACKUPS_MAX);
+  trop.forEach(function (e) { try { fs.unlinkSync(cheminSauvegarde(e.id)); } catch (_) {} });
+  ecrireIndexSauvegardes(liste);
+  return { entree: entree, total: liste.length, purgees: trop.length };
+}
+
+function listerSauvegardes(limit) {
+  const n = Math.min(Math.max(parseInt(limit, 10) || BACKUPS_MAX, 1), 200);
+  return lireIndexSauvegardes().slice(0, n);
+}
+function lireSauvegarde(id) {
+  const e = lireIndexSauvegardes().filter(function (x) { return x.id === id; })[0];
+  if (!e) return null;
+  try { return { entree: e, blob: fs.readFileSync(cheminSauvegarde(id), 'utf8') }; }
+  catch (err) { return null; }
+}
+function supprimerSauvegarde(id) {
+  const liste = lireIndexSauvegardes();
+  const reste = liste.filter(function (x) { return x.id !== id; });
+  if (reste.length === liste.length) return false;
+  try { fs.unlinkSync(cheminSauvegarde(id)); } catch (_) {}
+  ecrireIndexSauvegardes(reste);
+  return true;
+}
+
 module.exports = {
   init, ckey,
   getMeta, setMeta,
@@ -293,4 +372,5 @@ module.exports = {
   logEvent, getEvents,
   enregistrerUpload, getUploads, getUpload, supprimerUpload,
   revokeClient,
+  enregistrerSauvegarde, listerSauvegardes, lireSauvegarde, supprimerSauvegarde,
 };

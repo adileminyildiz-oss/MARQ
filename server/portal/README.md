@@ -8,6 +8,43 @@
 > l'URL de votre site. Un **déploiement automatique Fly.io** (GitHub Actions) est
 > aussi fourni — voir l'option D plus bas.
 
+## Déployer, en un geste
+
+Le déploiement est **déjà outillé** : `.github/workflows/deploy-portal.yml`
+crée l'application, le volume persistant, pose les secrets et déploie — puis
+**vérifie le service depuis l'extérieur**. Il attend deux secrets de dépôt :
+
+| Secret GitHub | Valeur |
+|---|---|
+| `FLY_API_TOKEN` | `fly tokens create deploy` (compte fly.io) |
+| `CABINET_TOKEN` | `openssl rand -hex 32` — c'est celui que vous collerez dans Mar'q |
+| `ALLOWED_ORIGIN` | facultatif, défaut `https://marq.aemconseil.eu` |
+
+Dépôt → Settings → Secrets and variables → Actions → New repository secret.
+Puis Actions → `deploy-portal` → **Run workflow**. Le résumé du job affiche
+l'adresse à coller dans Mar'q (**Paramètres › Portail en ligne**).
+
+`CABINET_TOKEN` est **demandé** et non généré : un secret créé dans un job que
+personne ne peut relire ne serait connu de personne, donc inutilisable par le
+cabinet. `JWT_SECRET`, que personne n'a besoin de connaître, est généré une
+seule fois et conservé par Fly — le régénérer couperait les sessions client
+en cours.
+
+**Contrôler un service déjà déployé**, de l'extérieur et sans rien installer :
+
+```bash
+CABINET_TOKEN=<le secret> node server/portal/scripts/verifier-deploiement.mjs \
+  https://marq-portail.fly.dev --origine https://marq.aemconseil.eu
+```
+
+Il exerce la chaîne réelle : `/health`, **l'origine CORS telle que le
+navigateur la verra** (le piège le plus coûteux : un service sain dont le
+navigateur refuse chaque appel), le refus des routes d'administration sans
+secret, puis le dépôt / la liste / la relecture / la suppression d'une
+sauvegarde. Il ne laisse rien derrière lui.
+
+---
+
 Backend minimal (Node.js, **http natif, zéro dépendance runtime**) qui rend le
 « portail client » de Mar'q réellement accessible **à distance**.
 
@@ -109,7 +146,7 @@ y sont stockés) et servir en **HTTPS** (obligatoire : le site est en HTTPS, un
 backend en HTTP serait bloqué comme « mixed content »).
 
 Variables d'environnement à définir : `CABINET_TOKEN`, `JWT_SECRET`,
-`ALLOWED_ORIGIN=https://last.aemconseil.eu`, `DATA_DIR` (chemin du volume).
+`ALLOWED_ORIGIN=https://marq.aemconseil.eu`, `DATA_DIR` (chemin du volume).
 
 **Render** — New → Web Service → Root Directory `server/portal`,
 Build `` (vide), Start `node server.js`, ajouter un **Disk** monté sur
@@ -248,14 +285,14 @@ async function publierPortail() {
 
 ---
 
-## 5. Rappel CSP / réseau (site `last.aemconseil.eu`)
+## 5. Rappel CSP / réseau (site `marq.aemconseil.eu`)
 
 - Le site étant en **HTTPS**, le backend doit l'être aussi (sinon `fetch` bloqué
   en « mixed content »). Utiliser un domaine dédié, ex. `https://portail.aemconseil.eu`.
 - Autoriser l'origine du backend dans une éventuelle **CSP** (`connect-src`), ex. :
   `connect-src 'self' https://portail.aemconseil.eu;`
 - Le serveur renvoie déjà les en-têtes **CORS** vers `ALLOWED_ORIGIN` — y mettre
-  l'URL exacte du site (`https://last.aemconseil.eu`).
+  l'URL exacte du site (`https://marq.aemconseil.eu`).
 
 ---
 
@@ -285,7 +322,7 @@ Trois fichiers prêts à l'emploi sont fournis (aucune dépendance à installer,
 ### Option A — Render (le plus simple)
 1. Poussez ce dépôt sur GitHub.
 2. Render → **New → Blueprint** → sélectionnez le dépôt : Render lit le `render.yaml` à la racine du dépôt, crée le service, **génère automatiquement** `CABINET_TOKEN` et `JWT_SECRET`, et monte un disque persistant (`/var/data`).
-3. Vérifiez la variable **`ALLOWED_ORIGIN`** = l'URL exacte de votre site (ex. `https://last.aemconseil.eu`).
+3. Vérifiez la variable **`ALLOWED_ORIGIN`** = l'URL exacte de votre site (ex. `https://marq.aemconseil.eu`).
 4. Récupérez l'URL publique du service (ex. `https://marq-portail.onrender.com`) et le `CABINET_TOKEN` (onglet *Environment*).
 
 > Le disque persistant nécessite un plan **Starter**. En plan gratuit, supprimez la section `disk` du `render.yaml` : les fichiers deviennent éphémères (il suffit de **resynchroniser** depuis Mar'q après chaque redéploiement).
@@ -297,7 +334,7 @@ fly launch --no-deploy
 fly volumes create marq_data --size 1 --region cdg
 fly secrets set CABINET_TOKEN=$(openssl rand -hex 32) \
                 JWT_SECRET=$(openssl rand -hex 32) \
-                ALLOWED_ORIGIN=https://last.aemconseil.eu
+                ALLOWED_ORIGIN=https://marq.aemconseil.eu
 fly deploy
 ```
 
@@ -308,7 +345,7 @@ docker build -t marq-portail .
 docker run -d --name marq-portail -p 8787:8787 \
   -e CABINET_TOKEN=$(openssl rand -hex 32) \
   -e JWT_SECRET=$(openssl rand -hex 32) \
-  -e ALLOWED_ORIGIN=https://last.aemconseil.eu \
+  -e ALLOWED_ORIGIN=https://marq.aemconseil.eu \
   -v marq_data:/data \
   marq-portail
 ```

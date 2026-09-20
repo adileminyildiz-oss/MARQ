@@ -7,6 +7,15 @@
 # Note : le disque persistant nécessite un plan payant (Starter). En plan gratuit,
 # retirez la section « disk » — les fichiers seront alors éphémères (repartez
 # d'une resynchronisation après chaque redéploiement).
+#
+# IMPORTANT depuis v714 : ce service reçoit aussi les SAUVEGARDES du cabinet
+# (/admin/backup, sous DATA_DIR/backups). Sans disque persistant, elles
+# disparaissent à chaque redéploiement — ce qui vide la sauvegarde hors machine
+# de son sens. Gardez la section « disk ».
+#
+# Après déploiement, contrôlez le service de l'extérieur :
+#   CABINET_TOKEN=<le secret> node server/portal/scripts/verifier-deploiement.mjs \
+#     https://<votre-service>.onrender.com --origine https://marq.aemconseil.eu
 services:
   - type: web
     name: marq-portail
@@ -23,8 +32,12 @@ services:
         generateValue: true      # secret d'administration (à coller aussi dans Mar'q)
       - key: JWT_SECRET
         generateValue: true      # secret de signature des sessions client
+      # L'origine EXACTE du site Mar'q. Toute autre valeur fait démarrer un
+      # service en apparence sain dont le navigateur refuse chaque appel :
+      # le contrôle CORS échoue et rien ne remonte côté cabinet.
+      # Plusieurs origines se séparent par des virgules.
       - key: ALLOWED_ORIGIN
-        value: https://last.aemconseil.eu
+        value: https://marq.aemconseil.eu
       - key: DATA_DIR
         value: /var/data
       - key: SESSION_TTL

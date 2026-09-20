@@ -12,7 +12,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "check": "node --check server.js && node --check lib/config.js && node --check lib/crypto.js && node --check lib/store.js && node --check lib/ratelimit.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "verifier-deploiement": "node scripts/verifier-deploiement.mjs"
   },
   "license": "UNLICENSED"
 }

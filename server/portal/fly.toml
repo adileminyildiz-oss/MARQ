@@ -5,7 +5,7 @@
 #   3) Définissez les secrets :
 #        fly secrets set CABINET_TOKEN=$(openssl rand -hex 32) \
 #                        JWT_SECRET=$(openssl rand -hex 32) \
-#                        ALLOWED_ORIGIN=https://last.aemconseil.eu
+#                        ALLOWED_ORIGIN=https://marq.aemconseil.eu
 #   4) Déployez :               fly deploy
 app = "marq-portail"
 primary_region = "cdg"

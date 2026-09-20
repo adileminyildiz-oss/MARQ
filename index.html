@@ -550,6 +550,369 @@ aside .nav-btn:hover{color:#000}
 
 <div id="toast"></div>
 
+<script id="mqsec-core">
+/* ===================================================================
+   Mar'q v713 — CHIFFREMENT AU REPOS
+   -------------------------------------------------------------------
+   La base contient les documents d'identité déposés par les clients
+   (cartes nationales, passeports), les numéros de sécurité sociale, la
+   filiation des dirigeants et les coordonnées bancaires. Tout cela
+   reposait en clair dans le stockage du navigateur : lisible par qui
+   accède au profil Chrome de la machine, et recopié tel quel dans le
+   miroir IndexedDB, dans les instantanés de sauvegarde automatique et
+   dans les fichiers du coffre-fort.
+
+   Une phrase secrète connue du seul cabinet dérive une clé (PBKDF2-
+   SHA256, 210 000 itérations — recommandation OWASP), qui n'enveloppe
+   pas les données directement mais une CLÉ DE DONNÉES tirée au hasard.
+   Changer la phrase ré-enveloppe cette clé : rien n'est rechiffré. Une
+   CLÉ DE SECOURS, montrée une fois, enveloppe la même clé de données
+   pour le jour où la phrase est perdue.
+
+   Ce noyau est placé AVANT le reste de l'application, parce que
+   lastGate() lit la base pendant l'analyse du document : le
+   déverrouillage doit donc pouvoir s'interposer.
+
+   Ce qui est chiffré : la base (last-db-v1), son miroir IndexedDB, les
+   instantanés de sauvegarde automatique, les fichiers du coffre.
+   Ce qui reste en clair, et c'est assumé : l'horodatage du dernier
+   enregistrement, et les réglages auxiliaires (last-svc, qui porte les
+   NOMS de clients et de documents du coffre — pas leur contenu —, et
+   last-portal-srv, qui porte le jeton du serveur portail).
+
+   Propriété de sûreté tenue de bout en bout : ouvrir() rend tel quel
+   tout ce qui n'est pas une enveloppe. Une interruption au milieu
+   d'une activation ou d'une désactivation laisse donc une base
+   lisible, jamais une base perdue.
+   =================================================================== */
+(function(){
+  if(window.mqSec) return;
+
+  var KEY='last-db-v1', KTS='last-db-v1-ts', KSEC='last-sec', KCOF='last-coffre-files';
+  var ITER=210000, MARQUE='MQS1.';
+  var DEK=null;          /* clé de données — en mémoire, jamais écrite en clair */
+  var COF=null;          /* carte des fichiers du coffre, déchiffrée */
+  var pend=null, busy=false;
+
+  function dispo(){ try{ return !!(window.crypto && crypto.subtle && crypto.subtle.deriveKey); }catch(e){ return false; } }
+  /* DB est déclaré en « let » au niveau global : il vit dans l'environnement
+     lexical, PAS sur window. Le lire par window.DB rend undefined — et faisait
+     partir des sauvegardes sans la base. */
+  function baseVive(){ try{ return (typeof DB!=='undefined' && DB && typeof DB==='object') ? DB : null; }catch(e){ return null; } }
+
+  /* ---------- octets, base64, hasard ---------- */
+  /* btoa par tranches : String.fromCharCode.apply sur plusieurs mégaoctets
+     dépasserait la pile d'appels. */
+  function b64(u8){ var CH=0x8000, out=[]; for(var i=0;i<u8.length;i+=CH) out.push(String.fromCharCode.apply(null,u8.subarray(i,i+CH))); return btoa(out.join('')); }
+  function deb64(s){ var b=atob(s), u=new Uint8Array(b.length); for(var i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+  function utf8(s){ return new TextEncoder().encode(s); }
+  function texte(u){ return new TextDecoder().decode(u); }
+  function alea(n){ var u=new Uint8Array(n); crypto.getRandomValues(u); return u; }
+
+  /* ---------- état persisté (non sensible : sels et enveloppes) ---------- */
+  function etat(){ try{ var r=localStorage.getItem(KSEC); if(!r) return null; var o=JSON.parse(r);
+    return (o && o.v===1 && o.sel && o.env && o.env.iv && o.env.ct) ? o : null; }catch(e){ return null; } }
+  function poser(o){ try{ localStorage.setItem(KSEC, JSON.stringify(o)); return true; }catch(e){ return false; } }
+  function actif(){ return !!etat(); }
+  function pret(){ return !!DEK; }
+
+  /* ---------- clés ---------- */
+  function kek(phrase, selB64, iter){
+    return crypto.subtle.importKey('raw', utf8(''+(phrase||'')), 'PBKDF2', false, ['deriveKey'])
+      .then(function(base){ return crypto.subtle.deriveKey(
+        {name:'PBKDF2', salt:deb64(selB64), iterations:(iter||ITER), hash:'SHA-256'},
+        base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']); });
+  }
+  function importDek(rawB64){ return crypto.subtle.importKey('raw', deb64(rawB64), {name:'AES-GCM'}, false, ['encrypt','decrypt']); }
+  function scelle(cle, clair){ var iv=alea(12);
+    return crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, cle, utf8(clair))
+      .then(function(ct){ return {iv:b64(iv), ct:b64(new Uint8Array(ct))}; }); }
+  function descelle(cle, o){
+    return crypto.subtle.decrypt({name:'AES-GCM', iv:deb64(o.iv)}, cle, deb64(o.ct))
+      .then(function(pt){ return texte(new Uint8Array(pt)); }); }
+
+  /* ---------- enveloppes de charge utile ---------- */
+  /* Forme : MQS1.<iv base64>.<chiffré base64> */
+  function env(clair){
+    if(!pret() || clair==null) return Promise.resolve(null);
+    return scelle(DEK, ''+clair).then(function(o){ return MARQUE+o.iv+'.'+o.ct; });
+  }
+  function estEnv(s){ return typeof s==='string' && s.slice(0,MARQUE.length)===MARQUE; }
+  function ouvrir(raw){
+    if(!estEnv(raw)) return Promise.resolve(raw);          /* pas une enveloppe : rendu tel quel */
+    if(!pret()) return Promise.resolve(null);
+    var p=raw.slice(MARQUE.length), i=p.indexOf('.');
+    if(i<0) return Promise.resolve(null);
+    return descelle(DEK, {iv:p.slice(0,i), ct:p.slice(i+1)}).catch(function(){ return null; });
+  }
+
+  /* ---------- clé de secours : 24 caractères, alphabet sans ambiguïté ---------- */
+  var ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   /* ni I ni O ni 0 ni 1 */
+  function cleSecours(){ var u=alea(24), s=''; for(var i=0;i<24;i++){ s+=ALPH[u[i]%ALPH.length]; if(i%4===3&&i<23) s+='-'; } return s; }
+  function normSecours(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  /* ---------- miroir IndexedDB de la base (même magasin que la persistance étendue) ---------- */
+  function idb(nom, magasin){ return new Promise(function(res,rej){ try{ var rq=indexedDB.open(nom,1);
+    rq.onupgradeneeded=function(){ try{ if(!rq.result.objectStoreNames.contains(magasin)) rq.result.createObjectStore(magasin); }catch(e){} };
+    rq.onsuccess=function(){ res(rq.result); }; rq.onerror=function(){ rej(rq.error); }; }catch(e){ rej(e); } }); }
+  function idbPut(nom, magasin, cle, val){ return idb(nom,magasin).then(function(db){ return new Promise(function(res,rej){
+    try{ var tx=db.transaction(magasin,'readwrite'); tx.objectStore(magasin).put(val,cle); tx.oncomplete=function(){res(true);}; tx.onerror=function(){rej(tx.error);}; }catch(e){ rej(e); } }); }); }
+  function idbGet(nom, magasin, cle){ return idb(nom,magasin).then(function(db){ return new Promise(function(res,rej){
+    try{ var tx=db.transaction(magasin,'readonly'); var rq=tx.objectStore(magasin).get(cle); rq.onsuccess=function(){res(rq.result);}; rq.onerror=function(){rej(rq.error);}; }catch(e){ rej(e); } }); }); }
+
+  function miroirEcrire(envel){ return idbPut('last-store','kv','db',{data:envel, ts:Date.now()}).catch(function(){}); }
+  function miroirLire(){ return idbGet('last-store','kv','db').catch(function(){ return null; }); }
+  function cofMiroirEcrire(envel){ return idbPut('marq-coffre','kv','files',envel).catch(function(){}); }
+  function cofMiroirLire(){ return idbGet('marq-coffre','kv','files').catch(function(){ return null; }); }
+
+  /* ---------- écriture de la base : file d'attente, jamais de doublon en vol ---------- */
+  /* save() est synchrone et n'attend personne. On garde donc la dernière
+     version demandée et on la chiffre dès que la précédente est écrite :
+     pas de temporisation, la fenêtre de perte se limite à la durée du
+     chiffrement. Un échec n'écrase rien — l'état précédent survit. */
+  function ecrireBase(json){ pend=json; pompe(); }
+  function pompe(){
+    if(busy || pend==null || !pret()) return;
+    busy=true; var j=pend; pend=null;
+    env(j).then(function(e){
+      if(e==null) return;
+      var lsOk=false; try{ localStorage.setItem(KEY,e); lsOk=true; }catch(_){ try{ localStorage.removeItem(KEY); }catch(__){} }
+      try{ localStorage.setItem(KTS,String(Date.now())); }catch(_){}
+      return miroirEcrire(e).then(function(){
+        if(!lsOk){ window.__lastQuotaExceeded=true; }
+      });
+    }).catch(function(){}).then(function(){ busy=false; if(pend!=null) pompe(); });
+  }
+
+  function ecrireCoffre(map){
+    COF=map||{};
+    var j; try{ j=JSON.stringify(COF); }catch(e){ return; }
+    env(j).then(function(e){ if(e==null) return;
+      try{ localStorage.setItem(KCOF,e); }catch(_){ try{ localStorage.removeItem(KCOF); }catch(__){} }
+      return cofMiroirEcrire(e);
+    }).catch(function(){});
+  }
+
+  /* ---------- lecture au déverrouillage : on prend la copie la plus récente ---------- */
+  function lireBaseBrute(){
+    var ls=null, lsTs=0;
+    try{ ls=localStorage.getItem(KEY); }catch(e){}
+    try{ lsTs=parseInt(localStorage.getItem(KTS)||'0',10)||0; }catch(e){}
+    return miroirLire().then(function(rec){
+      if(rec && rec.data && (!ls || (rec.ts||0) > lsTs+1500)) return rec.data;
+      return ls;
+    }).catch(function(){ return ls; });
+  }
+  function lireCoffreBrut(){
+    var ls=null; try{ ls=localStorage.getItem(KCOF); }catch(e){}
+    if(estEnv(ls)) return Promise.resolve(ls);
+    return cofMiroirLire().then(function(v){ return estEnv(v)?v:ls; }).catch(function(){ return ls; });
+  }
+
+  /* Charge la base et le coffre en mémoire une fois la clé de données en main. */
+  function charger(){
+    return lireBaseBrute().then(function(brut){
+      if(brut==null){ window.__mqClair=null; return true; }   /* rien d'enregistré : amorçage normal */
+      return ouvrir(brut).then(function(clair){
+        if(clair==null) return false;                          /* enveloppe illisible */
+        window.__mqClair=clair; return true;
+      });
+    }).then(function(ok){
+      if(!ok) return false;
+      return lireCoffreBrut().then(function(brut){
+        if(brut==null){ COF={}; return true; }
+        if(!estEnv(brut)){ try{ COF=JSON.parse(brut)||{}; }catch(e){ COF={}; } return true; }
+        return ouvrir(brut).then(function(clair){
+          try{ COF=clair?(JSON.parse(clair)||{}):{}; }catch(e){ COF={}; }
+          return true;
+        });
+      }).then(function(){ try{ if(typeof window.cofFilesAdopt==='function') window.cofFilesAdopt(COF); }catch(e){} return true; });
+    });
+  }
+
+  /* ---------- déverrouillage ---------- */
+  function deverrouiller(phrase){
+    var st=etat(); if(!st) return Promise.resolve(false);
+    return kek(phrase, st.sel, st.iter).then(function(k){ return descelle(k, st.env); })
+      .then(function(dekRaw){ return importDek(dekRaw); })
+      .then(function(k){ DEK=k; return charger(); })
+      .then(function(ok){ if(!ok){ DEK=null; } return ok; })
+      .catch(function(){ DEK=null; return false; });
+  }
+  function deverrouillerSecours(cle){
+    var st=etat(); if(!st || !st.selR || !st.envR) return Promise.resolve(false);
+    return kek(normSecours(cle), st.selR, st.iter).then(function(k){ return descelle(k, st.envR); })
+      .then(function(dekRaw){ return importDek(dekRaw); })
+      .then(function(k){ DEK=k; return charger(); })
+      .then(function(ok){ if(!ok){ DEK=null; } return ok; })
+      .catch(function(){ DEK=null; return false; });
+  }
+
+  /* ---------- activation ---------- */
+  /* Ordre volontaire : l'état est posé AVANT de chiffrer les données. Une
+     coupure laisse alors un état actif devant des données encore claires,
+     que ouvrir() rend telles quelles — rien n'est perdu. L'inverse
+     (chiffrer d'abord) laisserait une base illisible sans état. */
+  function activer(phrase){
+    if(!dispo()) return Promise.resolve(null);
+    if(etat()) return Promise.resolve(null);
+    var sel=b64(alea(16)), selR=b64(alea(16)), dekRaw=b64(alea(32)), secours=cleSecours();
+    /* La clé est dérivée de sa forme NORMALISÉE : le déverrouillage la normalise aussi,
+       si bien que les tirets d'affichage n'entrent jamais dans le calcul. */
+    return Promise.all([kek(phrase,sel), kek(normSecours(secours),selR)])
+      .then(function(ks){ return Promise.all([scelle(ks[0],dekRaw), scelle(ks[1],dekRaw)]); })
+      .then(function(envs){
+        return importDek(dekRaw).then(function(k){
+          DEK=k;
+          if(!poser({v:1, sel:sel, iter:ITER, env:envs[0], selR:selR, envR:envs[1], ts:Date.now()})){ DEK=null; return null; }
+          /* La base en mémoire fait foi : c'est elle que l'on chiffre. */
+          var json=null; try{ var _b=baseVive(); json=_b?JSON.stringify(_b):localStorage.getItem(KEY); }catch(e){}
+          if(json!=null){ window.__mqClair=json; ecrireBase(json); }
+          var cof={};
+          try{ cof=(typeof window.cofFilesGet==='function')?(window.cofFilesGet()||{}):JSON.parse(localStorage.getItem(KCOF)||'{}'); }catch(e){ cof={}; }
+          ecrireCoffre(cof);
+          chiffrerInstantanes();
+          return secours;
+        });
+      }).catch(function(){ DEK=null; return null; });
+  }
+
+  /* ---------- désactivation ---------- */
+  function desactiver(){
+    if(!pret()) return Promise.resolve(false);
+    var json=null; try{ var _b=baseVive(); json=_b?JSON.stringify(_b):window.__mqClair; }catch(e){}
+    var cofJson=null; try{ cofJson=JSON.stringify((typeof window.cofFilesGet==='function')?(window.cofFilesGet()||{}):(COF||{})); }catch(e){}
+    try{ localStorage.removeItem(KSEC); }catch(e){}
+    DEK=null; window.__mqClair=null;
+    if(json!=null){ try{ localStorage.setItem(KEY,json); localStorage.setItem(KTS,String(Date.now())); }catch(e){} miroirEcrire(json); }
+    if(cofJson!=null){ try{ localStorage.setItem(KCOF,cofJson); }catch(e){} cofMiroirEcrire(JSON.parse(cofJson)); }
+    return Promise.resolve(true);
+  }
+
+  /* ---------- changement de phrase : on ré-enveloppe la clé, sans rien rechiffrer ---------- */
+  function changerPhrase(ancienne, nouvelle){
+    var st=etat(); if(!st) return Promise.resolve(false);
+    return kek(ancienne, st.sel, st.iter).then(function(k){ return descelle(k, st.env); })
+      .then(function(dekRaw){
+        var sel=b64(alea(16));
+        return kek(nouvelle, sel, ITER).then(function(k2){ return scelle(k2, dekRaw); })
+          .then(function(e){ st.sel=sel; st.iter=ITER; st.env=e; st.ts=Date.now(); return poser(st); });
+      }).catch(function(){ return false; });
+  }
+  /* Nouvelle clé de secours : l'ancienne cesse d'ouvrir. */
+  function regenererSecours(phrase){
+    var st=etat(); if(!st) return Promise.resolve(null);
+    return kek(phrase, st.sel, st.iter).then(function(k){ return descelle(k, st.env); })
+      .then(function(dekRaw){
+        var selR=b64(alea(16)), secours=cleSecours();
+        return kek(normSecours(secours), selR, st.iter||ITER).then(function(k2){ return scelle(k2, dekRaw); })
+          .then(function(e){ st.selR=selR; st.envR=e; st.ts=Date.now(); return poser(st)?secours:null; });
+      }).catch(function(){ return null; });
+  }
+
+  /* ---------- instantanés déjà pris en clair : on les chiffre à l'activation ---------- */
+  function chiffrerInstantanes(){
+    try{
+      idb('last-backups','snap').then(function(db){
+        var tx=db.transaction('snap','readwrite'), st=tx.objectStore('snap'), q=st.openCursor();
+        q.onsuccess=function(ev){ var c=ev.target.result; if(!c) return;
+          var v=c.value; var cur=c;
+          if(v && typeof v.data==='string' && !estEnv(v.data)){
+            env(v.data).then(function(e){ if(e==null) return;
+              idb('last-backups','snap').then(function(d2){ try{ var t2=d2.transaction('snap','readwrite');
+                v.data=e; v.chiffre=true; t2.objectStore('snap').put(v); }catch(_){} }).catch(function(){});
+            });
+          }
+          cur.continue();
+        };
+      }).catch(function(){});
+    }catch(e){}
+  }
+
+  /* ---------- écran de déverrouillage ---------- */
+  function doitDeverrouiller(){ return actif() && !pret(); }
+
+  function css(){
+    if(document.getElementById('mqsec-css')) return;
+    var s=document.createElement('style'); s.id='mqsec-css';
+    s.textContent='#mqsec-lock{position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;'
+      +'background:radial-gradient(1200px 640px at 50% -10%,#f3ecdc,#2a2a2e 60%,#ded2ba);padding:20px;'
+      +'font-family:"Hanken Grotesk",system-ui,-apple-system,sans-serif}'
+      +'#mqsec-lock .ms-card{background:#fffdf8;border:1px solid #e5e3dc;border-radius:18px;box-shadow:0 40px 90px -34px rgba(40,40,45,.6);width:100%;max-width:410px;overflow:hidden}'
+      +'#mqsec-lock .ms-top{background:linear-gradient(135deg,#3b3d45,#22232a);color:#fff;padding:30px 28px 24px;text-align:center;position:relative}'
+      +'#mqsec-lock .ms-top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#c0872f,#e8b463)}'
+      +'#mqsec-lock .ms-t{font-size:17px;font-weight:800;letter-spacing:.3px}'
+      +'#mqsec-lock .ms-s{font-size:11px;color:#cdbf9f;margin-top:8px;line-height:1.5}'
+      +'#mqsec-lock .ms-b{padding:24px 28px 26px}'
+      +'#mqsec-lock label{display:block;font-size:11px;font-weight:600;color:#5b5040;margin-bottom:6px}'
+      +'#mqsec-lock input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e2ddd2;border-radius:9px;background:#fff;color:#2a2117;font:inherit;font-size:14px;outline:none}'
+      +'#mqsec-lock input:focus{border-color:#c0872f;box-shadow:0 0 0 3px rgba(192,135,47,.18)}'
+      +'#mqsec-lock .ms-btn{width:100%;margin-top:14px;padding:12px;border:0;border-radius:10px;background:linear-gradient(135deg,#3b3d45,#22232a);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}'
+      +'#mqsec-lock .ms-btn:disabled{opacity:.55;cursor:default}'
+      +'#mqsec-lock .ms-err{display:none;color:#b0442f;font-size:11.5px;margin-top:10px}'
+      +'#mqsec-lock .ms-alt{margin-top:16px;text-align:center}'
+      +'#mqsec-lock .ms-alt button{background:none;border:0;color:#8a6a28;font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:2px}'
+      +'#mqsec-lock .ms-note{font-size:10.5px;color:#8b8478;line-height:1.55;margin:14px 0 0;text-align:center}';
+    document.head.appendChild(s);
+  }
+
+  function ecranDeverrouillage(suite){
+    css();
+    var mode='phrase';
+    var ov=document.getElementById('mqsec-lock');
+    if(!ov){ ov=document.createElement('div'); ov.id='mqsec-lock'; document.body.appendChild(ov); }
+    function peindre(){
+      var secours=(mode==='secours');
+      ov.innerHTML='<div class="ms-card"><div class="ms-top">'
+        +'<div class="ms-t">Données chiffrées</div>'
+        +'<div class="ms-s">'+(secours
+            ? 'Saisissez la clé de secours remise lors de l’activation.'
+            : 'Les pièces d’identité, numéros de sécurité sociale et coordonnées bancaires sont chiffrés sur cet appareil.')
+        +'</div></div><div class="ms-b">'
+        +'<label for="ms-in">'+(secours?'Clé de secours':'Phrase secrète')+'</label>'
+        +'<input id="ms-in" type="'+(secours?'text':'password')+'" autocomplete="off" spellcheck="false" '
+        +(secours?'placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"':'')+'>'
+        +'<button class="ms-btn" id="ms-go">Déverrouiller</button>'
+        +'<div class="ms-err" id="ms-err"></div>'
+        +'<div class="ms-alt"><button id="ms-sw">'+(secours?'Revenir à la phrase secrète':'Phrase perdue ? Utiliser la clé de secours')+'</button></div>'
+        +'<p class="ms-note">Sans la phrase ni la clé de secours, ces données ne peuvent pas être rétablies — c’est ce qui les protège.</p>'
+        +'</div></div>';
+      var inp=document.getElementById('ms-in'), btn=document.getElementById('ms-go'), err=document.getElementById('ms-err');
+      function dire(m){ err.textContent=m||''; err.style.display=m?'block':'none'; }
+      function tenter(){
+        var v=inp.value||''; if(!v){ inp.focus(); return; }
+        btn.disabled=true; btn.textContent='Déverrouillage…'; dire('');
+        var p=secours?deverrouillerSecours(v):deverrouiller(v);
+        p.then(function(ok){
+          if(!ok){ btn.disabled=false; btn.textContent='Déverrouiller'; inp.value=''; inp.focus();
+            dire(secours?'Clé de secours refusée.':'Phrase secrète incorrecte.'); return; }
+          try{ ov.remove(); }catch(e){}
+          try{ if(typeof suite==='function') suite(); }catch(e){}
+        });
+      }
+      btn.onclick=tenter;
+      inp.onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); tenter(); } };
+      document.getElementById('ms-sw').onclick=function(){ mode=secours?'phrase':'secours'; peindre(); };
+      setTimeout(function(){ try{ inp.focus(); }catch(e){} },40);
+    }
+    if(document.body) peindre();
+    else window.addEventListener('DOMContentLoaded',peindre);
+  }
+
+  window.mqSec={
+    dispo:dispo, actif:actif, pret:pret, etat:etat,
+    env:env, ouvrir:ouvrir, estEnv:estEnv,
+    ecrireBase:ecrireBase, ecrireCoffre:ecrireCoffre,
+    coffre:function(){ return COF; },
+    deverrouiller:deverrouiller, deverrouillerSecours:deverrouillerSecours,
+    doitDeverrouiller:doitDeverrouiller, ecranDeverrouillage:ecranDeverrouillage,
+    activer:activer, desactiver:desactiver,
+    changerPhrase:changerPhrase, regenererSecours:regenererSecours,
+    iterations:function(){ return ITER; }
+  };
+})();
+</script>
+
 <script>
 /* =================================================================
    Mar’q — noyau (Niveau 0 + 1)
@@ -663,7 +1026,8 @@ function migrateCleanDemoDossiers(){
 }
 function load(){
   var fromLS=false;
-  try{const r=localStorage.getItem(KEY);if(r){var _p=JSON.parse(r);if(_p&&typeof _p==='object'){DB=_p;fromLS=true;}else{/* v653 : base stockée « null » (écrasée avant connexion) → resemée puis récupérée depuis les sauvegardes */DB=seed();window.__lastFreshSeed=true;window.__lastNullDB=true;}}else{DB=seed();window.__lastFreshSeed=true;}}catch(e){DB=seed();fromLS=false;window.__lastFreshSeed=true;}
+  /* v713 : base chiffree — le clair vient du deverrouillage, pas du stockage. */
+  try{const r=(window.__mqClair!=null?window.__mqClair:localStorage.getItem(KEY));if(r){var _p=JSON.parse(r);if(_p&&typeof _p==='object'){DB=_p;fromLS=true;}else{/* v653 : base stockée « null » (écrasée avant connexion) → resemée puis récupérée depuis les sauvegardes */DB=seed();window.__lastFreshSeed=true;window.__lastNullDB=true;}}else{DB=seed();window.__lastFreshSeed=true;}}catch(e){DB=seed();fromLS=false;window.__lastFreshSeed=true;}
   if(fromLS){try{migrateCleanDemoDossiers();}catch(e){}}
 }
 let saveT=null;
@@ -671,11 +1035,21 @@ function save(){
   if(!DB||typeof DB!=='object'){ return; } /* v653 : base non chargée (avant connexion) → ne jamais écraser le stockage par « null » */
   var _json=null; try{_json=JSON.stringify(DB);}catch(e){_json=null;}
   var lsOk=false;
-  if(_json!=null){ try{localStorage.setItem(KEY,_json);lsOk=true;}catch(e){ try{localStorage.removeItem(KEY);}catch(_){} } }
-  try{localStorage.setItem(KEY+'-ts',String(Date.now()));}catch(_){}
+  /* v713 : chiffrement au repos actif → l'ecriture passe par le noyau, qui
+     chiffre puis pose le stockage local ET le miroir IndexedDB. Le clair reste
+     en memoire (__mqClair) pour que load() retrouve la base dans la session. */
+  var _sec=false, _verrou=false;
+  try{ _sec=!!(window.mqSec&&window.mqSec.actif()&&window.mqSec.pret());
+       _verrou=!!(window.mqSec&&window.mqSec.actif()&&!window.mqSec.pret()); }catch(e){}
+  /* Chiffre mais verrouille : on n'ecrit RIEN. Ecrire en clair trahirait les
+     donnees ; ecrire par-dessus l'enveloppe l'ecraserait par un etat incomplet. */
+  if(_verrou){ lsOk=true; }
+  else if(_json!=null && _sec){ window.__mqClair=_json; try{ window.mqSec.ecrireBase(_json); lsOk=true; }catch(e){} }
+  else if(_json!=null){ try{localStorage.setItem(KEY,_json);lsOk=true;}catch(e){ try{localStorage.removeItem(KEY);}catch(_){} } }
+  if(!_sec && !_verrou){ try{localStorage.setItem(KEY+'-ts',String(Date.now()));}catch(_){} }
   /* Miroir IndexedDB (stockage étendu) : protège contre la saturation du stockage local (~5 Mo)
      lorsque des pièces jointes volumineuses sont enregistrées → plus de perte silencieuse. */
-  try{ if(_json!=null && typeof window.idbSaveDB==='function') window.idbSaveDB(_json); }catch(e){}
+  try{ if(_json!=null && !_sec && !_verrou && typeof window.idbSaveDB==='function') window.idbSaveDB(_json); }catch(e){}
   if(!lsOk){ window.__lastQuotaExceeded=true; if(!window.__lastQuotaWarned){ window.__lastQuotaWarned=true; try{if(typeof toast==='function')toast('Stockage local saturé — vos données sont conservées (stockage étendu). Exportez une sauvegarde par sécurité.');}catch(_){} } }
   const t=document.getElementById('saveind-t');
   if(t){t.textContent='Enregistré · '+new Date().toLocaleTimeString('fr-FR');
@@ -3081,7 +3455,12 @@ function ensureDemCodes(){try{DB.parametres=DB.parametres||{};
   var chg=false;sans.forEach(function(d){d.code=demCodeGen();chg=true;});
   if(chg&&typeof save==='function')save();
 }catch(e){}}
-function lastBoot(){try{load();ensureData();migrateFormSubmitNames();purgeNonFormSubmit();ensureDemCodes();migrateReplyEmails();}catch(e){}render();}
+function lastBoot(){
+  /* v713 : base chiffree et clé pas encore en main → on s'interpose ici, le seul
+     point par lequel passent tous les chemins d'ouverture (session reprise,
+     mot de passe, code a 6 chiffres). */
+  try{ if(window.mqSec && window.mqSec.doitDeverrouiller()){ window.mqSec.ecranDeverrouillage(lastBoot); return; } }catch(e){}
+  try{load();ensureData();migrateFormSubmitNames();purgeNonFormSubmit();ensureDemCodes();migrateReplyEmails();}catch(e){}render();}
 function _sha256sync(str){var bytes;if(typeof TextEncoder!=='undefined'){bytes=new TextEncoder().encode(str);}else{bytes=[];for(var q=0;q<str.length;q++){var cc=str.charCodeAt(q);if(cc<128)bytes.push(cc);else if(cc<2048){bytes.push(192|(cc>>6));bytes.push(128|(cc&63));}else{bytes.push(224|(cc>>12));bytes.push(128|((cc>>6)&63));bytes.push(128|(cc&63));}}}var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];var l=bytes.length,bitLen=l*8;var m=[];for(var i=0;i<l;i++)m.push(bytes[i]);m.push(0x80);while(m.length%64!==56)m.push(0);for(var s=7;s>=0;s--){m.push((Math.floor(bitLen/Math.pow(2,s*8)))&0xff);}function rotr(x,n){return (x>>>n)|(x<<(32-n));}for(var chunk=0;chunk<m.length;chunk+=64){var w=new Array(64);for(var t=0;t<16;t++){var o=chunk+t*4;w[t]=((m[o]<<24)|(m[o+1]<<16)|(m[o+2]<<8)|(m[o+3]))>>>0;}for(var t=16;t<64;t++){var s0=(rotr(w[t-15],7)^rotr(w[t-15],18)^(w[t-15]>>>3))>>>0;var s1=(rotr(w[t-2],17)^rotr(w[t-2],19)^(w[t-2]>>>10))>>>0;w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;}var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];for(var t=0;t<64;t++){var S1=(rotr(e,6)^rotr(e,11)^rotr(e,25))>>>0;var ch=((e&f)^((~e)&g))>>>0;var t1=(h+S1+ch+K[t]+w[t])>>>0;var S0=(rotr(a,2)^rotr(a,13)^rotr(a,22))>>>0;var mj=((a&b)^(a&c)^(b&c))>>>0;var t2=(S0+mj)>>>0;h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;}H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;}var out='';for(var i=0;i<8;i++){out+=('00000000'+H[i].toString(16)).slice(-8);}return out;}
 async function _sha256(s){try{if(typeof crypto!=='undefined'&&crypto.subtle&&crypto.subtle.digest){var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.prototype.map.call(new Uint8Array(b),function(x){return x.toString(16).padStart(2,'0');}).join('');}}catch(e){}return _sha256sync(s);}
 var _authPwd='';var _authSecret='';   /* en mémoire, le temps de la connexion */
@@ -3347,7 +3726,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=712;
+var LAST_VER=714;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -7271,8 +7650,17 @@ body.dark .fv-view-scroll{border-color:#ccc!important}
     var h=hashStr(json);
     if(reason!=='manuel' && reason!=='avant-restauration' && h===lastHash) return Promise.resolve(false);
     var now=Date.now();
-    var rec={ts:now,iso:new Date(now).toISOString(),size:json.length,hash:h,reason:reason||'auto',data:json};
-    return put(rec).then(function(ok){ if(ok){lastHash=h;setLastTs(now);prune();paint();} return ok; });
+    /* v713 : un instantane est une copie complete de la base — il porte donc les
+       memes pieces d'identite, et se chiffre comme elle. Chiffrement actif mais
+       cle pas en main : on ne prend pas d'instantane plutot qu'un instantane clair. */
+    var _sec=false; try{ _sec=!!(window.mqSec&&window.mqSec.actif()); }catch(e){}
+    if(_sec && !window.mqSec.pret()) return Promise.resolve(false);
+    var prep=_sec?window.mqSec.env(json):Promise.resolve(json);
+    return prep.then(function(charge){
+      if(charge==null) return false;
+      var rec={ts:now,iso:new Date(now).toISOString(),size:json.length,hash:h,reason:reason||'auto',data:charge,chiffre:_sec};
+      return put(rec).then(function(ok){ if(ok){lastHash=h;setLastTs(now);prune();paint();} return ok; });
+    });
   }
   function scheduleSnap(delay){ if(!enabled()) return; clearTimeout(snapT); snapT=setTimeout(function(){snapshot('auto');},delay||8000); }
 
@@ -7296,7 +7684,11 @@ body.dark .fv-view-scroll{border-color:#ccc!important}
       var when=relTime(ts);
       uiConfirm('Restaurer la sauvegarde du '+new Date(ts).toLocaleString('fr-FR')+' ('+when+') ?\n\nL\'état actuel sera d\'abord sauvegardé automatiquement, puis remplacé.',function(){
       snapshot('avant-restauration').then(function(){
-        try{ DB=JSON.parse(rec.data); }catch(e){ if(typeof toast==='function')toast('Sauvegarde illisible'); return; }
+        /* v713 : l'instantane peut etre une enveloppe chiffree — ouvrir() rend tel
+           quel ce qui n'en est pas une, donc les anciens instantanes clairs passent. */
+        return (window.mqSec?window.mqSec.ouvrir(rec.data):Promise.resolve(rec.data));
+      }).then(function(_clair){
+        try{ DB=JSON.parse(_clair); }catch(e){ if(typeof toast==='function')toast('Sauvegarde illisible'); return; }
         lastHash=null; try{window.save&&window.save();}catch(e){}
         if(typeof toast==='function')toast('Sauvegarde restaurée');
         if(typeof render==='function')render();
@@ -22654,7 +23046,9 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   function idbGet(){ return openIDB().then(function(db){ return new Promise(function(res,rej){ try{ var tx=db.transaction(STORE,'readonly'); var rq=tx.objectStore(STORE).get(KID); rq.onsuccess=function(){res(rq.result);}; rq.onerror=function(){rej(rq.error);}; }catch(e){ rej(e); } }); }); }
 
   var pend=null, tmr=0;
-  window.idbSaveDB=function(json){ if(window.__idbBooting)return; pend=json; if(tmr)return; tmr=setTimeout(function(){ tmr=0; var j=pend; pend=null; if(j==null||j==='null')return;
+  window.idbSaveDB=function(json){ if(window.__idbBooting)return;
+    /* v713 : quand le chiffrement est actif, le miroir est ecrit chiffre par le noyau. */
+    try{ if(window.mqSec&&window.mqSec.actif())return; }catch(e){} pend=json; if(tmr)return; tmr=setTimeout(function(){ tmr=0; var j=pend; pend=null; if(j==null||j==='null')return;
     idbPut({data:j,ts:Date.now()}).catch(function(){}); },600); };
 
   function endBoot(){ if(!window.__idbBooting)return; window.__idbBooting=false; try{ if(typeof window.save==='function' && window.DB) window.idbSaveDB(JSON.stringify(window.DB)); }catch(e){} }
@@ -25243,15 +25637,25 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   function cofIDBOpen(){ return new Promise(function(res,rej){ try{ var rq=indexedDB.open(COF_DB,1); rq.onupgradeneeded=function(){ try{ rq.result.createObjectStore(COF_STORE); }catch(e){} }; rq.onsuccess=function(){ res(rq.result); }; rq.onerror=function(){ rej(rq.error); }; }catch(e){ rej(e); } }); }
   function cofIDBGet(){ return cofIDBOpen().then(function(db){ return new Promise(function(res,rej){ try{ var tx=db.transaction(COF_STORE,'readonly'); var rq=tx.objectStore(COF_STORE).get(COF_KEY); rq.onsuccess=function(){ res(rq.result||null); }; rq.onerror=function(){ rej(rq.error); }; }catch(e){ rej(e); } }); }); }
   function cofIDBPut(map){ return cofIDBOpen().then(function(db){ return new Promise(function(res,rej){ try{ var tx=db.transaction(COF_STORE,'readwrite'); tx.objectStore(COF_STORE).put(map,COF_KEY); tx.oncomplete=function(){ res(true); }; tx.onerror=function(){ rej(tx.error); }; }catch(e){ rej(e); } }); }); }
-  function cofFiles(){ if(COF_MEM==null){ try{ COF_MEM=JSON.parse(localStorage.getItem('last-coffre-files')||'{}')||{}; }catch(e){ COF_MEM={}; } } return COF_MEM; }
+  function cofFiles(){ if(COF_MEM==null){
+    /* v713 : chiffrement actif → la carte des fichiers est dechiffree au
+       deverrouillage et adoptee ici, le stockage ne contenant qu'une enveloppe. */
+    var _s=false; try{ _s=!!(window.mqSec&&window.mqSec.actif()&&window.mqSec.pret()); }catch(e){}
+    if(_s){ COF_MEM=window.mqSec.coffre()||{}; }
+    else { try{ COF_MEM=JSON.parse(localStorage.getItem('last-coffre-files')||'{}')||{}; }catch(e){ COF_MEM={}; } } } return COF_MEM; }
   function cofFilesSave(o){ COF_MEM=o||{};
+    /* Meme regle que pour la base : chiffre et deverrouille -> enveloppe ;
+       chiffre et verrouille -> on n'ecrit pas, plutot que d'ecrire en clair. */
+    try{ if(window.mqSec&&window.mqSec.actif()){ if(window.mqSec.pret()) window.mqSec.ecrireCoffre(COF_MEM); return true; } }catch(e){}
     var lsOK=false; try{ localStorage.setItem('last-coffre-files',JSON.stringify(COF_MEM)); lsOK=true; }catch(e){ try{ localStorage.removeItem('last-coffre-files'); }catch(_){} }
     if(COF_IDB){ cofIDBPut(COF_MEM).catch(function(){ if(!lsOK&&typeof toast==='function')toast('Stockage plein — fichier non enregistré.'); }); return true; }
     if(!lsOK){ if(typeof toast==='function')toast('Stockage plein — fichier non enregistré.'); return false; }
     return true;
   }
   /* Hydratation au démarrage : IndexedDB prioritaire ; sinon migration depuis localStorage. */
-  (function cofHydrate(){ if(!COF_IDB)return; cofIDBGet().then(function(idb){
+  (function cofHydrate(){ if(!COF_IDB)return;
+    try{ if(window.mqSec&&window.mqSec.actif())return; }catch(e){}  /* v713 : le noyau adopte la carte dechiffree */
+    cofIDBGet().then(function(idb){
     if(idb && typeof idb==='object' && Object.keys(idb).length){ COF_MEM=idb; }
     else { var ls={}; try{ ls=JSON.parse(localStorage.getItem('last-coffre-files')||'{}')||{}; }catch(e){} if(Object.keys(ls).length){ COF_MEM=ls; cofIDBPut(ls).catch(function(){}); } }
     try{ if(window.__svcView==='coffre' && typeof render==='function' && typeof state!=='undefined' && state.page==='services')render(); }catch(e){}
@@ -25275,6 +25679,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   window.cofItemsForClient=function(client){ var k=ckey(client); var st=coffreState(); var out=[]; st.items.forEach(function(it,i){ if(ckey(it.client)===k)out.push({it:it,i:i}); }); return out; };
   window.cofSizeFmt=function(b){ return cofSize(b); };
   window.cofFilesGet=function(){ return cofFiles(); };
+  window.cofFilesAdopt=function(o){ COF_MEM=(o&&typeof o==='object')?o:{}; };  /* v713 : pose la carte dechiffree, sans reecrire */
   window.cofFilesSet=function(o){ return cofFilesSave(o||{}); };
   window.cofClientCode=function(client){ return portailCode(client); };
   window.cofCatOptions=function(cat){ return COF_CAT.concat(COF_CAT.indexOf(cat)<0&&cat?[cat]:[]).map(function(c){return '<option '+(c===cat?'selected':'')+'>'+E(c)+'</option>';}).join(''); };
@@ -25826,7 +26231,11 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   function collectLS(){ var o={}; LS_KEYS.forEach(function(k){ try{ var v=localStorage.getItem(k); if(v!=null)o[k]=v; }catch(e){} }); return o; }
   window.marqExport=function(){
     var bk={ app:'marq', kind:'backup', ver:(typeof LAST_VER!=='undefined'?LAST_VER:0), ts:Date.now(), ls:collectLS() };
-    try{ var dbRaw=localStorage.getItem('last-db-v1'); bk.db=dbRaw?JSON.parse(dbRaw):((window.DB&&typeof window.DB==='object')?window.DB:null); }catch(e){ try{ bk.db=(window.DB&&typeof window.DB==='object')?window.DB:null; }catch(_){ bk.db=null; } }
+    /* v714 : la base en mémoire fait foi. Le stockage peut ne contenir qu'une
+       enveloppe chiffrée, et window.DB est toujours undefined (DB est un « let »
+       global) : l'export partait alors sans la base. */
+    try{ bk.db=(typeof DB!=='undefined'&&DB&&typeof DB==='object')?DB:null; }catch(e){ bk.db=null; }
+    if(bk.db==null){ try{ var dbRaw=localStorage.getItem('last-db-v1'); if(dbRaw&&dbRaw.slice(0,5)!=='MQS1.') bk.db=JSON.parse(dbRaw); }catch(e){} }
     try{ bk.coffreFiles=(typeof window.cofFilesGet==='function')?window.cofFilesGet():{}; }catch(e){ bk.coffreFiles={}; }
     var blob=new Blob([JSON.stringify(bk)],{type:'application/json'});
     var d=new Date(), pad=function(n){return (n<10?'0':'')+n;};
@@ -48022,5 +48431,623 @@ function testLienSignature() {
 })();
 
 </script>
+<script id="mqsec-ui">
+/* ===================================================================
+   Mar'q v713 — Paramètres › Chiffrement des données
+   Le noyau (mqsec-core) fait le travail ; cette carte le pilote :
+   activer, changer la phrase, refaire une clé de secours, désactiver.
+   =================================================================== */
+(function(){
+  if(window.__mqSecUI) return; window.__mqSecUI=1;
+
+  function E(s){ try{ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }catch(e){ return ''+(s==null?'':s); } }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4200,t||'info'); }catch(e){} }
+  function S(){ return window.mqSec||null; }
+
+  /* ---------- journal d'audit : l'activation et la désactivation se tracent ---------- */
+  function tracer(action,detail){
+    try{
+      DB.parametres=DB.parametres||{};
+      var j=DB.parametres.secJournal=DB.parametres.secJournal||[];
+      j.push({action:action, detail:detail||'', ts:new Date().toISOString()});
+      if(j.length>500) DB.parametres.secJournal=j.slice(-500);
+      if(typeof save==='function') save();
+    }catch(e){}
+  }
+
+  /* ---------- la clé de secours, montrée une seule fois ---------- */
+  function montrerSecours(cle,titre){
+    var body='<div class="uicfm-msg">'
+      +'<p style="margin:0 0 10px">Notez cette clé <b>maintenant</b> et rangez-la hors de cet appareil (coffre, gestionnaire de mots de passe, papier en lieu sûr).</p>'
+      +'<div id="ms-key" style="font:700 15px/1.9 \'IBM Plex Mono\',ui-monospace,monospace;letter-spacing:1px;text-align:center;'
+      +'background:rgba(192,135,47,.10);border:1px solid rgba(192,135,47,.34);border-radius:10px;padding:14px 10px;word-break:break-all">'+E(cle)+'</div>'
+      +'<p class="hint" style="margin:12px 0 0">Elle ouvre les données si la phrase secrète est perdue. Elle ne sera plus jamais affichée : '
+      +'une nouvelle clé peut être générée, mais celle-ci cessera alors d’ouvrir.</p></div>';
+    var footer='<button class="btn btn-ghost" onclick="mqSecCopier()">Copier</button>'
+      +'<button class="btn btn-ghost" onclick="mqSecImprimerCle()">Imprimer</button>'
+      +'<button class="btn btn-pri" onclick="closeModal()">J’ai noté la clé</button>';
+    if(typeof openModal==='function') openModal(titre||'Clé de secours',body,footer);
+    else T('Clé de secours : '+cle);
+  }
+  window.mqSecCopier=function(){
+    var el=document.getElementById('ms-key'); if(!el) return;
+    var t=el.textContent||'';
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){T('Clé copiée');},function(){T('Copie refusée par le navigateur','warn');}); return; } }catch(e){}
+    T('Copie indisponible — recopiez la clé à la main','warn');
+  };
+  window.mqSecImprimerCle=function(){
+    var el=document.getElementById('ms-key'); if(!el) return;
+    var w=window.open('','_blank'); if(!w){ T('Autorisez les fenêtres pop-up','warn'); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Clé de secours — Mar’q</title>'
+      +'<style>body{font-family:system-ui,sans-serif;padding:60px;color:#111}h1{font-size:18px}'
+      +'.k{font:700 20px/1.9 monospace;letter-spacing:2px;border:2px solid #111;padding:18px;text-align:center;margin:24px 0}'
+      +'p{font-size:12px;line-height:1.6;color:#333}</style></head><body>'
+      +'<h1>Mar’q — clé de secours du chiffrement</h1>'
+      +'<div class="k">'+E(el.textContent)+'</div>'
+      +'<p>Cette clé déverrouille les données chiffrées de Mar’q si la phrase secrète est perdue. '
+      +'Conservez-la en lieu sûr, hors de l’appareil. Générée le '+E(new Date().toLocaleString('fr-FR'))+'.</p>'
+      +'</body></html>');
+    w.document.close(); try{ w.focus(); w.print(); }catch(e){}
+  };
+
+  /* ---------- activation ---------- */
+  window.mqSecActiver=function(){
+    var s=S(); if(!s){ T('Noyau de chiffrement absent','warn'); return; }
+    if(!s.dispo()){ T('Ce navigateur ne fournit pas le chiffrement nécessaire','warn'); return; }
+    var body='<div class="uicfm-msg">'
+      +'<p style="margin:0 0 12px">La phrase secrète sera demandée à chaque ouverture de Mar’q. '
+      +'Elle ne quitte pas cet appareil et n’est stockée nulle part : <b>perdue sans la clé de secours, les données sont irrécupérables</b>.</p>'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:0 0 5px">Phrase secrète (12 caractères minimum)</label>'
+      +'<input id="msa-1" type="password" class="uiprm-in" autocomplete="new-password" spellcheck="false">'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">Confirmation</label>'
+      +'<input id="msa-2" type="password" class="uiprm-in" autocomplete="new-password" spellcheck="false">'
+      +'<div id="msa-err" style="display:none;color:#b0442f;font-size:11.5px;margin-top:9px"></div></div>';
+    var footer='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>'
+      +'<button class="btn btn-pri" id="msa-ok">Activer le chiffrement</button>';
+    openModal('Activer le chiffrement',body,footer);
+    var a=document.getElementById('msa-1'), b=document.getElementById('msa-2');
+    var er=document.getElementById('msa-err'), ok=document.getElementById('msa-ok');
+    function dire(m){ er.textContent=m||''; er.style.display=m?'block':'none'; }
+    ok.onclick=function(){
+      var p1=a.value||'', p2=b.value||'';
+      if(p1.length<12){ dire('Douze caractères au minimum.'); a.focus(); return; }
+      if(p1!==p2){ dire('Les deux saisies diffèrent.'); b.value=''; b.focus(); return; }
+      ok.disabled=true; ok.textContent='Chiffrement…'; dire('');
+      s.activer(p1).then(function(secours){
+        if(!secours){ ok.disabled=false; ok.textContent='Activer le chiffrement'; dire('Activation impossible.'); return; }
+        tracer('activation','PBKDF2-SHA256 '+s.iterations()+' itérations, AES-256-GCM');
+        closeModal();
+        setTimeout(function(){ montrerSecours(secours,'Chiffrement activé — clé de secours'); },120);
+        try{ if(typeof render==='function') render(); }catch(e){}
+      });
+    };
+    setTimeout(function(){ try{ a.focus(); }catch(e){} },40);
+  };
+
+  /* ---------- changement de phrase ---------- */
+  window.mqSecChanger=function(){
+    var s=S(); if(!s||!s.actif()) return;
+    var body='<div class="uicfm-msg">'
+      +'<p style="margin:0 0 12px">La clé de données ne change pas : rien n’est rechiffré, et la clé de secours reste valable.</p>'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:0 0 5px">Phrase actuelle</label>'
+      +'<input id="msc-0" type="password" class="uiprm-in" autocomplete="current-password">'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">Nouvelle phrase (12 caractères minimum)</label>'
+      +'<input id="msc-1" type="password" class="uiprm-in" autocomplete="new-password">'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">Confirmation</label>'
+      +'<input id="msc-2" type="password" class="uiprm-in" autocomplete="new-password">'
+      +'<div id="msc-err" style="display:none;color:#b0442f;font-size:11.5px;margin-top:9px"></div></div>';
+    openModal('Changer la phrase secrète',body,
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" id="msc-ok">Changer</button>');
+    var o=document.getElementById('msc-0'), n1=document.getElementById('msc-1'), n2=document.getElementById('msc-2');
+    var er=document.getElementById('msc-err'), ok=document.getElementById('msc-ok');
+    function dire(m){ er.textContent=m||''; er.style.display=m?'block':'none'; }
+    ok.onclick=function(){
+      if((n1.value||'').length<12){ dire('Douze caractères au minimum.'); n1.focus(); return; }
+      if(n1.value!==n2.value){ dire('Les deux saisies diffèrent.'); n2.value=''; n2.focus(); return; }
+      ok.disabled=true; ok.textContent='…'; dire('');
+      s.changerPhrase(o.value||'', n1.value).then(function(bon){
+        if(!bon){ ok.disabled=false; ok.textContent='Changer'; dire('Phrase actuelle incorrecte.'); o.value=''; o.focus(); return; }
+        tracer('changement de phrase','');
+        closeModal(); T('Phrase secrète changée');
+        try{ if(typeof render==='function') render(); }catch(e){}
+      });
+    };
+    setTimeout(function(){ try{ o.focus(); }catch(e){} },40);
+  };
+
+  /* ---------- nouvelle clé de secours ---------- */
+  window.mqSecNouvelleCle=function(){
+    var s=S(); if(!s||!s.actif()) return;
+    if(typeof uiPrompt!=='function'){ T('Indisponible','warn'); return; }
+    uiPrompt('Phrase secrète, pour autoriser la génération d’une nouvelle clé de secours.\nL’ancienne clé cessera d’ouvrir les données.','',
+      function(v){
+        s.regenererSecours(v||'').then(function(cle){
+          if(!cle){ T('Phrase secrète incorrecte','warn'); return; }
+          tracer('nouvelle clé de secours','');
+          montrerSecours(cle,'Nouvelle clé de secours');
+        });
+      },{title:'Nouvelle clé de secours',okLabel:'Générer',required:true});
+  };
+
+  /* ---------- désactivation ---------- */
+  window.mqSecDesactiver=function(){
+    var s=S(); if(!s||!s.actif()) return;
+    uiConfirm('Désactiver le chiffrement replacera en clair, sur cet appareil, les pièces d’identité, '
+      +'numéros de sécurité sociale et coordonnées bancaires.\n\nContinuer ?',function(){
+      s.desactiver().then(function(ok){
+        if(!ok){ T('Désactivation impossible — déverrouillez d’abord les données','warn'); return; }
+        tracer('désactivation','données replacées en clair');
+        T('Chiffrement désactivé');
+        try{ if(typeof render==='function') render(); }catch(e){}
+      });
+    },{okLabel:'Désactiver',danger:true,title:'Désactiver le chiffrement'});
+  };
+
+  /* ---------- la carte ---------- */
+  function carte(){
+    var s=S();
+    var dispo=!!(s&&s.dispo()), on=!!(s&&s.actif()), pret=!!(s&&s.pret());
+    var st=(s&&s.etat())||null;
+    var quand=st&&st.ts?new Date(st.ts).toLocaleString('fr-FR'):'';
+    var h='<div class="card" style="margin-top:14px"><div class="card-h"><h2>Chiffrement des données</h2>'
+      +'<span class="sub" style="margin-left:auto">'+(on?'Actif':'Inactif')+'</span></div><div class="card-b">';
+
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">'
+      +'<span class="lb-status"><span class="lb-dot'+(on?'':' off')+'"></span>'
+      +(on?('Chiffré au repos'+(pret?'':' — verrouillé')):'Données en clair sur cet appareil')+'</span>';
+    if(on&&st) h+='<span class="hint" style="margin:0">AES-256-GCM · PBKDF2-SHA256 '+(st.iter||0).toLocaleString('fr-FR')+' itérations'+(quand?(' · '+quand):'')+'</span>';
+    h+='</div>';
+
+    if(!dispo){
+      h+='<p class="hint" style="margin:0">Ce navigateur ne fournit pas les primitives nécessaires (WebCrypto). Le chiffrement ne peut pas être activé ici.</p></div></div>';
+      return h;
+    }
+
+    if(!on){
+      h+='<p class="hint" style="margin:0 0 12px">Les pièces déposées par les clients — cartes nationales, passeports — ainsi que les '
+        +'numéros de sécurité sociale, la filiation des dirigeants et les coordonnées bancaires sont aujourd’hui <b>lisibles en clair</b> '
+        +'par qui accède au profil du navigateur de cette machine.</p>'
+        +'<p class="hint" style="margin:0 0 12px">Une phrase secrète dérive une clé qui chiffre, au repos : la base, son miroir de secours, '
+        +'les instantanés de sauvegarde automatique et les fichiers du coffre-fort. La phrase est demandée à chaque ouverture. '
+        +'Une clé de secours, remise une fois, ouvre les données si la phrase est perdue.</p>'
+        +'<div class="btn-grid"><button class="btn btn-pri" onclick="mqSecActiver()">Activer le chiffrement</button></div>';
+    } else {
+      h+='<p class="hint" style="margin:0 0 10px"><b>Chiffré :</b> la base, son miroir IndexedDB, les instantanés de sauvegarde automatique, '
+        +'les fichiers du coffre-fort.<br><b>En clair, et c’est assumé :</b> l’horodatage du dernier enregistrement, et deux réglages '
+        +'auxiliaires — l’index du coffre (noms de clients et titres de documents, pas leur contenu) et l’adresse du serveur portail.</p>'
+        +'<div class="btn-grid">'
+        +'<button class="btn btn-ghost" onclick="mqSecChanger()">Changer la phrase secrète</button>'
+        +'<button class="btn btn-ghost" onclick="mqSecNouvelleCle()">Nouvelle clé de secours</button>'
+        +'<button class="btn btn-danger" onclick="mqSecDesactiver()">Désactiver</button>'
+        +'</div>';
+    }
+    h+='</div></div>';
+    return h;
+  }
+  window.mqSecCarte=carte;
+
+  /* Greffe sur Paramètres, à côté de la carte de sauvegarde. */
+  function greffe(){
+    try{
+      var _pp=window.pageParams;
+      if(typeof _pp==='function' && !_pp.__sec713){
+        window.pageParams=function(){ var h=_pp.apply(this,arguments);
+          try{ if(typeof h==='string') h+=carte(); }catch(e){}
+          return h; };
+        window.pageParams.__sec713=1;
+      }
+    }catch(e){}
+  }
+  greffe();
+  try{ var _r=window.render; if(typeof _r==='function' && !_r.__sec713){ window.render=function(){ greffe(); return _r.apply(this,arguments); }; window.render.__sec713=1; } }catch(e){}
+})();
+</script>
+
+<script id="mqsauv-714">
+/* ===================================================================
+   Mar'q v714 — SAUVEGARDE HORS MACHINE
+   -------------------------------------------------------------------
+   Toutes les sauvegardes vivaient sur le même appareil que les données :
+   le stockage local, son miroir IndexedDB, les instantanés horodatés.
+   Un disque perdu, un profil de navigateur effacé, un vol — et tout
+   partait ensemble. Une sauvegarde qui ne quitte pas la machine ne
+   sauvegarde rien.
+
+   Deux destinations, au choix, cumulables :
+
+   1. UN DOSSIER DÉSIGNÉ une fois pour toutes (File System Access) — un
+      dossier synchronisé Drive / OneDrive, ou une clé USB. L'autorisation
+      est accordée une fois ; le navigateur la redemande après un
+      redémarrage, ce que la carte signale et répare en un clic.
+
+   2. LE SERVEUR PORTAIL du cabinet (server/portal, route /admin/backup,
+      protégée par le secret cabinet). Le serveur ne reçoit qu'un BLOC
+      OPAQUE : quand le chiffrement au repos est actif, c'est une
+      enveloppe AES-256-GCM dont la clé ne quitte jamais le poste. Le
+      serveur conserve sans pouvoir lire — et n'a pas à pouvoir.
+
+   Le fichier téléchargé manuellement suit la même règle : chiffré si le
+   chiffrement est actif, et la restauration réclame alors la phrase.
+   =================================================================== */
+(function(){
+  if(window.mqSauv) return;
+
+  var IDB='marq-sauv', MAG='kv', CLE_DOSSIER='dossier';
+  var JOURS_ALERTE=7;                /* au-delà, la Prévoyance le signale */
+
+  function E(s){ try{ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }catch(e){ return ''+(s==null?'':s); } }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4600,t||'info'); }catch(e){} }
+  function par(){ try{ DB.parametres=DB.parametres||{}; return DB.parametres; }catch(e){ return {}; } }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function sec(){ return window.mqSec||null; }
+  /* Même piège que dans le noyau : DB n'est pas sur window (déclaré en « let »). */
+  function baseVive(){ try{ return (typeof DB!=='undefined' && DB && typeof DB==='object') ? DB : null; }catch(e){ return null; } }
+
+  /* ---------- le journal des versements ---------- */
+  function journal(){ var p=par(); if(!Array.isArray(p.sauvHors)) p.sauvHors=[]; return p.sauvHors; }
+  function noter(o){ var j=journal(); o.ts=Date.now(); o.iso=new Date(o.ts).toISOString(); j.unshift(o);
+    if(j.length>200) par().sauvHors=j.slice(0,200); enr(); }
+  function dernierOk(){ return journal().filter(function(x){ return x.ok; })[0]||null; }
+  window.mqSauvDernier=dernierOk;
+  /* Jours écoulés depuis le dernier versement réussi, hors machine. -1 si jamais. */
+  function joursDepuis(){ var d=dernierOk(); if(!d) return -1; return Math.floor((Date.now()-d.ts)/86400000); }
+  window.mqSauvJours=joursDepuis;
+
+  /* ---------- le paquet à verser ---------- */
+  /* Même forme que l'export manuel (marqExport), pour qu'un fichier versé
+     automatiquement soit restaurable par le même chemin. */
+  var LS_KEYS=['last-svc','last-portal-srv','last-baremes','last-bareme-year','last-cal-tpl','last-2fa','last-seed2','last-sec'];
+  function paquet(){
+    var bk={ app:'marq', kind:'backup', ver:(typeof LAST_VER!=='undefined'?LAST_VER:0), ts:Date.now(), ls:{} };
+    LS_KEYS.forEach(function(k){ try{ var v=localStorage.getItem(k); if(v!=null) bk.ls[k]=v; }catch(e){} });
+    /* La base en mémoire fait foi : le stockage peut n'en contenir qu'une enveloppe. */
+    try{ bk.db=baseVive(); }catch(e){ bk.db=null; }
+    try{ bk.coffreFiles=(typeof window.cofFilesGet==='function')?(window.cofFilesGet()||{}):{}; }catch(e){ bk.coffreFiles={}; }
+    return bk;
+  }
+  /* Rend {texte, chiffre} : chiffré dès que le chiffrement au repos est actif. */
+  function charge(){
+    var json; try{ json=JSON.stringify(paquet()); }catch(e){ return Promise.resolve(null); }
+    var s=sec();
+    if(s&&s.actif()&&s.pret()) return s.env(json).then(function(e){ return e?{texte:e,chiffre:true}:null; });
+    return Promise.resolve({texte:json,chiffre:false});
+  }
+  window.mqSauvCharge=charge;
+
+  /* ---------- IndexedDB : la poignée du dossier désigné ---------- */
+  function idb(){ return new Promise(function(res,rej){ try{ var rq=indexedDB.open(IDB,1);
+    rq.onupgradeneeded=function(){ try{ if(!rq.result.objectStoreNames.contains(MAG)) rq.result.createObjectStore(MAG); }catch(e){} };
+    rq.onsuccess=function(){ res(rq.result); }; rq.onerror=function(){ rej(rq.error); }; }catch(e){ rej(e); } }); }
+  function poser(cle,val){ return idb().then(function(db){ return new Promise(function(res,rej){
+    try{ var tx=db.transaction(MAG,'readwrite'); tx.objectStore(MAG).put(val,cle); tx.oncomplete=function(){res(true);}; tx.onerror=function(){rej(tx.error);}; }catch(e){ rej(e); } }); }); }
+  function prendre(cle){ return idb().then(function(db){ return new Promise(function(res,rej){
+    try{ var tx=db.transaction(MAG,'readonly'); var rq=tx.objectStore(MAG).get(cle); rq.onsuccess=function(){res(rq.result||null);}; rq.onerror=function(){rej(rq.error);}; }catch(e){ rej(e); } }); }); }
+
+  function dossierDispo(){ try{ return typeof window.showDirectoryPicker==='function'; }catch(e){ return false; } }
+  window.mqSauvDossierDispo=dossierDispo;
+
+  function dossierEtat(){
+    return prendre(CLE_DOSSIER).then(function(h){
+      if(!h) return {pose:false};
+      if(typeof h.queryPermission!=='function') return {pose:true, nom:h.name||'', perm:'inconnue'};
+      return h.queryPermission({mode:'readwrite'}).then(function(p){ return {pose:true, nom:h.name||'', perm:p}; })
+        .catch(function(){ return {pose:true, nom:h.name||'', perm:'inconnue'}; });
+    }).catch(function(){ return {pose:false}; });
+  }
+  window.mqSauvDossierEtat=dossierEtat;
+
+  window.mqSauvDossierChoisir=function(){
+    if(!dossierDispo()){ T('Ce navigateur ne permet pas de désigner un dossier — utilisez le serveur portail ou l’export manuel.','warn'); return; }
+    window.showDirectoryPicker({mode:'readwrite', id:'marq-sauvegardes'}).then(function(h){
+      return poser(CLE_DOSSIER,h).then(function(){
+        T('Dossier de sauvegarde désigné : ' + (h.name||''));
+        try{ if(typeof render==='function') render(); }catch(e){}
+      });
+    }).catch(function(e){ if(e && e.name==='AbortError') return; T('Dossier non désigné','warn'); });
+  };
+  window.mqSauvDossierOublier=function(){
+    poser(CLE_DOSSIER,null).then(function(){ T('Dossier oublié'); try{ if(typeof render==='function') render(); }catch(e){} });
+  };
+
+  function nomFichier(chiffre){
+    var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
+    return 'marq-sauvegarde-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())
+      + (chiffre?'.mqs.json':'.json');
+  }
+
+  /* Versement dans le dossier désigné. L'autorisation peut avoir expiré :
+     on la redemande, ce qui n'aboutit que sur un geste de l'utilisateur. */
+  window.mqSauvVerserDossier=function(silencieux){
+    return prendre(CLE_DOSSIER).then(function(h){
+      if(!h){ if(!silencieux) T('Désignez d’abord un dossier','warn'); return false; }
+      var demande=(typeof h.requestPermission==='function')
+        ? h.queryPermission({mode:'readwrite'}).then(function(p){ return p==='granted'?p:(silencieux?p:h.requestPermission({mode:'readwrite'})); })
+        : Promise.resolve('granted');
+      return demande.then(function(p){
+        if(p!=='granted'){ if(!silencieux) T('Autorisation refusée sur le dossier','warn');
+          noter({dest:'dossier', ok:false, err:'autorisation '+p}); return false; }
+        return charge().then(function(c){
+          if(!c){ noter({dest:'dossier', ok:false, err:'paquet illisible'}); return false; }
+          var nom=nomFichier(c.chiffre);
+          return h.getFileHandle(nom,{create:true})
+            .then(function(f){ return f.createWritable(); })
+            .then(function(w){ return w.write(c.texte).then(function(){ return w.close(); }); })
+            .then(function(){
+              noter({dest:'dossier', nom:nom, dossier:h.name||'', taille:c.texte.length, chiffre:c.chiffre, ok:true});
+              if(!silencieux) T('Sauvegarde versée dans ' + (h.name||'le dossier') + ' · ' + nom);
+              try{ if(typeof render==='function') render(); }catch(e){}
+              return true;
+            });
+        });
+      });
+    }).catch(function(e){
+      noter({dest:'dossier', ok:false, err:(e&&e.message)||'échec'});
+      if(!silencieux) T('Versement impossible dans le dossier','warn');
+      return false;
+    });
+  };
+
+  /* ---------- serveur portail ---------- */
+  function srv(){ try{ return JSON.parse(localStorage.getItem('last-portal-srv')||'{}')||{}; }catch(e){ return {}; } }
+  function base(){ return (''+(srv().url||'')).trim().replace(/\/+$/,''); }
+  function jeton(){ return (''+(srv().token||'')).trim(); }
+  function srvPret(){ return !!(base()&&jeton()); }
+  window.mqSauvServeurPret=srvPret;
+
+  window.mqSauvVerserServeur=function(silencieux){
+    if(!srvPret()){ if(!silencieux) T('Adresse du serveur portail et secret cabinet requis (Paramètres › Portail en ligne)','warn'); return Promise.resolve(false); }
+    return charge().then(function(c){
+      if(!c) return false;
+      return fetch(base()+'/admin/backup',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Cabinet-Token':jeton()},
+        body:JSON.stringify({ts:Date.now(), ver:(typeof LAST_VER!=='undefined'?LAST_VER:0), chiffre:c.chiffre,
+                             poste:(navigator.platform||'poste'), blob:c.texte})
+      }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j}; }); })
+        .then(function(x){
+          if(!x.ok){ noter({dest:'serveur', ok:false, err:(x.j&&x.j.error)||('HTTP '+ (x.j?'':'') )}); 
+            if(!silencieux) T('Le serveur a refusé la sauvegarde : '+((x.j&&x.j.error)||'erreur'),'warn'); return false; }
+          noter({dest:'serveur', id:x.j.id, taille:x.j.taille, chiffre:c.chiffre, ok:true, conservees:x.j.total});
+          if(!silencieux) T('Sauvegarde déposée sur le serveur portail (' + (x.j.total||1) + ' conservée(s))');
+          try{ if(typeof render==='function') render(); }catch(e){}
+          return true;
+        });
+    }).catch(function(e){
+      noter({dest:'serveur', ok:false, err:(e&&e.message)||'réseau indisponible'});
+      if(!silencieux) T('Serveur portail injoignable','warn');
+      return false;
+    });
+  };
+
+  window.mqSauvServeurListe=function(){
+    if(!srvPret()){ T('Adresse du serveur et secret cabinet requis','warn'); return; }
+    var el=document.getElementById('ms714-liste'); if(el) el.innerHTML='<div class="lb-empty">Interrogation du serveur…</div>';
+    fetch(base()+'/admin/backups?limit=30',{headers:{'X-Cabinet-Token':jeton()}})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var L=(j&&j.sauvegardes)||[];
+        if(!el) return;
+        if(!L.length){ el.innerHTML='<div class="lb-empty">Aucune sauvegarde sur le serveur.</div>'; return; }
+        el.innerHTML=L.map(function(s){
+          var d=new Date(s.ts||0);
+          return '<div class="lb-row"><div><div class="lb-when">'+E(d.toLocaleString('fr-FR'))
+            +(s.chiffre?' <span class="lb-tag">chiffrée</span>':' <span class="lb-tag avant">en clair</span>')+'</div>'
+            +'<div class="lb-meta">'+E(Math.max(1,Math.round((s.taille||0)/1024)))+' Ko'+(s.ver?(' · v'+E(s.ver)):'')+(s.poste?(' · '+E(s.poste)):'')+'</div></div>'
+            +'<div class="lb-act"><button class="btn btn-sm btn-ghost" onclick="mqSauvServeurTelecharger(\''+E(s.id)+'\')">Télécharger</button>'
+            +'<button class="btn btn-sm btn-ghost" onclick="mqSauvServeurRestaurer(\''+E(s.id)+'\')">Restaurer</button></div></div>';
+        }).join('');
+      }).catch(function(){ if(el) el.innerHTML='<div class="lb-empty">Serveur injoignable.</div>'; });
+  };
+
+  function recuperer(id){
+    return fetch(base()+'/admin/backup?id='+encodeURIComponent(id),{headers:{'X-Cabinet-Token':jeton()}})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ return (j&&j.blob)?j:null; });
+  }
+  window.mqSauvServeurTelecharger=function(id){
+    recuperer(id).then(function(j){
+      if(!j){ T('Sauvegarde introuvable','warn'); return; }
+      var b=new Blob([j.blob],{type:'application/json'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+      a.download='marq-sauvegarde-'+new Date(j.ts||Date.now()).toISOString().slice(0,19).replace(/[:T]/g,'-')+(j.chiffre?'.mqs.json':'.json');
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+      T('Sauvegarde téléchargée');
+    }).catch(function(){ T('Serveur injoignable','warn'); });
+  };
+  window.mqSauvServeurRestaurer=function(id){
+    uiConfirm('Restaurer cette sauvegarde du serveur ? Les données de cet appareil seront remplacées.',function(){
+      recuperer(id).then(function(j){
+        if(!j){ T('Sauvegarde introuvable','warn'); return; }
+        appliquer(j.blob);
+      }).catch(function(){ T('Serveur injoignable','warn'); });
+    },{okLabel:'Restaurer',danger:true,title:'Restaurer depuis le serveur'});
+  };
+
+  /* ---------- appliquer un paquet (clair ou chiffré) ---------- */
+  function appliquer(texte){
+    var s=sec();
+    var ouvre=(s&&s.estEnv(texte))
+      ? (s.pret() ? s.ouvrir(texte) : Promise.resolve(null))
+      : Promise.resolve(texte);
+    ouvre.then(function(clair){
+      if(clair==null){
+        T('Sauvegarde chiffrée : déverrouillez les données avec la phrase secrète avant de la restaurer','warn');
+        return;
+      }
+      var bk; try{ bk=JSON.parse(clair); }catch(e){ bk=null; }
+      if(!bk||bk.app!=='marq'||bk.kind!=='backup'){ T('Fichier de sauvegarde invalide','warn'); return; }
+      try{ LS_KEYS.forEach(function(k){ if(bk.ls&&bk.ls[k]!=null){ try{ localStorage.setItem(k,bk.ls[k]); }catch(e){} } }); }catch(e){}
+      try{ if(bk.db){ if(typeof window.__applyDB==='function') window.__applyDB(bk.db); else DB=bk.db; } }catch(e){}
+      try{ if(typeof window.save==='function') window.save(); }catch(e){}
+      try{ if(bk.coffreFiles && typeof window.cofFilesSet==='function') window.cofFilesSet(bk.coffreFiles); }catch(e){}
+      T('Restauration en cours… rechargement.');
+      setTimeout(function(){ try{ location.reload(); }catch(e){} },900);
+    });
+  }
+  window.mqSauvAppliquer=appliquer;
+
+  /* ---------- l'export manuel suit la même règle ---------- */
+  /* marqExport téléchargeait le paquet en clair, y compris quand les données
+     sont chiffrées sur l'appareil : le fichier annulait alors la protection
+     dès qu'il quittait la machine. */
+  window.mqSauvTelecharger=function(){
+    charge().then(function(c){
+      if(!c){ T('Sauvegarde impossible','warn'); return; }
+      var b=new Blob([c.texte],{type:'application/json'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=nomFichier(c.chiffre);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+      noter({dest:'fichier', nom:a.download, taille:c.texte.length, chiffre:c.chiffre, ok:true});
+      T(c.chiffre?'Sauvegarde chiffrée téléchargée':'Sauvegarde téléchargée');
+      try{ if(typeof render==='function') render(); }catch(e){}
+    });
+  };
+  window.mqSauvRestaurerFichier=function(inp){
+    var f=inp&&inp.files&&inp.files[0]; if(!f) return; if(inp) inp.value='';
+    var rd=new FileReader(); rd.onload=function(){ appliquer(''+(rd.result||'')); }; rd.readAsText(f);
+  };
+
+  /* ---------- versement automatique, une fois par jour, sans bruit ---------- */
+  function autoCfg(){ var p=par(); p.sauvHorsAuto=p.sauvHorsAuto||{actif:true}; return p.sauvHorsAuto; }
+  window.mqSauvAutoToggle=function(el){ autoCfg().actif=!!(el&&el.checked); enr(); try{ if(typeof render==='function') render(); }catch(e){} };
+  function autoTenter(){
+    try{
+      if(!autoCfg().actif) return;
+      /* Rien a verser si la base n'est pas chargee (verrou du chiffrement encore
+         en place, ou ouverture pas terminee) : une sauvegarde vide deposee
+         chasserait une vraie de la rotation et ferait croire le cabinet a jour. */
+      if(!baseVive()) return;
+      var s0=sec(); if(s0 && s0.actif() && !s0.pret()) return;
+      var d=dernierOk();
+      if(d && (Date.now()-d.ts) < 20*3600000) return;     /* déjà versé aujourd'hui */
+      /* Le dossier désigné ne s'écrit pas sans autorisation vivante : on tente
+         en silence, et la carte signale s'il faut la rendre. */
+      if(srvPret()) window.mqSauvVerserServeur(true);
+      else dossierEtat().then(function(e){ if(e.pose && e.perm==='granted') window.mqSauvVerserDossier(true); });
+    }catch(e){}
+  }
+  setTimeout(autoTenter, 12000);
+
+  /* ---------- la carte Paramètres ---------- */
+  function carte(){
+    var j=journal(), dj=joursDepuis(), auto=autoCfg().actif;
+    var s=sec(), chiffre=!!(s&&s.actif());
+    var h='<div class="card" style="margin-top:14px"><div class="card-h"><h2>Sauvegarde hors machine</h2>'
+      +'<span class="sub" style="margin-left:auto">'+(dj<0?'jamais versée':(dj===0?'versée aujourd’hui':'il y a '+dj+' j'))+'</span>'
+      +'</div><div class="card-b">';
+
+    h+='<p class="hint" style="margin:0 0 12px">Les instantanés automatiques et le miroir de secours vivent sur <b>cet appareil</b> : '
+      +'ils ne protègent pas d’un disque perdu, d’un profil effacé ni d’un vol. Une copie doit sortir de la machine.'
+      +(chiffre?' Le chiffrement étant actif, tout ce qui sort est <b>chiffré</b> — le dossier, le serveur et le fichier téléchargé.'
+               :' <b>Le chiffrement n’est pas actif</b> : ce qui sort de la machine sort en clair.')+'</p>';
+
+    var etatTxt=(dj<0)?'<span class="lb-status"><span class="lb-dot off"></span>Aucune sauvegarde hors machine</span>'
+      :((dj>JOURS_ALERTE)?'<span class="lb-status"><span class="lb-dot off"></span>Dernière il y a '+dj+' jours</span>'
+                        :'<span class="lb-status"><span class="lb-dot"></span>À jour</span>');
+    h+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px">'+etatTxt
+      +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin:0">'
+      +'<input type="checkbox" '+(auto?'checked':'')+' onchange="mqSauvAutoToggle(this)" style="width:auto;flex:none;margin:0"> Verser automatiquement une fois par jour</label></div>';
+
+    /* destination 1 */
+    h+='<div class="adm-soc-gh" style="margin:0 0 6px">Dossier désigné — Drive, OneDrive, clé USB</div>';
+    if(!dossierDispo()){
+      h+='<p class="hint" style="margin:0 0 12px">Ce navigateur ne permet pas de désigner un dossier. Utilisez le serveur portail, ou le fichier téléchargé.</p>';
+    } else {
+      h+='<div id="ms714-dossier" class="hint" style="margin:0 0 8px">Lecture de l’état…</div>'
+        +'<div class="btn-grid" style="margin:0 0 14px">'
+        +'<button class="btn btn-ghost" onclick="mqSauvDossierChoisir()">Désigner un dossier</button>'
+        +'<button class="btn btn-pri" onclick="mqSauvVerserDossier()">Verser maintenant</button>'
+        +'</div>';
+    }
+
+    /* destination 2 */
+    h+='<div class="adm-soc-gh" style="margin:0 0 6px">Serveur portail du cabinet</div>'
+      +'<p class="hint" style="margin:0 0 8px">'+(srvPret()
+        ? 'Configuré. Le serveur conserve les trente dernières sauvegardes, sous forme de blocs qu’il ne peut pas lire.'
+        : 'Non configuré — renseignez l’adresse et le secret cabinet dans <b>Portail en ligne</b>.')+'</p>'
+      +'<div class="btn-grid" style="margin:0 0 10px">'
+      +'<button class="btn btn-pri" onclick="mqSauvVerserServeur()">Déposer sur le serveur</button>'
+      +'<button class="btn btn-ghost" onclick="mqSauvServeurListe()">Voir les sauvegardes du serveur</button>'
+      +'</div><div id="ms714-liste" class="lb-list"></div>';
+
+    /* destination 3 : le fichier */
+    h+='<div class="adm-soc-gh" style="margin:14px 0 6px">Fichier</div>'
+      +'<div class="btn-grid">'
+      +'<button class="btn btn-ghost" onclick="mqSauvTelecharger()">Télécharger une sauvegarde'+(chiffre?' (chiffrée)':'')+'</button>'
+      +'<input type="file" id="ms714-fic" accept="application/json,.json" style="display:none" onchange="mqSauvRestaurerFichier(this)">'
+      +'<button class="btn btn-ghost" onclick="(function(){var i=document.getElementById(\'ms714-fic\');if(i)i.click();})()">Restaurer un fichier</button>'
+      +'</div>';
+
+    /* journal */
+    if(j.length){
+      h+='<div class="adm-soc-gh" style="margin:14px 0 6px">Derniers versements</div><div class="lb-list">';
+      h+=j.slice(0,6).map(function(x){
+        var d=new Date(x.ts||0);
+        var ou=(x.dest==='serveur')?'serveur portail':((x.dest==='dossier')?('dossier '+(x.dossier||'')):'fichier téléchargé');
+        return '<div class="lb-row"><div><div class="lb-when">'+E(d.toLocaleString('fr-FR'))
+          +(x.ok?'':' <span class="lb-tag avant">échec</span>')+(x.chiffre?' <span class="lb-tag">chiffrée</span>':'')+'</div>'
+          +'<div class="lb-meta">'+E(ou)+(x.ok?(x.taille?(' · '+Math.max(1,Math.round(x.taille/1024))+' Ko'):''):(' · '+E(x.err||'')))+'</div></div></div>';
+      }).join('');
+      h+='</div>';
+    }
+
+    h+='</div></div>';
+    return h;
+  }
+  window.mqSauvCarte=carte;
+
+  /* L'état du dossier se lit de façon asynchrone : la carte est peinte d'abord,
+     la ligne d'état se remplit ensuite. */
+  function peindreEtatDossier(){
+    var el=document.getElementById('ms714-dossier'); if(!el) return;
+    dossierEtat().then(function(e){
+      var el2=document.getElementById('ms714-dossier'); if(!el2) return;
+      if(!e.pose){ el2.innerHTML='Aucun dossier désigné.'; return; }
+      if(e.perm==='granted') el2.innerHTML='Dossier : <b>'+E(e.nom)+'</b> — autorisation en cours.';
+      else el2.innerHTML='Dossier : <b>'+E(e.nom)+'</b> — <span style="color:#b45309">autorisation à redonner</span> '
+        +'(le navigateur l’oublie au redémarrage). Un clic sur « Verser maintenant » la redemande.';
+    });
+  }
+
+  /* ---------- Prévoyance : le rappel ---------- */
+  function rappels(){
+    var dj=joursDepuis(), out=[];
+    if(dj<0) out.push({niveau:'alerte', titre:'Aucune sauvegarde hors machine',
+      detail:'Toutes les copies vivent sur cet appareil. Désignez un dossier ou configurez le serveur portail.', page:'params'});
+    else if(dj>JOURS_ALERTE) out.push({niveau:'alerte', titre:'Sauvegarde hors machine ancienne',
+      detail:'Dernier versement il y a '+dj+' jours.', page:'params'});
+    var s=sec();
+    if(s&&!s.actif()) out.push({niveau:'avertissement', titre:'Données en clair sur cet appareil',
+      detail:'Pièces d’identité, numéros de sécurité sociale et coordonnées bancaires ne sont pas chiffrés.', page:'params'});
+    return out;
+  }
+  window.mqSauvRappels=rappels;
+
+  /* ---------- greffes ---------- */
+  function greffe(){
+    try{
+      var _pp=window.pageParams;
+      if(typeof _pp==='function' && !_pp.__sauv714){
+        window.pageParams=function(){ var h=_pp.apply(this,arguments);
+          try{ if(typeof h==='string') h+=carte(); }catch(e){}
+          setTimeout(peindreEtatDossier,60);
+          return h; };
+        window.pageParams.__sauv714=1;
+      }
+    }catch(e){}
+  }
+  greffe();
+  try{ var _r=window.render; if(typeof _r==='function' && !_r.__sauv714){
+    window.render=function(){ greffe(); var x=_r.apply(this,arguments); setTimeout(peindreEtatDossier,60); return x; };
+    window.render.__sauv714=1; } }catch(e){}
+
+  window.mqSauv={ paquet:paquet, charge:charge, journal:journal, jours:joursDepuis,
+    verserDossier:function(s){ return window.mqSauvVerserDossier(s); },
+    verserServeur:function(s){ return window.mqSauvVerserServeur(s); },
+    appliquer:appliquer, rappels:rappels, serveurPret:srvPret, dossierEtat:dossierEtat };
+})();
+</script>
+
 </body>
 </html>

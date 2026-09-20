@@ -1,12 +1,33 @@
 name: deploy-portal
 
-# Déploie le serveur du portail client (server/portal) sur Fly.io à chaque push
-# sur main qui touche ce dossier. Nécessite le secret de dépôt FLY_API_TOKEN
-# (GitHub → Settings → Secrets and variables → Actions → New repository secret).
-# Générez le jeton avec :  fly tokens create deploy   (ou : fly auth token)
+# ============================================================================
+# Déploie le serveur du portail client (server/portal) sur Fly.io, puis VÉRIFIE
+# que le service déployé fonctionne réellement de l'extérieur.
 #
-# Sans FLY_API_TOKEN configuré, le job de vérification s'exécute quand même
-# et le déploiement est simplement ignoré (aucune erreur).
+# À CONFIGURER UNE FOIS dans GitHub :
+#   Dépôt → Settings → Secrets and variables → Actions → New repository secret
+#
+#     FLY_API_TOKEN   (obligatoire) — jeton de déploiement Fly.io.
+#                     Créez un compte sur fly.io, installez flyctl, puis :
+#                        fly tokens create deploy
+#
+#     CABINET_TOKEN   (obligatoire) — le secret d'administration du portail.
+#                     C'est CE secret que vous collerez dans Mar'q
+#                     (Paramètres › Portail en ligne). Choisissez-le vous-même,
+#                     par exemple :   openssl rand -hex 32
+#                     Il est volontairement demandé plutôt que généré ici : un
+#                     secret créé dans un job que personne ne peut relire ne
+#                     serait connu de personne, et donc inutilisable.
+#
+#     ALLOWED_ORIGIN  (facultatif) — l'origine EXACTE du site Mar'q.
+#                     Par défaut https://marq.aemconseil.eu
+#
+#   JWT_SECRET n'est pas demandé : personne n'a besoin de le connaître, il est
+#   donc généré ici, une seule fois, et conservé par Fly.
+#
+# Sans FLY_API_TOKEN, la vérification du code tourne quand même et le
+# déploiement est simplement ignoré (aucune erreur).
+# ============================================================================
 
 on:
   push:
@@ -42,16 +63,105 @@ jobs:
     concurrency: deploy-portal
     steps:
       - uses: actions/checkout@v4
-      - name: Déploiement Fly.io (si FLY_API_TOKEN présent)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Déploiement Fly.io
+        id: deploiement
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          CABINET_TOKEN: ${{ secrets.CABINET_TOKEN }}
+          ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
         run: |
-          if [ -z "$FLY_API_TOKEN" ]; then
-            echo "FLY_API_TOKEN absent — déploiement ignoré (configurez le secret pour l'activer)."
+          set -euo pipefail
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "FLY_API_TOKEN absent — déploiement ignoré."
+            echo "Configurez le secret pour l'activer (voir l'en-tête de ce fichier)."
+            echo "deploye=non" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          if [ -z "${CABINET_TOKEN:-}" ]; then
+            echo "::error::CABINET_TOKEN absent. Le portail refuserait tous les appels du cabinet."
+            echo "Ajoutez-le en secret de dépôt (openssl rand -hex 32), puis relancez."
+            exit 1
+          fi
+
           curl -L https://fly.io/install.sh | sh
           export FLYCTL_INSTALL="$HOME/.fly"
           export PATH="$FLYCTL_INSTALL/bin:$PATH"
           cd server/portal
-          flyctl deploy --remote-only
+
+          APP=$(grep -E '^app *= *' fly.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          REGION=$(grep -E '^primary_region *= *' fly.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          echo "Application : $APP  (région $REGION)"
+
+          # 1) L'application existe-t-elle ? Sinon on la crée. « fly deploy » seul
+          #    échouerait sur une application jamais lancée.
+          if ! flyctl status --app "$APP" >/dev/null 2>&1; then
+            echo "Application absente — création."
+            flyctl apps create "$APP" --org personal
+          else
+            echo "Application déjà présente."
+          fi
+
+          # 2) Le volume : sans lui, les sauvegardes déposées par le cabinet
+          #    disparaîtraient à chaque redéploiement.
+          VOL=$(grep -A2 '\[\[mounts\]\]' fly.toml | grep -E '^ *source *= *' | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          if ! flyctl volumes list --app "$APP" 2>/dev/null | grep -q "$VOL"; then
+            echo "Volume $VOL absent — création (1 Go, $REGION)."
+            flyctl volumes create "$VOL" --app "$APP" --size 1 --region "$REGION" --yes
+          else
+            echo "Volume $VOL déjà présent."
+          fi
+
+          # 3) Les secrets. JWT_SECRET n'est généré qu'à la première fois :
+          #    le régénérer invaliderait les sessions client en cours.
+          ORIG="${ALLOWED_ORIGIN:-https://marq.aemconseil.eu}"
+          if flyctl secrets list --app "$APP" 2>/dev/null | grep -q JWT_SECRET; then
+            echo "JWT_SECRET déjà posé — conservé."
+            flyctl secrets set --app "$APP" --stage \
+              CABINET_TOKEN="$CABINET_TOKEN" ALLOWED_ORIGIN="$ORIG"
+          else
+            echo "Première pose des secrets."
+            flyctl secrets set --app "$APP" --stage \
+              CABINET_TOKEN="$CABINET_TOKEN" ALLOWED_ORIGIN="$ORIG" \
+              JWT_SECRET="$(openssl rand -hex 32)"
+          fi
+
+          # 4) Déploiement.
+          flyctl deploy --remote-only --app "$APP"
+
+          URL="https://$APP.fly.dev"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "deploye=oui" >> "$GITHUB_OUTPUT"
+          echo "Déployé : $URL"
+
+      # Un déploiement qui « réussit » ne prouve pas que le service est
+      # utilisable : c'est ce contrôle-ci qui le prouve, depuis l'extérieur.
+      - name: Contrôle du service déployé
+        if: steps.deploiement.outputs.deploye == 'oui'
+        env:
+          CABINET_TOKEN: ${{ secrets.CABINET_TOKEN }}
+          ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deploiement.outputs.url }}"
+          ORIG="${ALLOWED_ORIGIN:-https://marq.aemconseil.eu}"
+          echo "Attente du démarrage…"
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 5 "$URL/health" >/dev/null 2>&1; then break; fi
+            sleep 4
+          done
+          node server/portal/scripts/verifier-deploiement.mjs "$URL" --origine "$ORIG"
+
+      - name: Où coller l'adresse dans Mar'q
+        if: steps.deploiement.outputs.deploye == 'oui'
+        run: |
+          echo "### Portail déployé" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Adresse : \`${{ steps.deploiement.outputs.url }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dans Mar'q → **Paramètres › Portail en ligne** : collez cette adresse" >> "$GITHUB_STEP_SUMMARY"
+          echo "et le secret cabinet, puis **Enregistrer**." >> "$GITHUB_STEP_SUMMARY"
+          echo "La carte **Sauvegarde hors machine** pourra alors y déposer les sauvegardes." >> "$GITHUB_STEP_SUMMARY"
