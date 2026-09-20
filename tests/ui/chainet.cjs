@@ -186,4 +186,7 @@ const { chromium, URL_APP } = require('./_socle.cjs');
     + r.numService2 + ' intacte à ' + r.docsCreation + ' documents ; rail affiché : '
     + r.vuModif.rail.slice(3, 5).join(' / ') + ' (modif) vs '
     + r.vuCrea.rail.slice(3, 5).join(' / ') + ' (création)');
+  /* on sort explicitement : un descripteur laissé ouvert par le navigateur
+     retiendrait le processus et bloquerait le lanceur de suites. */
+  process.exit(0);
 })();

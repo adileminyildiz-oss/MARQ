@@ -136,4 +136,7 @@ const { chromium, URL_APP } = require('./_socle.cjs');
     + ' documents, 3 modèles absents nommés, CDI ' + r.champs.total + ' champs dont '
     + r.champs.manques + ' à demander, variante « ' + r.variante + ' » reprise de la phrase, '
     + 'SIREN/IBAN/naissance bloquants, finalisation refusée puis acceptée');
+  /* on sort explicitement : un descripteur laissé ouvert par le navigateur
+     retiendrait le processus et bloquerait le lanceur de suites. */
+  process.exit(0);
 })();
