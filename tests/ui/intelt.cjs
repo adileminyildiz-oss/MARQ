@@ -1,6 +1,13 @@
 /* v711 — Intelligence documentaire : détection, champs manquants, conformité bloquante */
 const { chromium, URL_APP } = require('./_socle.cjs');
 
+/* Filet : une attente qui expire lève, et sans cela le processus resterait
+   suspendu — le lanceur attendrait un enfant qui ne meurt jamais. */
+process.on('unhandledRejection', e => {
+  console.error('ÉCHEC — ' + (e && e.message ? e.message : e));
+  process.exit(1);
+});
+
 (async () => {
   const nav = await chromium.launch();
   const page = await nav.newPage();
@@ -45,9 +52,17 @@ const { chromium, URL_APP } = require('./_socle.cjs');
     const tr = window.mqDocDetecte('transfert de siège social');
     out.paquetModif = tr.paquet ? { key: tr.paquet.key, n: tr.paquet.docs.length } : null;
 
-    /* 3. Un modèle absent du catalogue est nommé, pas remplacé */
-    out.absents = ['un NDA avec un prestataire', 'rédiger nos CGV', 'un pacte d’associés']
-      .map(p => { const d = window.mqDocDetecte(p); return d.absent ? d.absent.k : null; });
+    /* 3. Les six modèles qui manquaient au catalogue y sont entrés (v712) :
+          ils sont désormais reconnus, et plus déclarés absents. */
+    out.exAbsents = {};
+    [['un NDA avec un prestataire', 'nda'], ['rédiger nos CGV', 'cgv'],
+     ['un pacte d’associés', 'pacte'], ['les CGU du site', 'cgu'],
+     ['politique de confidentialité RGPD', 'rgpd'],
+     ['contrat de prestation de services', 'prestation']].forEach(([p, att]) => {
+      const d = window.mqDocDetecte(p);
+      out.exAbsents[p] = { attendu: att, obtenu: (d.candidats[0] || {}).k || null,
+                           absent: d.absent ? d.absent.k : null };
+    });
 
     /* 4. Champs : ce qui manque est calculé depuis le schéma du modèle */
     const ch = window.mqDocChamps('cdi');
@@ -114,7 +129,10 @@ const { chromium, URL_APP } = require('./_socle.cjs');
       'paquet création : ' + JSON.stringify(r.paquetCrea));
   dit(r.paquetModif && r.paquetModif.key === 'transfert_siege',
       'paquet modification : ' + JSON.stringify(r.paquetModif));
-  dit(JSON.stringify(r.absents) === '["nda","cgv","pacte"]', 'modèles absents : ' + JSON.stringify(r.absents));
+  Object.entries(r.exAbsents).forEach(([p, v]) => {
+    dit(v.obtenu === v.attendu, 'modèle entré au catalogue non reconnu — « ' + p + ' » → ' + v.obtenu);
+    dit(v.absent === null, '« ' + p + ' » encore déclaré absent du catalogue');
+  });
   dit(r.champs.total > 10 && r.champs.manques > 0, 'champs du CDI : ' + JSON.stringify(r.champs));
   dit(r.champsCoherent, 'connus + manques ≠ total');
   dit(r.siren.faux && r.siren.vrai === 0, 'SIREN : ' + JSON.stringify(r.siren));
@@ -133,7 +151,7 @@ const { chromium, URL_APP } = require('./_socle.cjs');
   await nav.close();
   if (ko.length) { console.error('ÉCHEC\n - ' + ko.join('\n - ')); process.exit(1); }
   console.log('intelt ok — 12 phrases reconnues, paquet création ' + r.paquetCrea.n
-    + ' documents, 3 modèles absents nommés, CDI ' + r.champs.total + ' champs dont '
+    + ' documents, 6 modèles autrefois absents désormais reconnus, CDI ' + r.champs.total + ' champs dont '
     + r.champs.manques + ' à demander, variante « ' + r.variante + ' » reprise de la phrase, '
     + 'SIREN/IBAN/naissance bloquants, finalisation refusée puis acceptée');
   /* on sort explicitement : un descripteur laissé ouvert par le navigateur

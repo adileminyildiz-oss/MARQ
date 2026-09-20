@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=711;
+var LAST_VER=712;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -17529,7 +17529,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     {k:'factnorm',l:'Facture',g:'Facturation'},
     {k:'factbtp',l:'Facture de situation (BTP)',g:'Facturation'},
     {k:'factacpt',l:"Facture d'acompte",g:'Facturation'},
-    {k:'devis',l:'Devis',g:'Facturation'}
+    {k:'devis',l:'Devis',g:'Facturation'},
+    {k:'nda',l:'Accord de confidentialité (NDA)',g:'Contrat'},
+    {k:'prestation',l:'Contrat de prestation de services',g:'Contrat'},
+    {k:'pacte',l:"Pacte d'associés",g:'Société'},
+    {k:'cgv',l:'Conditions générales de vente',g:'Contrat'},
+    {k:'cgu',l:"Conditions générales d'utilisation",g:'Contrat'},
+    {k:'rgpd',l:'Politique de confidentialité (RGPD)',g:'Contrat'}
   ];
   function edE(s){return (typeof esc==='function')?esc(s):(''+(s==null?'':s));}
   function edV(D,key,ph){var v=(D&&D[key]!=null)?(''+D[key]).trim():'';return v?edE(v):'<span class="edp">«'+edE(ph)+'»</span>';}
@@ -17601,6 +17607,142 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     resiliation:[{g:'Expéditeur',f:[['nom','Nom & prénom / société'],['adresse','Adresse']]},{g:'Destinataire',f:[['destinataire','Organisme'],['destadr','Adresse']]},{g:'Résiliation',f:[['contrat','Contrat / n° d\'abonnement'],['motif','Motif'],['dateeffet','Date d\'effet souhaitée','date'],['villesig','Fait à (ville)'],['datesig','Date','date']]}],
     mandatsepa:[{g:'Créancier',f:[['denomination','Créancier'],['ics','Identifiant créancier SEPA (ICS)'],['adresse','Adresse']]},{g:'Débiteur',f:[['debiteur','Nom & prénom'],['debadr','Adresse'],['iban','IBAN'],['bic','BIC']]},{g:'Mandat',f:[['rum','Référence unique de mandat (RUM)'],['type','Type','sel',['récurrent','ponctuel']],['villesig','Fait à (ville)'],['datesig','Date','date']]}]
   };
+
+  /* --- Six modèles ajoutés : contrats et documents de conformité. Ils suivent
+     la même anatomie que les autres — un schéma de champs déclaré ici, un
+     générateur plus bas, une entrée au catalogue. --- */
+  var PARTIE=function(pfx,titre){ return {g:titre,f:[
+    [pfx+'denom','Dénomination / Nom'],[pfx+'forme','Forme juridique'],[pfx+'capital','Capital (€)'],
+    [pfx+'adresse','Adresse du siège'],[pfx+'cp','Code postal'],[pfx+'ville','Ville'],
+    [pfx+'rcs','Ville du RCS'],[pfx+'siren','SIREN'],
+    [pfx+'rep','Représentée par'],[pfx+'qualite','En qualité de'],[pfx+'email','E-mail']]}; };
+
+  ED_SCHEMA.nda=[
+    PARTIE('pa_','Partie divulgatrice'),
+    PARTIE('pb_','Partie réceptrice'),
+    {g:'Objet & durée',f:[
+      ['contexte','Contexte / projet concerné'],
+      ['duree','Durée de l\'accord (années)'],
+      ['dureeapres','Obligation maintenue après le terme (années)'],
+      ['reciproque','Réciprocité','sel',['Réciproque (les deux parties)','Unilatéral (une seule partie divulgue)']],
+      ['tribunal','Tribunal compétent (ville)'],
+      ['villesig','Fait à (ville)'],['datesig','Date','date']]}];
+
+  ED_SCHEMA.prestation=[
+    PARTIE('pr_','Prestataire'),
+    PARTIE('cl_','Client'),
+    {g:'Prestations',f:[
+      ['objet','Objet de la mission'],['livrables','Livrables attendus'],
+      ['lieu','Lieu d\'exécution'],
+      ['nature','Nature de l\'obligation','sel',['Obligation de moyens','Obligation de résultat']]]},
+    {g:'Durée & prix',f:[
+      ['datedebut','Date de début','date'],['datefin','Date de fin','date'],
+      ['reconduction','Reconduction tacite','sel',['Non','Oui, par périodes d\'un an']],
+      ['prixht','Prix HT (€)'],['tva','Taux de TVA (%)'],
+      ['modalites','Modalités de facturation'],
+      ['delaipaiement','Délai de paiement (jours)'],
+      ['acompte','Acompte à la commande (%)']]},
+    {g:'Clauses',f:[
+      ['pi','Propriété intellectuelle','sel',['Cession des droits au Client','Licence d\'utilisation','Le Prestataire conserve ses droits']],
+      ['plafond','Plafond de responsabilité (€)'],
+      ['assurance','Assureur RC professionnelle'],
+      ['npolice','N° de police d\'assurance'],
+      ['preavis','Préavis de résiliation (mois)'],
+      ['tribunal','Tribunal compétent (ville)'],
+      ['villesig','Fait à (ville)'],['datesig','Date','date']]}];
+
+  ED_SCHEMA.pacte=[
+    {g:'Société',f:[
+      ['denomination','Dénomination'],['forme','Forme','sel'],['capital','Capital (€)'],
+      ['siege','Adresse du siège'],['rcsVille','Ville du RCS'],['siren','SIREN'],
+      ['nbtotal','Nombre total de titres']]},
+    {g:'Associés',f:[
+      ['a1nom','Associé 1 — Nom & prénom'],['a1titres','Associé 1 — Nombre de titres'],
+      ['a2nom','Associé 2 — Nom & prénom'],['a2titres','Associé 2 — Nombre de titres'],
+      ['a3nom','Associé 3 — Nom & prénom'],['a3titres','Associé 3 — Nombre de titres']]},
+    {g:'Engagements',f:[
+      ['duree','Durée du pacte (années)'],
+      ['inalien','Inaliénabilité (années)'],
+      ['preemption','Délai de préemption (jours)'],
+      ['agrement','Agrément préalable','sel',['Oui, majorité des associés','Oui, unanimité','Non']],
+      ['tagalong','Sortie conjointe (tag along)','sel',['Oui','Non']],
+      ['dragalong','Sortie forcée (drag along)','sel',['Oui','Non']],
+      ['dragseuil','Seuil de déclenchement de la sortie forcée (%)'],
+      ['qualifiee','Majorité qualifiée pour les décisions importantes (%)']]},
+    {g:'Non-concurrence',f:[
+      ['nconc','Clause de non-concurrence','sel',['Oui','Non']],
+      ['nconcduree','Durée après la sortie (années)'],
+      ['nconczone','Zone géographique'],
+      ['nconcactivite','Activités visées'],
+      ['tribunal','Tribunal compétent (ville)'],
+      ['villesig','Fait à (ville)'],['datesig','Date','date']]}];
+
+  ED_SCHEMA.cgv=[
+    {g:'Vendeur',f:[
+      ['denomination','Dénomination'],['forme','Forme','sel'],['capital','Capital (€)'],
+      ['adresse','Adresse du siège'],['cp','Code postal'],['ville','Ville'],
+      ['rcsVille','Ville du RCS'],['siren','SIREN'],['tvaintra','N° de TVA intracommunautaire'],
+      ['email','E-mail de contact'],['tel','Téléphone']]},
+    {g:'Champ d\'application',f:[
+      ['clientele','Clientèle visée','sel',['Professionnels (B2B)','Consommateurs (B2C)','Les deux']],
+      ['produits','Produits ou services vendus'],
+      ['distance','Vente à distance (site, e-mail, téléphone)','sel',['Oui','Non']],
+      ['dateeffet','Date d\'entrée en vigueur','date']]},
+    {g:'Prix & paiement',f:[
+      ['devise','Devise'],['tvataux','Taux de TVA applicable (%)'],
+      ['moyens','Moyens de paiement acceptés'],
+      ['delaipaiement','Délai de paiement (jours)'],
+      ['escompte','Escompte pour paiement anticipé','sel',['Aucun escompte','Escompte accordé']],
+      ['escomptetaux','Taux d\'escompte (%)'],
+      ['reserve','Clause de réserve de propriété','sel',['Oui','Non']]]},
+    {g:'Livraison & litiges',f:[
+      ['livraison','Modalités et délais de livraison'],
+      ['zone','Zones de livraison'],
+      ['mediateur','Médiateur de la consommation (nom)'],
+      ['mediateursite','Site du médiateur'],
+      ['tribunal','Tribunal compétent (ville)']]}];
+
+  ED_SCHEMA.cgu=[
+    {g:'Éditeur',f:[
+      ['denomination','Dénomination'],['forme','Forme','sel'],['capital','Capital (€)'],
+      ['adresse','Adresse du siège'],['cp','Code postal'],['ville','Ville'],
+      ['rcsVille','Ville du RCS'],['siren','SIREN'],['tvaintra','N° de TVA intracommunautaire'],
+      ['dirpub','Directeur de la publication'],
+      ['email','E-mail de contact'],['tel','Téléphone']]},
+    {g:'Hébergeur',f:[
+      ['hebergeur','Dénomination de l\'hébergeur'],
+      ['hebadresse','Adresse de l\'hébergeur'],
+      ['hebtel','Téléphone de l\'hébergeur']]},
+    {g:'Service',f:[
+      ['service','Nom du site ou de l\'application'],
+      ['url','Adresse (URL)'],
+      ['description','Description du service'],
+      ['compte','Création de compte','sel',['Oui','Non']],
+      ['payant','Service payant','sel',['Non','Oui']],
+      ['ugc','Contenus publiés par les utilisateurs','sel',['Non','Oui']],
+      ['dateeffet','Date d\'entrée en vigueur','date'],
+      ['tribunal','Tribunal compétent (ville)']]}];
+
+  ED_SCHEMA.rgpd=[
+    {g:'Responsable du traitement',f:[
+      ['denomination','Dénomination'],['forme','Forme','sel'],
+      ['adresse','Adresse du siège'],['cp','Code postal'],['ville','Ville'],
+      ['siren','SIREN'],['email','E-mail de contact'],['tel','Téléphone']]},
+    {g:'Délégué à la protection des données',f:[
+      ['dpo','Un DPO est désigné','sel',['Non','Oui']],
+      ['dponom','Nom du DPO'],['dpomail','Contact du DPO']]},
+    {g:'Traitements',f:[
+      ['donnees','Catégories de données collectées'],
+      ['finalites','Finalités poursuivies'],
+      ['bases','Bases légales invoquées'],
+      ['destinataires','Destinataires des données'],
+      ['soustraitants','Sous-traitants (hébergeur, paie, comptabilité…)'],
+      ['duree','Durées de conservation'],
+      ['horsue','Transferts hors Union européenne','sel',['Non','Oui']],
+      ['horsuepays','Pays concernés et garanties'],
+      ['cookies','Cookies utilisés','sel',['Non','Oui']],
+      ['datemaj','Dernière mise à jour','date']]}];
+
   ED_SCHEMA.cesparts_u=ED_SCHEMA.cesparts;
   function edSchema(k){return ED_SCHEMA[k]||[];}
   window.edSchema=edSchema; /* v671 : accès public au schéma des documents (chaîne d'exécution des Éditions) */
@@ -18218,11 +18360,523 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   }
   try{ window.edTypo=edTypo; }catch(e){}
   function edLibTemplate(k,D){ return edTypo(edLibTemplateBrut(k,D)); }
+
+  /* ============ Six modèles : contrats et conformité ============
+     Rédigés sur la trame usuelle de la pratique française, avec les
+     références en vigueur. Comme tout modèle, ils se relisent au regard
+     de la situation : c'est ce que dit la note de bas de chaque acte. */
+
+  function edBlocPartie(D,pfx,titre){
+    return '<p><b>'+titre+'</b><br>'
+      +edV(D,pfx+'denom','DÉNOMINATION')+', '+edV(D,pfx+'forme','FORME')
+      +' au capital de '+edV(D,pfx+'capital','CAPITAL')+' euros,<br>'
+      +'dont le siège social est situé '+edV(D,pfx+'adresse','ADRESSE')+', '
+      +edV(D,pfx+'cp','CP')+' '+edV(D,pfx+'ville','VILLE')+',<br>'
+      +'immatriculée au Registre du commerce et des sociétés de '+edV(D,pfx+'rcs','VILLE DU RCS')
+      +' sous le numéro '+edV(D,pfx+'siren','SIREN')+',<br>'
+      +'représentée par '+edV(D,pfx+'rep','NOM DU REPRÉSENTANT')
+      +', agissant en qualité de '+edV(D,pfx+'qualite','QUALITÉ')+'.</p>';
+  }
+  function edFait(D){
+    return '<p style="margin-top:22px">Fait à '+edV(D,'villesig','VILLE')
+      +', le '+edV(D,'datesig','DATE')+', en deux exemplaires originaux.</p>';
+  }
+  function edNote(t){ return '<p class="edfoot">'+t+'</p>'; }
+
+  /* ---------- Accord de confidentialité ---------- */
+  function edTplNDA(D){
+    var recip=(D&&D.reciproque)||'';
+    var uni=/unilat/i.test(recip);
+    return edDocWrap(
+      '<h1>ACCORD DE CONFIDENTIALITÉ</h1>'
+      +'<p><b>ENTRE LES SOUSSIGNÉS :</b></p>'
+      +edBlocPartie(D,'pa_',uni?'La Partie divulgatrice':'La Première Partie')
+      +'<p><b>ET</b></p>'
+      +edBlocPartie(D,'pb_',uni?'La Partie réceptrice':'La Seconde Partie')
+      +'<p>Ci-après désignées ensemble « les Parties ».</p>'
+      +'<p><b>IL EST PRÉALABLEMENT EXPOSÉ CE QUI SUIT :</b><br>Les Parties envisagent d\'entrer en relation dans le cadre suivant : '
+      +edV(D,'contexte','CONTEXTE OU PROJET')+'. À cette occasion, des informations confidentielles seront échangées. '
+      +'Les Parties entendent en fixer le régime par le présent accord.</p>'
+      +'<p><b>ARTICLE 1 – Informations confidentielles.</b> Constitue une information confidentielle toute information, '
+      +'quels qu\'en soient la forme et le support, communiquée par une Partie à l\'autre à l\'occasion du projet : '
+      +'données techniques, commerciales, financières, juridiques ou stratégiques, savoir-faire, procédés, fichiers de '
+      +'clientèle ou de fournisseurs, prix et conditions, projets de développement, ainsi que l\'existence même et le '
+      +'contenu des discussions engagées.</p>'
+      +'<p><b>ARTICLE 2 – Exclusions.</b> Ne sont pas couvertes par le présent accord les informations dont la Partie '
+      +'réceptrice établit qu\'elles étaient déjà licitement en sa possession avant leur communication, qu\'elles sont ou '
+      +'deviennent publiques sans manquement de sa part, qu\'elles lui ont été licitement transmises par un tiers non tenu '
+      +'à confidentialité, ou qu\'elle les a développées de manière indépendante sans usage des informations reçues.</p>'
+      +'<p><b>ARTICLE 3 – Obligations.</b> La Partie réceptrice s\'engage à traiter les informations confidentielles avec '
+      +'le même soin que ses propres informations confidentielles, et au minimum avec une diligence raisonnable. Elle '
+      +'s\'interdit de les divulguer à des tiers, de les reproduire au-delà du nécessaire et de les utiliser à d\'autres '
+      +'fins que celles du projet décrit ci-dessus.</p>'
+      +'<p><b>ARTICLE 4 – Personnes autorisées.</b> Les informations ne peuvent être communiquées qu\'aux membres du '
+      +'personnel et aux conseils de la Partie réceptrice qui doivent en connaître pour les besoins du projet, à charge '
+      +'pour elle de leur faire souscrire une obligation de confidentialité équivalente. La Partie réceptrice demeure '
+      +'responsable de leurs manquements comme des siens.</p>'
+      +'<p><b>ARTICLE 5 – Absence de cession de droits.</b> Le présent accord n\'emporte aucune cession ni concession de '
+      +'droit de propriété intellectuelle. Les informations demeurent la propriété de la Partie qui les communique.</p>'
+      +'<p><b>ARTICLE 6 – Durée.</b> Le présent accord est conclu pour une durée de '+edV(D,'duree','DURÉE')+' année(s) à '
+      +'compter de sa signature. L\'obligation de confidentialité survit à son terme pendant '
+      +edV(D,'dureeapres','DURÉE')+' année(s).</p>'
+      +'<p><b>ARTICLE 7 – Restitution.</b> À la demande de la Partie divulgatrice, et en tout état de cause au terme des '
+      +'discussions, la Partie réceptrice restitue ou détruit les supports contenant des informations confidentielles et '
+      +'en justifie sur demande, sous réserve des exemplaires que la loi ou ses obligations d\'archivage lui imposent de '
+      +'conserver.</p>'
+      +'<p><b>ARTICLE 8 – Absence d\'engagement.</b> Le présent accord ne crée aucune obligation de conclure un contrat, '
+      +'ni aucune exclusivité entre les Parties.</p>'
+      +'<p><b>ARTICLE 9 – Divulgation imposée.</b> Si une Partie est tenue de divulguer une information confidentielle en '
+      +'vertu d\'une disposition légale ou d\'une décision d\'une autorité administrative ou judiciaire, elle en informe '
+      +'l\'autre sans délai, dans la mesure permise par la loi, et limite la divulgation à ce qui est strictement exigé.</p>'
+      +'<p><b>ARTICLE 10 – Secret des affaires.</b> Les informations confidentielles répondant aux conditions de '
+      +'l\'article L. 151-1 du Code de commerce bénéficient en outre de la protection légale du secret des affaires. '
+      +'Les Parties prennent les mesures raisonnables de protection exigées par ce texte.</p>'
+      +'<p><b>ARTICLE 11 – Inexécution.</b> Tout manquement engage la responsabilité de son auteur et ouvre droit à '
+      +'réparation du préjudice subi, sans préjudice de la faculté d\'obtenir en référé la cessation du trouble.</p>'
+      +'<p><b>ARTICLE 12 – Données personnelles.</b> Si des données à caractère personnel sont échangées, chaque Partie '
+      +'les traite conformément au Règlement (UE) 2016/679 et à la loi n° 78-17 du 6 janvier 1978 modifiée, pour les '
+      +'seuls besoins du projet.</p>'
+      +'<p><b>ARTICLE 13 – Loi applicable et juridiction.</b> Le présent accord est soumis au droit français. À défaut '
+      +'d\'accord amiable, tout différend relève de la compétence du Tribunal de commerce de '
+      +edV(D,'tribunal','VILLE')+'.</p>'
+      +edFait(D)
+      +'<div class="edsig" style="margin-top:20px"><div>'+(uni?'La Partie divulgatrice':'La Première Partie')+'<br>'+EDP
+      +'</div><div>'+(uni?'La Partie réceptrice':'La Seconde Partie')+'<br>'+EDP+'</div></div>'
+      +edNote('Modèle général. La durée de l\'obligation, le périmètre des informations et la juridiction se règlent au cas par cas ; un accord conclu avec un consommateur ou un salarié obéit à des contraintes propres.')
+    );
+  }
+
+  /* ---------- Contrat de prestation de services ---------- */
+  function edTplPrestation(D){
+    var pi=(D&&D.pi)||'';
+    var piTxt = /cession/i.test(pi)
+      ? 'Le Prestataire cède au Client, au fur et à mesure de leur réalisation et sous réserve du paiement intégral du prix, les droits patrimoniaux d\'auteur afférents aux livrables : droits de reproduction, de représentation, d\'adaptation et de traduction, pour le monde entier et pour la durée légale de protection, aux fins d\'exploitation du Client.'
+      : (/licence/i.test(pi)
+        ? 'Le Prestataire concède au Client, sous réserve du paiement intégral du prix, une licence d\'utilisation des livrables, non exclusive et non cessible, pour ses besoins propres, pour le monde entier et pour la durée du présent contrat.'
+        : 'Le Prestataire conserve l\'intégralité de ses droits de propriété intellectuelle sur les livrables, ses méthodes et ses outils préexistants. Le Client en obtient la jouissance pour ses seuls besoins internes.');
+    return edDocWrap(
+      '<h1>CONTRAT DE PRESTATION DE SERVICES</h1>'
+      +'<p><b>ENTRE LES SOUSSIGNÉS :</b></p>'
+      +edBlocPartie(D,'pr_','Le Prestataire')
+      +'<p><b>ET</b></p>'
+      +edBlocPartie(D,'cl_','Le Client')
+      +'<p><b>ARTICLE 1 – Objet.</b> Le Client confie au Prestataire, qui accepte, la réalisation des prestations '
+      +'suivantes : '+edV(D,'objet','DESCRIPTION DE LA MISSION')+'. Les livrables attendus sont : '
+      +edV(D,'livrables','LIVRABLES')+'. Les prestations sont exécutées '+edV(D,'lieu','LIEU D\'EXÉCUTION')+'.</p>'
+      +'<p><b>ARTICLE 2 – Nature de l\'engagement.</b> Le Prestataire est tenu d\'une '
+      +edV(D,'nature','OBLIGATION DE MOYENS')+'. Il exécute les prestations selon les règles de l\'art et dans le '
+      +'respect de la réglementation applicable à son activité.</p>'
+      +'<p><b>ARTICLE 3 – Obligations du Client.</b> Le Client remet au Prestataire, en temps utile, l\'ensemble des '
+      +'informations, documents et accès nécessaires. Il désigne un interlocuteur unique et répond aux sollicitations '
+      +'dans des délais compatibles avec le calendrier convenu. Tout retard de sa part suspend d\'autant les délais du '
+      +'Prestataire.</p>'
+      +'<p><b>ARTICLE 4 – Indépendance.</b> Le Prestataire exécute sa mission en toute indépendance, avec ses propres '
+      +'moyens et selon ses propres méthodes. Le présent contrat ne crée aucun lien de subordination entre les Parties, '
+      +'ni aucune exclusivité au profit du Client.</p>'
+      +'<p><b>ARTICLE 5 – Durée.</b> Le contrat prend effet le '+edV(D,'datedebut','DATE DE DÉBUT')+' et s\'achève le '
+      +edV(D,'datefin','DATE DE FIN')+'. Reconduction tacite : '+edV(D,'reconduction','NON')+'.</p>'
+      +'<p><b>ARTICLE 6 – Prix.</b> Le prix des prestations est fixé à '+edV(D,'prixht','MONTANT')+' euros hors taxes, '
+      +'soit le taux de TVA de '+edV(D,'tva','TAUX')+' % en sus. Un acompte de '+edV(D,'acompte','POURCENTAGE')
+      +' % est exigible à la commande. Modalités de facturation : '+edV(D,'modalites','MODALITÉS')+'.</p>'
+      +'<p><b>ARTICLE 7 – Paiement.</b> Les factures sont payables à '+edV(D,'delaipaiement','DÉLAI')+' jours. '
+      +'Conformément à l\'article L. 441-10 du Code de commerce, tout retard de paiement entraîne de plein droit des '
+      +'pénalités calculées au taux d\'intérêt appliqué par la Banque centrale européenne à son opération de '
+      +'refinancement la plus récente majoré de dix points de pourcentage, sans pouvoir être inférieur à trois fois le '
+      +'taux d\'intérêt légal, ainsi qu\'une indemnité forfaitaire pour frais de recouvrement de 40 euros, sans '
+      +'préjudice d\'une indemnisation complémentaire sur justificatifs.</p>'
+      +'<p><b>ARTICLE 8 – Propriété intellectuelle.</b> '+piTxt+'</p>'
+      +'<p><b>ARTICLE 9 – Confidentialité.</b> Chaque Partie s\'interdit de divulguer les informations de l\'autre dont '
+      +'elle a connaissance à l\'occasion du contrat, pendant son exécution et pendant trois années après son terme.</p>'
+      +'<p><b>ARTICLE 10 – Données personnelles.</b> Lorsque le Prestataire traite des données à caractère personnel pour '
+      +'le compte du Client, il agit en qualité de sous-traitant au sens de l\'article 28 du Règlement (UE) 2016/679. '
+      +'Il ne traite ces données que sur instruction documentée du Client, garantit la confidentialité des personnes '
+      +'autorisées, met en œuvre les mesures de sécurité de l\'article 32, n\'engage de sous-traitant ultérieur '
+      +'qu\'avec l\'autorisation écrite du Client, et assiste celui-ci dans le respect de ses propres obligations. '
+      +'Au terme du contrat, il restitue ou détruit les données au choix du Client.</p>'
+      +'<p><b>ARTICLE 11 – Assurance.</b> Le Prestataire déclare être titulaire d\'une assurance de responsabilité '
+      +'civile professionnelle auprès de '+edV(D,'assurance','ASSUREUR')+' sous le numéro de police '
+      +edV(D,'npolice','N° DE POLICE')+', et en justifier sur simple demande.</p>'
+      +'<p><b>ARTICLE 12 – Responsabilité.</b> La responsabilité du Prestataire est limitée aux dommages directs et '
+      +'prévisibles et, toutes causes confondues, au montant de '+edV(D,'plafond','MONTANT')+' euros. Cette limitation '
+      +'ne s\'applique ni en cas de dol ou de faute lourde, ni aux dommages corporels, ni aux cas où la loi l\'interdit.</p>'
+      +'<p><b>ARTICLE 13 – Force majeure.</b> Aucune Partie n\'est responsable d\'un manquement causé par un événement '
+      +'de force majeure au sens de l\'article 1218 du Code civil. Si l\'empêchement excède deux mois, chaque Partie peut '
+      +'résilier le contrat par lettre recommandée, sans indemnité.</p>'
+      +'<p><b>ARTICLE 14 – Résiliation.</b> Chaque Partie peut résilier le contrat moyennant un préavis de '
+      +edV(D,'preavis','DURÉE')+' mois notifié par lettre recommandée. En cas de manquement grave non réparé dans les '
+      +'trente jours d\'une mise en demeure restée sans effet, le contrat est résilié de plein droit aux torts du '
+      +'défaillant. Les prestations exécutées restent dues.</p>'
+      +'<p><b>ARTICLE 15 – Sous-traitance.</b> Le Prestataire ne peut sous-traiter tout ou partie de la mission '
+      +'qu\'avec l\'accord écrit préalable du Client. Il demeure responsable de ses sous-traitants.</p>'
+      +'<p><b>ARTICLE 16 – Non-sollicitation.</b> Chaque Partie s\'interdit d\'engager un collaborateur de l\'autre '
+      +'ayant participé à la mission, pendant l\'exécution du contrat et pendant douze mois après son terme, sauf '
+      +'accord écrit.</p>'
+      +'<p><b>ARTICLE 17 – Loi applicable et juridiction.</b> Le contrat est soumis au droit français. À défaut '
+      +'d\'accord amiable, tout différend relève du Tribunal de commerce de '+edV(D,'tribunal','VILLE')+'.</p>'
+      +edFait(D)
+      +'<div class="edsig" style="margin-top:20px"><div>Le Prestataire<br>'+EDP+'</div><div>Le Client<br>'+EDP+'</div></div>'
+      +edNote('Modèle général de prestation entre professionnels. Les clauses de responsabilité, de propriété intellectuelle et de sous-traitance des données se relisent au regard de la mission réellement confiée.')
+    );
+  }
+
+  /* ---------- Pacte d'associés ---------- */
+  function edTplPacte(D){
+    function assoc(n){
+      var nom=(D&&D['a'+n+'nom'])||'', t=(D&&D['a'+n+'titres'])||'';
+      if(!nom&&!t) return '';
+      return '<li>'+edV(D,'a'+n+'nom','NOM')+', titulaire de '+edV(D,'a'+n+'titres','NOMBRE')+' titres ;</li>';
+    }
+    var liste=assoc(1)+assoc(2)+assoc(3);
+    if(!liste) liste='<li>'+EDP+'</li>';
+    var tag=/oui/i.test((D&&D.tagalong)||'');
+    var drag=/oui/i.test((D&&D.dragalong)||'');
+    var nconc=/oui/i.test((D&&D.nconc)||'');
+    return edDocWrap(
+      '<h1>PACTE D\'ASSOCIÉS</h1>'
+      +'<p><b>ENTRE LES SOUSSIGNÉS :</b></p>'
+      +'<ul>'+liste+'</ul>'
+      +'<p>Ci-après désignés ensemble « les Associés », associés de la société '
+      +edV(D,'denomination','DÉNOMINATION')+', '+edV(D,'forme','FORME')+' au capital de '
+      +edV(D,'capital','CAPITAL')+' euros, dont le siège social est situé '+edV(D,'siege','ADRESSE')
+      +', immatriculée au Registre du commerce et des sociétés de '+edV(D,'rcsVille','VILLE DU RCS')
+      +' sous le numéro '+edV(D,'siren','SIREN')+', dont le capital est divisé en '
+      +edV(D,'nbtotal','NOMBRE')+' titres. Ci-après « la Société ».</p>'
+      +'<p><b>ARTICLE 1 – Objet.</b> Le présent pacte organise les relations des Associés entre eux, en complément des '
+      +'statuts de la Société. En cas de contradiction, les statuts prévalent à l\'égard des tiers ; entre les Associés, '
+      +'le présent pacte fait la loi des parties.</p>'
+      +'<p><b>ARTICLE 2 – Durée.</b> Le pacte est conclu pour une durée déterminée de '+edV(D,'duree','DURÉE')
+      +' année(s) à compter de sa signature. Il se renouvelle par accord exprès des Associés. Il cesse de plein droit à '
+      +'l\'égard de l\'Associé qui ne détient plus aucun titre.</p>'
+      +'<p><b>ARTICLE 3 – Inaliénabilité temporaire.</b> Les Associés s\'interdisent de céder ou de nantir leurs titres '
+      +'pendant une durée de '+edV(D,'inalien','DURÉE')+' année(s) à compter de la signature, sauf accord unanime des '
+      +'autres Associés et sauf transmission par décès.</p>'
+      +'<p><b>ARTICLE 4 – Droit de préemption.</b> Tout Associé souhaitant céder ses titres les offre d\'abord aux autres '
+      +'Associés, par notification indiquant le nombre de titres, le prix et l\'identité du cessionnaire pressenti. Les '
+      +'bénéficiaires disposent de '+edV(D,'preemption','DÉLAI')+' jours pour exercer leur droit, au prorata de leur '
+      +'participation. À défaut d\'exercice dans ce délai, la cession peut intervenir aux conditions notifiées.</p>'
+      +'<p><b>ARTICLE 5 – Agrément.</b> Agrément préalable de la collectivité des associés : '
+      +edV(D,'agrement','MODALITÉ')+'. Cette stipulation s\'applique sans préjudice des clauses d\'agrément figurant '
+      +'dans les statuts.</p>'
+      +(tag?('<p><b>ARTICLE 6 – Droit de sortie conjointe.</b> En cas de cession par un ou plusieurs Associés de titres '
+        +'conférant le contrôle de la Société, les autres Associés peuvent exiger que le cessionnaire acquière leurs '
+        +'propres titres, aux mêmes conditions de prix et de garanties. Le cédant fait son affaire personnelle du '
+        +'respect de cet engagement par le cessionnaire.</p>')
+       :'<p><b>ARTICLE 6 – Droit de sortie conjointe.</b> Les Associés n\'ont pas retenu de clause de sortie conjointe.</p>')
+      +(drag?('<p><b>ARTICLE 7 – Obligation de sortie conjointe.</b> Si des Associés représentant au moins '
+        +edV(D,'dragseuil','SEUIL')+' % du capital acceptent une offre portant sur la totalité des titres, les autres '
+        +'Associés s\'obligent à céder les leurs au même cessionnaire, aux mêmes conditions de prix et de garanties, '
+        +'dans les trente jours de la notification qui leur en est faite.</p>')
+       :'<p><b>ARTICLE 7 – Obligation de sortie conjointe.</b> Les Associés n\'ont pas retenu de clause de sortie forcée.</p>')
+      +'<p><b>ARTICLE 8 – Maintien de la participation.</b> En cas d\'augmentation de capital en numéraire, chaque '
+      +'Associé bénéficie d\'un droit de souscription à proportion de sa participation. Les Associés s\'engagent à ne '
+      +'pas voter la suppression du droit préférentiel de souscription sans avoir offert cette faculté.</p>'
+      +'<p><b>ARTICLE 9 – Gouvernance.</b> Les décisions suivantes requièrent une majorité de '
+      +edV(D,'qualifiee','POURCENTAGE')+' % des droits de vote : modification des statuts, augmentation ou réduction du '
+      +'capital, fusion, cession d\'actifs significatifs, engagement hors du cours normal des affaires, distribution de '
+      +'dividendes, nomination et révocation des dirigeants, recrutement au-delà d\'un seuil convenu.</p>'
+      +'<p><b>ARTICLE 10 – Information des Associés.</b> Le dirigeant communique aux Associés les comptes annuels dans '
+      +'les six mois de la clôture, ainsi qu\'une situation intermédiaire semestrielle et tout événement significatif '
+      +'affectant la Société.</p>'
+      +(nconc?('<p><b>ARTICLE 11 – Non-concurrence et non-sollicitation.</b> Chaque Associé s\'interdit, pendant la durée '
+        +'du pacte et pendant '+edV(D,'nconcduree','DURÉE')+' année(s) après la perte de sa qualité d\'associé, '
+        +'d\'exercer directement ou indirectement une activité de '+edV(D,'nconcactivite','ACTIVITÉS VISÉES')+' sur le '
+        +'territoire suivant : '+edV(D,'nconczone','ZONE')+'. Il s\'interdit également de solliciter les salariés et '
+        +'les clients de la Société pendant la même durée.</p>')
+       :'<p><b>ARTICLE 11 – Non-concurrence.</b> Les Associés n\'ont pas retenu de clause de non-concurrence.</p>')
+      +'<p><b>ARTICLE 12 – Confidentialité.</b> Les Associés s\'interdisent de divulguer les informations relatives à '
+      +'la Société dont ils ont connaissance en cette qualité, ainsi que l\'existence et le contenu du présent pacte.</p>'
+      +'<p><b>ARTICLE 13 – Prix de cession.</b> À défaut d\'accord sur le prix, celui-ci est déterminé par un expert '
+      +'désigné dans les conditions de l\'article 1843-4 du Code civil, dont l\'évaluation s\'impose aux parties.</p>'
+      +'<p><b>ARTICLE 14 – Inexécution.</b> Les Associés conviennent que l\'exécution forcée en nature des engagements '
+      +'du présent pacte, notamment des clauses de préemption et de sortie, sera poursuivie conformément à l\'article '
+      +'1221 du Code civil, sans préjudice de tous dommages et intérêts.</p>'
+      +'<p><b>ARTICLE 15 – Notifications.</b> Toute notification est valablement faite par lettre recommandée avec '
+      +'demande d\'avis de réception ou par acte extrajudiciaire, au dernier domicile connu de son destinataire.</p>'
+      +'<p><b>ARTICLE 16 – Loi applicable et juridiction.</b> Le pacte est soumis au droit français. À défaut d\'accord '
+      +'amiable, tout différend relève du Tribunal de commerce de '+edV(D,'tribunal','VILLE')+'.</p>'
+      +edFait(D)
+      +'<div class="edsig" style="margin-top:20px"><div>'+EDP+'<br><small>Associé</small></div><div>'+EDP
+      +'<br><small>Associé</small></div><div>'+EDP+'<br><small>Associé</small></div></div>'
+      +edNote('Un pacte doit être conclu pour une durée déterminée : à durée indéterminée, chaque partie peut y mettre fin unilatéralement. Les clauses de sortie forcée et de non-concurrence appellent une rédaction adaptée à la situation — la seconde suppose un périmètre limité dans le temps, l\'espace et l\'activité.')
+    );
+  }
+
+
+  /* ---------- Conditions générales de vente ---------- */
+  function edTplCGV(D){
+    var cli=(D&&D.clientele)||'';
+    var b2c=/consommateur|les deux/i.test(cli);
+    var b2b=/professionnel|les deux/i.test(cli)||!cli;
+    var dist=/oui/i.test((D&&D.distance)||'');
+    var res=/oui/i.test((D&&D.reserve)||'');
+    var esc=/accord/i.test((D&&D.escompte)||'');
+    var n=0; function A(t,c){ n++; return '<p><b>ARTICLE '+n+' – '+t+'.</b> '+c+'</p>'; }
+    return edDocWrap(
+      '<h1>CONDITIONS GÉNÉRALES DE VENTE</h1>'
+      +'<p><b>'+edV(D,'denomination','DÉNOMINATION')+'</b>, '+edV(D,'forme','FORME')+' au capital de '
+      +edV(D,'capital','CAPITAL')+' euros, dont le siège social est situé '+edV(D,'adresse','ADRESSE')+', '
+      +edV(D,'cp','CP')+' '+edV(D,'ville','VILLE')+', immatriculée au Registre du commerce et des sociétés de '
+      +edV(D,'rcsVille','VILLE DU RCS')+' sous le numéro '+edV(D,'siren','SIREN')
+      +', numéro de TVA intracommunautaire '+edV(D,'tvaintra','N° TVA')+'.<br>'
+      +'Contact : '+edV(D,'email','E-MAIL')+' — '+edV(D,'tel','TÉLÉPHONE')+'.</p>'
+      +'<p>Entrée en vigueur : '+edV(D,'dateeffet','DATE')+'. Clientèle visée : '+edV(D,'clientele','CLIENTÈLE')+'.</p>'
+      +A('Objet et champ d\'application',
+         'Les présentes conditions générales de vente régissent les ventes de '+edV(D,'produits','PRODUITS OU SERVICES')
+         +' conclues par le Vendeur. Elles constituent, conformément à l\'article L. 441-1 du Code de commerce, le socle '
+         +'unique de la négociation commerciale. Toute commande emporte adhésion sans réserve aux présentes, qui '
+         +'prévalent sur les conditions d\'achat de l\'acheteur, sauf acceptation écrite du Vendeur.')
+      +A('Commandes',
+         'La commande n\'est ferme qu\'après acceptation écrite du Vendeur. Toute modification demandée par le client '
+         +'n\'est prise en compte que si elle est acceptée par écrit. Le Vendeur se réserve le droit de refuser une '
+         +'commande pour motif légitime, notamment en cas d\'incident de paiement antérieur.')
+      +A('Prix',
+         'Les prix sont exprimés en '+edV(D,'devise','DEVISE')+', hors taxes, au taux de TVA de '
+         +edV(D,'tvataux','TAUX')+' %. Ils s\'entendent hors frais de livraison, facturés en sus. Les prix applicables '
+         +'sont ceux en vigueur au jour de la commande.')
+      +A('Conditions de règlement',
+         'Les factures sont payables à '+edV(D,'delaipaiement','DÉLAI')+' jours. Moyens acceptés : '
+         +edV(D,'moyens','MOYENS DE PAIEMENT')+'. Conformément à l\'article L. 441-10 du Code de commerce, le délai '
+         +'convenu ne peut dépasser soixante jours à compter de la date d\'émission de la facture, ou quarante-cinq '
+         +'jours fin de mois si cette dérogation est expressément stipulée.')
+      +(b2b?A('Retard de paiement',
+         'Tout retard entraîne de plein droit, sans mise en demeure préalable, des pénalités calculées au taux '
+         +'d\'intérêt appliqué par la Banque centrale européenne à son opération de refinancement la plus récente '
+         +'majoré de dix points de pourcentage, ce taux ne pouvant être inférieur à trois fois le taux d\'intérêt '
+         +'légal. S\'y ajoute une indemnité forfaitaire pour frais de recouvrement de 40 euros par facture impayée, en '
+         +'application des articles L. 441-10 et D. 441-5 du Code de commerce, sans préjudice d\'une indemnisation '
+         +'complémentaire sur justificatifs.'):'')
+      +(esc?A('Escompte','Un escompte de '+edV(D,'escomptetaux','TAUX')+' % est accordé en cas de paiement anticipé.')
+           :A('Escompte','Aucun escompte n\'est accordé en cas de paiement anticipé.'))
+      +A('Livraison',
+         edV(D,'livraison','MODALITÉS ET DÉLAIS')+' Zones desservies : '+edV(D,'zone','ZONES')+'. Les délais sont '
+         +'donnés à titre indicatif ; un retard ne peut donner lieu à annulation de la commande ni à indemnité, sauf '
+         +'stipulation contraire écrite.'
+         +(b2c?' À l\'égard du consommateur, le Vendeur livre au plus tard trente jours après la conclusion du contrat, '
+              +'conformément à l\'article L. 216-1 du Code de la consommation.':''))
+      +A('Transfert des risques',
+         'Le transfert des risques s\'opère à la remise du bien'
+         +(b2c?'. À l\'égard du consommateur, les risques sont transférés au moment où il prend physiquement possession '
+              +'du bien, conformément à l\'article L. 216-4 du Code de la consommation.':' au transporteur ou à l\'acheteur.'))
+      +(res?A('Réserve de propriété',
+         'Le Vendeur conserve la propriété des biens vendus jusqu\'au paiement intégral du prix en principal et '
+         +'accessoires, conformément aux articles 2367 et suivants du Code civil et à l\'article L. 624-16 du Code de '
+         +'commerce. À défaut de paiement, le Vendeur peut revendiquer les biens.'):'')
+      +A('Réclamations',
+         'Toute réclamation relative à un défaut apparent ou à une non-conformité doit être formulée par écrit dans '
+         +'les huit jours de la réception, faute de quoi les biens sont réputés conformes.')
+      +(b2c?A('Garanties légales',
+         'Le consommateur bénéficie de la garantie légale de conformité prévue aux articles L. 217-3 et suivants du '
+         +'Code de la consommation, qui lui permet d\'obtenir la réparation ou le remplacement du bien non conforme '
+         +'pendant deux ans à compter de sa délivrance, sans frais et sans condition de preuve du défaut pendant les '
+         +'vingt-quatre premiers mois pour un bien neuf. Il bénéficie également de la garantie contre les vices cachés '
+         +'des articles 1641 et suivants du Code civil, qui lui ouvre pendant deux ans à compter de la découverte du '
+         +'vice le choix entre la restitution du bien contre remboursement et la réduction du prix. Ces garanties '
+         +'s\'appliquent indépendamment de toute garantie commerciale.'):'')
+      +((b2c&&dist)?A('Droit de rétractation',
+         'Le consommateur dispose d\'un délai de quatorze jours pour exercer son droit de rétractation sans avoir à '
+         +'motiver sa décision, conformément à l\'article L. 221-18 du Code de la consommation. Ce délai court à '
+         +'compter de la réception du bien ou de la conclusion du contrat pour une prestation de services. Le '
+         +'remboursement intervient dans les quatorze jours de la récupération du bien ou de la preuve de son '
+         +'expédition. Les exceptions de l\'article L. 221-28 demeurent applicables, notamment pour les biens '
+         +'confectionnés sur mesure ou nettement personnalisés.'):'')
+      +A('Force majeure',
+         'Aucune partie n\'est responsable d\'un manquement causé par un événement de force majeure au sens de '
+         +'l\'article 1218 du Code civil. Si l\'empêchement excède deux mois, chaque partie peut résoudre le contrat '
+         +'sans indemnité.')
+      +A('Données personnelles',
+         'Les données collectées à l\'occasion de la commande sont traitées pour l\'exécution du contrat et le respect '
+         +'des obligations comptables et fiscales du Vendeur, conformément au Règlement (UE) 2016/679. Le client '
+         +'dispose des droits d\'accès, de rectification, d\'effacement, de limitation, de portabilité et '
+         +'d\'opposition, qu\'il exerce à l\'adresse '+edV(D,'email','E-MAIL')+'.')
+      +(b2c?A('Médiation de la consommation',
+         'Conformément à l\'article L. 612-1 du Code de la consommation, le consommateur peut recourir gratuitement au '
+         +'médiateur '+edV(D,'mediateur','NOM DU MÉDIATEUR')+' ('+edV(D,'mediateursite','SITE DU MÉDIATEUR')+') en vue '
+         +'de la résolution amiable d\'un litige, après réclamation écrite préalable auprès du Vendeur restée sans '
+         +'réponse satisfaisante. La plateforme européenne de règlement en ligne des litiges est également accessible '
+         +'aux consommateurs.'):'')
+      +A('Loi applicable et juridiction',
+         'Les présentes sont soumises au droit français.'
+         +(b2b?' À défaut d\'accord amiable, tout différend relève de la compétence exclusive du Tribunal de commerce '
+              +'de '+edV(D,'tribunal','VILLE')+', même en cas de pluralité de défendeurs ou d\'appel en garantie.':'')
+         +(b2c?' Le consommateur peut saisir à son choix la juridiction du lieu où il demeurait lors de la conclusion '
+              +'du contrat ou de la survenance du fait dommageable.':''))
+      +edNote('Les mentions obligatoires diffèrent selon que la vente est conclue entre professionnels ou avec un consommateur, et selon qu\'elle intervient à distance. Ce modèle couvre les deux cas : les articles qui ne concernent pas votre clientèle se retirent après relecture.')
+    );
+  }
+
+  /* ---------- Conditions générales d'utilisation ---------- */
+  function edTplCGU(D){
+    var compte=/oui/i.test((D&&D.compte)||'');
+    var payant=/oui/i.test((D&&D.payant)||'');
+    var ugc=/oui/i.test((D&&D.ugc)||'');
+    var n=0; function A(t,c){ n++; return '<p><b>ARTICLE '+n+' – '+t+'.</b> '+c+'</p>'; }
+    return edDocWrap(
+      '<h1>CONDITIONS GÉNÉRALES D\'UTILISATION</h1>'
+      +'<p>Service : <b>'+edV(D,'service','NOM DU SERVICE')+'</b> — '+edV(D,'url','ADRESSE')+'.<br>'
+      +'Entrée en vigueur : '+edV(D,'dateeffet','DATE')+'.</p>'
+      +A('Objet',
+         'Les présentes conditions définissent les modalités d\'accès et d\'utilisation du service '
+         +edV(D,'service','NOM DU SERVICE')+', décrit comme suit : '+edV(D,'description','DESCRIPTION')+'. '
+         +'Elles régissent les relations entre l\'Éditeur et tout utilisateur du service.')
+      +A('Mentions légales',
+         'Le service est édité par '+edV(D,'denomination','DÉNOMINATION')+', '+edV(D,'forme','FORME')
+         +' au capital de '+edV(D,'capital','CAPITAL')+' euros, dont le siège social est situé '
+         +edV(D,'adresse','ADRESSE')+', '+edV(D,'cp','CP')+' '+edV(D,'ville','VILLE')
+         +', immatriculée au Registre du commerce et des sociétés de '+edV(D,'rcsVille','VILLE DU RCS')
+         +' sous le numéro '+edV(D,'siren','SIREN')+', numéro de TVA intracommunautaire '
+         +edV(D,'tvaintra','N° TVA')+'. Directeur de la publication : '+edV(D,'dirpub','NOM')+'. '
+         +'Contact : '+edV(D,'email','E-MAIL')+' — '+edV(D,'tel','TÉLÉPHONE')+'. '
+         +'Hébergeur : '+edV(D,'hebergeur','HÉBERGEUR')+', '+edV(D,'hebadresse','ADRESSE')+', '
+         +edV(D,'hebtel','TÉLÉPHONE')+'. Ces mentions sont publiées en application de l\'article 6 III de la loi '
+         +'n° 2004-575 du 21 juin 2004 pour la confiance dans l\'économie numérique.')
+      +A('Acceptation',
+         'L\'utilisation du service vaut acceptation pleine et entière des présentes conditions. L\'utilisateur qui '
+         +'ne les accepte pas doit renoncer à l\'usage du service.')
+      +A('Accès au service',
+         'Le service est accessible en permanence, sous réserve des interruptions nécessaires à sa maintenance ou '
+         +'imputables au réseau. L\'accès suppose un équipement et une connexion à la charge de l\'utilisateur. '
+         +'L\'Éditeur peut faire évoluer le service, en suspendre ou en cesser la fourniture, en informant les '
+         +'utilisateurs par tout moyen utile.')
+      +(compte?A('Compte utilisateur',
+         'L\'accès à certaines fonctionnalités suppose la création d\'un compte. L\'utilisateur fournit des '
+         +'informations exactes et les tient à jour. Les identifiants sont personnels et confidentiels : '
+         +'l\'utilisateur répond de leur usage et informe l\'Éditeur sans délai de toute utilisation non autorisée. '
+         +'L\'Éditeur peut suspendre ou clôturer un compte en cas de manquement aux présentes.'):'')
+      +(payant?A('Conditions financières',
+         'Les tarifs en vigueur sont indiqués sur le service. Les sommes dues sont payables selon les modalités '
+         +'précisées lors de la souscription. Tout défaut de paiement autorise l\'Éditeur à suspendre l\'accès après '
+         +'mise en demeure restée sans effet.'):'')
+      +A('Obligations de l\'utilisateur',
+         'L\'utilisateur s\'engage à faire du service un usage conforme à la loi et aux présentes. Il s\'interdit '
+         +'notamment de porter atteinte au fonctionnement du service, d\'y accéder par des moyens automatisés non '
+         +'autorisés, d\'usurper l\'identité d\'un tiers, de diffuser des contenus illicites, et de collecter les '
+         +'données d\'autres utilisateurs.')
+      +(ugc?A('Contenus publiés par les utilisateurs',
+         'L\'utilisateur demeure responsable des contenus qu\'il publie et garantit disposer des droits nécessaires. '
+         +'Il concède à l\'Éditeur, pour les seuls besoins du fonctionnement du service et pour la durée de la '
+         +'publication, le droit de reproduire et de représenter ces contenus. L\'Éditeur peut retirer tout contenu '
+         +'manifestement illicite qui lui serait signalé, dans les conditions prévues par la loi.'):'')
+      +A('Propriété intellectuelle',
+         'Le service, sa structure, ses textes, images, marques, bases de données et développements sont protégés par '
+         +'le Code de la propriété intellectuelle et demeurent la propriété de l\'Éditeur ou de ses partenaires. '
+         +'Toute reproduction ou représentation, totale ou partielle, sans autorisation écrite, constitue une '
+         +'contrefaçon au sens de l\'article L. 335-2 du même code.')
+      +A('Responsabilité',
+         'L\'Éditeur met en œuvre les moyens raisonnables pour assurer l\'exactitude des informations et la '
+         +'disponibilité du service, sans garantir l\'absence d\'erreur ou d\'interruption. Sa responsabilité ne peut '
+         +'être engagée pour les dommages indirects, ni pour ceux résultant d\'un usage non conforme du service ou '
+         +'d\'un fait imputable à l\'utilisateur ou à un tiers.')
+      +A('Données personnelles',
+         'Les traitements de données à caractère personnel mis en œuvre dans le cadre du service sont décrits dans la '
+         +'politique de confidentialité, accessible depuis le service. L\'utilisateur y trouve les finalités '
+         +'poursuivies, les durées de conservation et les modalités d\'exercice de ses droits.')
+      +A('Cookies',
+         'Le service peut déposer des traceurs sur le terminal de l\'utilisateur. Ceux qui ne sont pas strictement '
+         +'nécessaires au fonctionnement du service ne sont déposés qu\'après recueil du consentement, lequel peut '
+         +'être retiré à tout moment.')
+      +A('Liens',
+         'Le service peut renvoyer vers des sites tiers, sur lesquels l\'Éditeur n\'exerce aucun contrôle et dont il '
+         +'ne répond pas.')
+      +A('Modification des conditions',
+         'L\'Éditeur peut modifier les présentes. Les conditions applicables sont celles en vigueur au jour de '
+         +'l\'utilisation du service ; les utilisateurs titulaires d\'un compte sont informés des modifications '
+         +'substantielles par tout moyen utile.')
+      +A('Durée et résiliation',
+         'Les présentes s\'appliquent pendant toute la durée d\'utilisation du service. L\'utilisateur peut cesser de '
+         +'l\'utiliser à tout moment'+(compte?' et demander la clôture de son compte':'')+'. L\'Éditeur peut suspendre '
+         +'l\'accès en cas de manquement, après mise en demeure lorsque la nature du manquement le permet.')
+      +A('Loi applicable et juridiction',
+         'Les présentes sont soumises au droit français. À défaut d\'accord amiable, tout différend relève des '
+         +'tribunaux de '+edV(D,'tribunal','VILLE')+', sous réserve des règles protectrices du consommateur, qui peut '
+         +'saisir la juridiction de son lieu de résidence.')
+      +edNote('Les mentions légales de l\'éditeur et de l\'hébergeur sont obligatoires. Si le service s\'adresse à des consommateurs, la médiation de la consommation et le droit de rétractation doivent également figurer au contrat de fourniture.')
+    );
+  }
+
+  /* ---------- Politique de confidentialité (RGPD) ---------- */
+  function edTplRGPD(D){
+    var dpo=/oui/i.test((D&&D.dpo)||'');
+    var hors=/oui/i.test((D&&D.horsue)||'');
+    var ck=/oui/i.test((D&&D.cookies)||'');
+    function S(t,c){ return '<p><b>'+t+'.</b> '+c+'</p>'; }
+    return edDocWrap(
+      '<h1>POLITIQUE DE CONFIDENTIALITÉ</h1>'
+      +'<p>Dernière mise à jour : '+edV(D,'datemaj','DATE')+'.</p>'
+      +'<p>La présente politique décrit la manière dont les données à caractère personnel sont traitées, conformément '
+      +'au Règlement (UE) 2016/679 du 27 avril 2016 et à la loi n° 78-17 du 6 janvier 1978 modifiée.</p>'
+      +S('1. Responsable du traitement',
+         edV(D,'denomination','DÉNOMINATION')+', '+edV(D,'forme','FORME')+', dont le siège est situé '
+         +edV(D,'adresse','ADRESSE')+', '+edV(D,'cp','CP')+' '+edV(D,'ville','VILLE')+', immatriculée sous le numéro '
+         +'SIREN '+edV(D,'siren','SIREN')+', détermine les finalités et les moyens des traitements décrits ci-après. '
+         +'Contact : '+edV(D,'email','E-MAIL')+' — '+edV(D,'tel','TÉLÉPHONE')+'.')
+      +(dpo?S('2. Délégué à la protection des données',
+         'Un délégué à la protection des données a été désigné : '+edV(D,'dponom','NOM')+'. Il peut être contacté à '
+         +'l\'adresse '+edV(D,'dpomail','CONTACT')+' pour toute question relative au traitement de vos données.')
+          :S('2. Délégué à la protection des données',
+         'Aucun délégué à la protection des données n\'a été désigné, la désignation n\'étant pas obligatoire au '
+         +'regard de l\'article 37 du Règlement. Les demandes sont adressées au responsable du traitement.'))
+      +S('3. Données traitées',
+         'Sont traitées les catégories de données suivantes : '+edV(D,'donnees','CATÉGORIES DE DONNÉES')+'. '
+         +'Seules sont collectées les données adéquates, pertinentes et limitées à ce qui est nécessaire au regard '
+         +'des finalités poursuivies.')
+      +S('4. Finalités et bases légales',
+         'Les données sont traitées pour les finalités suivantes : '+edV(D,'finalites','FINALITÉS')+'. '
+         +'Chaque traitement repose sur l\'une des bases légales de l\'article 6 du Règlement : '
+         +edV(D,'bases','BASES LÉGALES')+' — exécution d\'un contrat, respect d\'une obligation légale, intérêt '
+         +'légitime du responsable, ou consentement de la personne concernée, lequel peut être retiré à tout moment.')
+      +S('5. Destinataires',
+         'Les données sont destinées aux services internes habilités et, en tant que de besoin, aux destinataires '
+         +'suivants : '+edV(D,'destinataires','DESTINATAIRES')+'. Elles ne font l\'objet d\'aucune cession à des tiers '
+         +'à des fins commerciales sans consentement préalable.')
+      +S('6. Sous-traitants',
+         'Certains traitements sont confiés à des prestataires agissant en qualité de sous-traitants au sens de '
+         +'l\'article 28 du Règlement : '+edV(D,'soustraitants','SOUS-TRAITANTS')+'. Chacun est lié par un contrat '
+         +'comportant les garanties exigées, et n\'agit que sur instruction documentée du responsable du traitement.')
+      +(hors?S('7. Transferts hors Union européenne',
+         'Des données peuvent être transférées vers les pays suivants : '+edV(D,'horsuepays','PAYS ET GARANTIES')+'. '
+         +'Ces transferts sont encadrés par les garanties appropriées prévues aux articles 44 à 49 du Règlement, '
+         +'notamment une décision d\'adéquation de la Commission européenne ou des clauses contractuelles types.')
+           :S('7. Transferts hors Union européenne',
+         'Aucun transfert de données hors de l\'Union européenne n\'est réalisé.'))
+      +S('8. Durées de conservation',
+         'Les données sont conservées pour les durées suivantes : '+edV(D,'duree','DURÉES')+'. Au-delà, elles sont '
+         +'supprimées ou archivées sous une forme permettant leur seule production en justice, dans la limite des '
+         +'délais de prescription applicables.')
+      +S('9. Sécurité',
+         'Des mesures techniques et organisationnelles appropriées sont mises en œuvre pour garantir un niveau de '
+         +'sécurité adapté au risque, conformément à l\'article 32 du Règlement : contrôle des accès, '
+         +'journalisation, sauvegardes, chiffrement lorsque la nature des données le justifie, et sensibilisation '
+         +'des personnes habilitées.')
+      +S('10. Vos droits',
+         'Vous disposez, dans les conditions prévues par le Règlement, du droit d\'accès à vos données (article 15), '
+         +'de rectification (article 16), d\'effacement (article 17), de limitation du traitement (article 18), de '
+         +'portabilité (article 20) et d\'opposition (article 21), ainsi que du droit de retirer votre consentement '
+         +'lorsque le traitement repose sur celui-ci. Vous pouvez également définir des directives relatives au sort '
+         +'de vos données après votre décès. Ces droits s\'exercent auprès de '
+         +(dpo?edV(D,'dpomail','CONTACT DU DPO'):edV(D,'email','E-MAIL'))
+         +', accompagné de tout élément permettant de vérifier votre identité. Une réponse vous est apportée dans le '
+         +'délai d\'un mois, prorogeable de deux mois en cas de demande complexe.')
+      +S('11. Réclamation',
+         'Si vous estimez, après nous avoir contactés, que vos droits ne sont pas respectés, vous pouvez introduire '
+         +'une réclamation auprès de la Commission nationale de l\'informatique et des libertés, 3 place de Fontenoy, '
+         +'TSA 80715, 75334 Paris Cedex 07.')
+      +(ck?S('12. Cookies',
+         'Des traceurs sont déposés sur votre terminal. Ceux qui ne sont pas strictement nécessaires au '
+         +'fonctionnement du service ne le sont qu\'après recueil de votre consentement, que vous pouvez retirer à '
+         +'tout moment par les paramètres prévus à cet effet.')
+         :S('12. Cookies','Aucun traceur autre que ceux strictement nécessaires au fonctionnement du service n\'est déposé.'))
+      +S('13. Mise à jour',
+         'La présente politique peut être modifiée pour tenir compte de l\'évolution des traitements ou de la '
+         +'réglementation. La version applicable est celle publiée à la date de votre consultation.')
+      +edNote('Cette politique décrit des traitements : elle se renseigne à partir du registre des activités de traitement tenu au titre de l\'article 30 du Règlement, et se relit à chaque évolution des finalités, des durées ou des sous-traitants.')
+    );
+  }
+
   function edLibTemplateBrut(k,D){
     D=D||{};
     if(k==='statuts')return edStatutsCover(D)+edSyntheticFill(k,D);
     if(k==='souscripteurs'||k==='pouvoir'||k==='dnc')return edSyntheticFill(k,D);
-    var M={fichepaie:function(D){return (typeof window.paieDocInline==='function')?window.paieDocInline(D):edDocWrap('<h1>Fiche de paie</h1><p>Renseignez la rémunération pour générer le bulletin.</p>');},cdi:edTplCDI,cdd:edTplCDD,certif:edTplCertif,renouv:edTplRenouv,courrenouv:edTplCourRenouv,convoc:edTplConvoc,soustrait:edTplSoustrait,etatlieux:edTplEtatLieux,pv:edTplPV,decharge:edTplDecharge,cesactions:edTplCesActions,cesparts:edTplCesParts,cesparts_u:edTplCesPartsU,attca:edTplAttCA,bilanprev:edTplBilanPrev,contratdomicil:edTplContratDomicil,attestdomicil:edTplAttestDomicil,decladomicile:edTplDeclaDomicile,depotcapital:edTplDepotCapital,attparution:edTplAttParution,rbe:edTplRBE,dissol:edTplDissolution,liquid:edTplLiquidation,pvapprob:edTplApprob,optionis:edTplOptionIS,lettremission:edTplLettreMission,mandat:edTplMandat,atthono:edTplAttHono,stc:edTplSTC,attemp:edTplAttEmployeur,rupture:edTplRupture,augcapital:edTplAugCapital,redcapital:edTplRedCapital,pvdenom:edTplPvDenom,pvobjet:edTplPvObjet,pvsiege:edTplPvSiege,pvnomdir:edTplPvNomDir,convocag:edTplConvocAG,promesse:edTplPromesse,avenant:edTplAvenant,attsalaire:edTplAttSalaire,attpresence:edTplAttPresence,licenciement:edTplLicenciement,registrepersonnel:edTplRegistre,attregul:edTplAttRegul,sommeil:edTplSommeil,reprise:edTplReprise,attnonact:edTplAttNonAct,optionreel:edTplOptionReel,honneur:edTplHonneur,procbancaire:edTplProcBancaire,miseendemeure:edTplMiseDemeure,relance:edTplRelance,resiliation:edTplResiliation,mandatsepa:edTplMandatSepa};
+    var M={nda:edTplNDA,prestation:edTplPrestation,pacte:edTplPacte,cgv:edTplCGV,cgu:edTplCGU,rgpd:edTplRGPD,fichepaie:function(D){return (typeof window.paieDocInline==='function')?window.paieDocInline(D):edDocWrap('<h1>Fiche de paie</h1><p>Renseignez la rémunération pour générer le bulletin.</p>');},cdi:edTplCDI,cdd:edTplCDD,certif:edTplCertif,renouv:edTplRenouv,courrenouv:edTplCourRenouv,convoc:edTplConvoc,soustrait:edTplSoustrait,etatlieux:edTplEtatLieux,pv:edTplPV,decharge:edTplDecharge,cesactions:edTplCesActions,cesparts:edTplCesParts,cesparts_u:edTplCesPartsU,attca:edTplAttCA,bilanprev:edTplBilanPrev,contratdomicil:edTplContratDomicil,attestdomicil:edTplAttestDomicil,decladomicile:edTplDeclaDomicile,depotcapital:edTplDepotCapital,attparution:edTplAttParution,rbe:edTplRBE,dissol:edTplDissolution,liquid:edTplLiquidation,pvapprob:edTplApprob,optionis:edTplOptionIS,lettremission:edTplLettreMission,mandat:edTplMandat,atthono:edTplAttHono,stc:edTplSTC,attemp:edTplAttEmployeur,rupture:edTplRupture,augcapital:edTplAugCapital,redcapital:edTplRedCapital,pvdenom:edTplPvDenom,pvobjet:edTplPvObjet,pvsiege:edTplPvSiege,pvnomdir:edTplPvNomDir,convocag:edTplConvocAG,promesse:edTplPromesse,avenant:edTplAvenant,attsalaire:edTplAttSalaire,attpresence:edTplAttPresence,licenciement:edTplLicenciement,registrepersonnel:edTplRegistre,attregul:edTplAttRegul,sommeil:edTplSommeil,reprise:edTplReprise,attnonact:edTplAttNonAct,optionreel:edTplOptionReel,honneur:edTplHonneur,procbancaire:edTplProcBancaire,miseendemeure:edTplMiseDemeure,relance:edTplRelance,resiliation:edTplResiliation,mandatsepa:edTplMandatSepa};
     if(M[k])return M[k](D);
     return edDocWrap('<h1>'+edE((EDLIB_TYPES.filter(function(t){return t.k===k;})[0]||{}).l||'Document')+'</h1><p>'+EDP+'</p>');
   }
@@ -46983,19 +47637,24 @@ function testLienSignature() {
     presence:['feuille de presence'],
     rapportgestion:['rapport de gestion'],
     acceptation:['lettre d acceptation des fonctions','acceptation des fonctions'],
-    cession:['cession']
+    cession:['cession'],
+    /* v712 : six modèles rejoignent la bibliothèque — ils quittent du même coup
+       la liste de ce que le catalogue ne savait pas produire. */
+    nda:['accord de confidentialite','nda','non divulgation','accord de non divulgation','clause de confidentialite'],
+    prestation:['contrat de prestation','contrat de prestation de services','prestation de services','contrat de partenariat'],
+    pacte:['pacte d associes','pacte d actionnaires','pacte'],
+    cgv:['cgv','conditions generales de vente'],
+    cgu:['cgu','conditions generales d utilisation','conditions d utilisation'],
+    rgpd:['politique de confidentialite','politique rgpd','charte rgpd','rgpd','protection des donnees']
   };
 
   /* Ce que le catalogue ne sait pas encore produire. Mieux vaut le dire que
      rendre un document voisin en faisant comme si. */
-  var ABSENTS=[
-    ['nda',              ['nda','accord de confidentialite','non divulgation','accord de non divulgation']],
-    ['cgv',              ['cgv','conditions generales de vente']],
-    ['cgu',              ['cgu','conditions generales d utilisation']],
-    ['rgpd',             ['politique rgpd','charte rgpd','politique de confidentialite','registre des traitements']],
-    ['pacte',            ['pacte d associes','pacte d actionnaires']],
-    ['prestation',       ['contrat de prestation','contrat de prestation de services','contrat de partenariat']]
-  ];
+  /* Ce que le catalogue ne sait pas encore produire. Les six modèles qui
+     figuraient ici — NDA, CGV, CGU, politique RGPD, pacte d'associés, contrat
+     de prestation — ont rejoint la bibliothèque en v712. La liste reste, pour
+     nommer honnêtement ce qui viendra à manquer plus tard. */
+  var ABSENTS=[];
   var ABSENTS_LBL={nda:'Accord de confidentialité (NDA)',cgv:'Conditions générales de vente',
     cgu:"Conditions générales d'utilisation",rgpd:'Politique RGPD',
     pacte:"Pacte d'associés",prestation:'Contrat de prestation de services'};

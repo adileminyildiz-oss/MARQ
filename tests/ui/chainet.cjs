@@ -1,6 +1,13 @@
 /* v710 — Classement des demandes et ouverture de la chaîne aux modifications */
 const { chromium, URL_APP } = require('./_socle.cjs');
 
+/* Filet : une attente qui expire lève, et sans cela le processus resterait
+   suspendu — le lanceur attendrait un enfant qui ne meurt jamais. */
+process.on('unhandledRejection', e => {
+  console.error('ÉCHEC — ' + (e && e.message ? e.message : e));
+  process.exit(1);
+});
+
 (async () => {
   const nav = await chromium.launch();
   const page = await nav.newPage();
