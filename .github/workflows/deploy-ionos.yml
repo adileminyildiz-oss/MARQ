@@ -27,13 +27,39 @@ jobs:
       - name: Récupérer le code
         uses: actions/checkout@v4
 
+      # Les secrets SFTP n'ont jamais été renseignés : l'action échouait alors sur
+      # « remote_path is empty », et CHAQUE commit portait une croix rouge. Un
+      # échec permanent ne signale plus rien — il masque les vrais. On s'abstient
+      # proprement tant que la configuration manque.
+      - name: Configuration IONOS présente ?
+        id: config
+        env:
+          H: ${{ secrets.IONOS_SFTP_HOST }}
+          U: ${{ secrets.IONOS_SFTP_USER }}
+          P: ${{ secrets.IONOS_SFTP_PASSWORD }}
+          R: ${{ secrets.IONOS_REMOTE_PATH }}
+        run: |
+          if [ -n "$H" ] && [ -n "$U" ] && [ -n "$P" ] && [ -n "$R" ]; then
+            echo "prete=oui" >> "$GITHUB_OUTPUT"
+          else
+            echo "prete=non" >> "$GITHUB_OUTPUT"
+            echo "Secrets IONOS absents — envoi ignoré." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Le site est publié par **GitHub Pages** (fichier CNAME → marq.aemconseil.eu)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Renseignez IONOS_SFTP_HOST, IONOS_SFTP_USER, IONOS_SFTP_PASSWORD et" >> "$GITHUB_STEP_SUMMARY"
+            echo "IONOS_REMOTE_PATH pour activer cette seconde publication, ou supprimez" >> "$GITHUB_STEP_SUMMARY"
+            echo "ce workflow si IONOS n'est plus utilisé." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Préparer le dossier de publication (fichiers du site uniquement)
+        if: steps.config.outputs.prete == 'oui'
         run: |
           mkdir -p dist
           cp index.html sw.js version.json .htaccess dist/
           ls -la dist
 
       - name: Envoyer sur IONOS (SFTP)
+        if: steps.config.outputs.prete == 'oui'
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server:      ${{ secrets.IONOS_SFTP_HOST }}
