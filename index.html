@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=709;
+var LAST_VER=710;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -17345,12 +17345,16 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     if(idxOf(active)<0 && !utilAvail.some(function(t){return t[0]===active;}))active=curKey;
     main.classList.remove('esp-grid');
     var rail=document.createElement('div'); rail.className='trw-rail'; var rh='';
+    /* v710 : le rail nomme l'étape selon le type de formalité du dossier ouvert
+       (« Dépôt modificatif » plutôt que « Immatriculation » pour un transfert de
+       siège). Les clés restent celles du moteur. */
+    function trwLbl(dd,t){ try{ if(dd&&typeof window.etapeLibelle==='function'){ var o=window.etapeLibelle(dd,t[0]); if(o) return o; } }catch(e){} return t[1]; }
     WF.forEach(function(t,i){
       var st=d?wfState(d,i):(i===0?'cur':'lock');
       var num=(st==='done')?CHECK:(''+(i+1));
       var ico=(st==='done')?CHECK:(st==='lock'?LOCK:'');
       rh+='<button class="trw-step '+st+(t[0]===active?' sel':'')+'" data-k="'+t[0]+'"'+(st==='lock'?' data-lock="1"':'')+'>'
-        +'<span class="trw-num">'+num+'</span><span class="trw-l"><b>'+t[1]+'</b><small>Étape '+(i+1)+'</small></span>'
+        +'<span class="trw-num">'+num+'</span><span class="trw-l"><b>'+trwLbl(d,t)+'</b><small>Étape '+(i+1)+'</small></span>'
         +(ico?('<span class="trw-ic">'+ico+'</span>'):'')+'</button>';
     });
     if(utilAvail.length){ rh+='<div class="trw-sep">Outils</div>'; utilAvail.forEach(function(t){ rh+='<button class="trw-step util'+(t[0]===active?' sel':'')+'" data-k="'+t[0]+'"><span class="trw-num">'+DOT+'</span><span class="trw-l"><b>'+t[1]+'</b></span></button>'; }); }
@@ -33500,9 +33504,12 @@ function testLienSignature() {
     ];
   }
   window.im5Pieces=pieces;
+  /* toutes les vues de l'étape passent par la version exposée : un module peut
+     ainsi faire suivre la liste au type de formalité sans toucher à celle-ci. */
+  function PS(d){ try{ return (typeof window.im5Pieces==='function')?window.im5Pieces(d):pieces(d); }catch(e){ return pieces(d); } }
 
   window.im5Imprimer=function(id){
-    var d=dossier(id); if(!d) return; var c=cli(d), ps=pieces(d);
+    var d=dossier(id); if(!d) return; var c=cli(d), ps=PS(d);
     var html='<div class="doc-page"><h1 style="font-size:17px;margin:0 0 4px">Bordereau de dépôt — guichet unique</h1>'
       +'<p style="margin:0 0 14px;font-size:12px">Société '+E(c.denom||'—')+' · dossier '+E(d.ref||'')+' · établi le '+frd(Date.now())+'</p>'
       +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
@@ -33516,7 +33523,7 @@ function testLienSignature() {
 
   window.im5Depose=function(id){
     var d=dossier(id); if(!d)return;
-    var manque=pieces(d).filter(function(p){return !p.ok;});
+    var manque=PS(d).filter(function(p){return !p.ok;});
     var go=function(){ I(d).depose=Date.now(); try{save();}catch(e){}
       if(typeof toast==='function')toast('Dépôt constaté — en attente du récépissé puis du K-bis.'); render(); };
     if(manque.length && typeof uiConfirm==='function')
@@ -33693,7 +33700,7 @@ function testLienSignature() {
   }
 
   function depotCorps(d){
-    var im=I(d), ps=pieces(d);
+    var im=I(d), ps=PS(d);
     var lignes=ps.map(function(p){
       return '<div class="im5-r '+(p.ok?'ok':'ko')+'"><span class="im5-s">'+(p.ok?'✓':'✗')+'</span>'
         +'<div><b>'+E(p.l)+'</b><em>'+(p.ok?("Produite à l'"+E(p.src)):("Manquante — à obtenir à l'"+E(p.src)))
@@ -33716,7 +33723,7 @@ function testLienSignature() {
   window.im5OuvrirDepot=function(id){
     var d=dossier(id); if(!d||typeof mpOuvrir!=='function') return;
     reprendreAncien(d);
-    var ps=pieces(d), n=ps.filter(function(p){return p.ok;}).length;
+    var ps=PS(d), n=ps.filter(function(p){return p.ok;}).length;
     mpOuvrir('Dépôt au guichet unique', depotCorps(d),
       '<button class="btn btn-pri" onclick="closeModal()">Fermer</button>',
       {sub:(cli(d).denom||d.ref||'dossier')+' · '+n+'/'+ps.length+' pièces réunies'
@@ -33744,7 +33751,7 @@ function testLienSignature() {
     if(typeof mpOuverte!=='function' || !mpOuverte() || !window.__mpCour) return false;
     var t=window.__mpCour.t, im=I(d);
     if(t==='Dépôt au guichet unique'){
-      var ps=pieces(d), n=ps.filter(function(p){return p.ok;}).length;
+      var ps=PS(d), n=ps.filter(function(p){return p.ok;}).length;
       return mpMaj(depotCorps(d), null, (cli(d).denom||d.ref||'dossier')+' · '+n+'/'+ps.length+' pièces réunies'
         +(im.depose?(' · déposé le '+frd(im.depose)):''));
     }
@@ -33759,7 +33766,7 @@ function testLienSignature() {
   function carte(){
     var d=dossier(); if(!d) return '';
     reprendreAncien(d);
-    var im=I(d), ps=pieces(d), pret=ps.filter(function(p){return p.ok;}).length;
+    var im=I(d), ps=PS(d), pret=ps.filter(function(p){return p.ok;}).length;
     var manque=ps.filter(function(p){return !p.ok;});
 
     function ligne(cl,mark,titre,det,bouton){
@@ -33783,7 +33790,10 @@ function testLienSignature() {
       '<button class="btn btn-sm '+(im.verifie?'btn-ghost':'btn-pri')+'" onclick="im5OuvrirReception(null)">'
       +(im.verifie?'Revoir':'Ouvrir')+'</button>');
 
-    return '<div class="card inpi-card im5-card"><div class="card-h"><h2>Immatriculation</h2>'
+    /* v710 : pour une modification, ce dépôt n'immatricule rien — il met le
+       registre à jour. Le titre suit donc le type de formalité. */
+    var _t='Immatriculation'; try{ if(typeof window.etapeLibelle==='function'){ var _o=window.etapeLibelle(d,'immatriculation'); if(_o) _t=_o; } }catch(e){}
+    return '<div class="card inpi-card im5-card"><div class="card-h"><h2>'+_t+'</h2>'
       +(im.verifie ? '<span class="at4-tag ok">immatriculée</span>'
         : (im.depose ? '<span class="at4-tag">déposée le '+frd(im.depose)+'</span>'
                      : '<span class="at4-tag g">à déposer</span>'))
@@ -40502,7 +40512,13 @@ function testLienSignature() {
 
   /* ---------- analyse d'une étape ---------- */
   function etape(d,key){
-    var w=d.wf||{}; var r={key:key,l:WF.filter(function(x){return x[0]===key;})[0][1],validee:!!w[key],bloq:[],preps:[],manuel:[],infos:[]};
+    var w=d.wf||{}; var _l=WF.filter(function(x){return x[0]===key;})[0][1];
+    /* v710 : la séquence des six étapes vaut pour toute formalité, mais pas ses mots.
+       « Immatriculation » ne veut rien dire pour une société déjà immatriculée qui
+       transfère son siège. Le libellé suit le type de formalité ; la clé ne bouge
+       pas — verrous, états et journal sont intacts. */
+    try{ if(typeof window.etapeLibelle==='function'){ var _o=window.etapeLibelle(d,key); if(_o) _l=_o; } }catch(e){}
+    var r={key:key,l:_l,validee:!!w[key],bloq:[],preps:[],manuel:[],infos:[]};
     var c=cli(d);
     if(key==='demande'){
       var nom=nz((c.prenom||'')+' '+(c.nom||''))||nz(c.denomination); var mail=nz(c.email)||nz((dem(d)||{}).clientEmail);
@@ -40538,7 +40554,13 @@ function testLienSignature() {
       if(!(at.annonce&&at.annonce.prevenu)&&nz(c.email)) r.manuel.push({l:'Prévenir le client (annonce en cours)',fn:'at4Prevenir',sub:c.email});
     }
     if(key==='immatriculation'){
-      var P=[]; try{ P=(typeof im5Pieces==='function')?im5Pieces(d):[]; }catch(e){} P.filter(function(p){return !p.ok;}).forEach(function(p){ r.bloq.push('Dossier de dépôt : '+p.l+(p.src?(' ('+p.src+')'):'')); });
+      /* v710 : le dossier de dépôt n'est plus déballé pièce par pièce ici — il est
+         tenu dans l'onglet Dépôt, où on le remplit. Le panneau se contente de dire
+         s'il est complet : l'étape reste bloquée tant qu'il ne l'est pas. */
+      var P=[]; try{ P=(typeof im5Pieces==='function')?im5Pieces(d):[]; }catch(e){}
+      var manque=P.filter(function(p){return !p.ok;}).length;
+      if(manque) r.bloq.push('Dossier de dépôt incomplet — '+manque+' pièce(s) à réunir (onglet Dépôt)');
+      else if(P.length) r.infos.push('Dossier de dépôt complet — '+P.length+' pièce(s)');
       var im=d.immat||{}; if(!im.kbis) r.bloq.push('K-bis à déposer au dossier'); else if(!im.verifie) r.bloq.push('K-bis à vérifier');
       if(im.depose) r.infos.push('Déposé au guichet unique'); else r.manuel.push({l:'Déposer au guichet unique (INPI)',fn:'im5OuvrirDepot'});
     }
@@ -45034,7 +45056,15 @@ function testLienSignature() {
   function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
     c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
   function dossier(id){ return (B().dossiers||[]).filter(function(d){ return d.id===id; })[0]||null; }
-  function lbl(k){ for(var i=0;i<ETAPES.length;i++) if(ETAPES[i][0]===k) return ETAPES[i][1]; return k; }
+  /* v710 : la séquence des six étapes vaut pour toutes les formalités, mais pas ses
+     mots. « Immatriculation » n'a aucun sens pour une société qui transfère son siège :
+     elle est déjà immatriculée. Le libellé suit donc le type de formalité du dossier
+     ouvert ; les clés, elles, ne bougent pas — verrous, états et journal sont intacts. */
+  function lbl(k,d){
+    /* le courrier nomme l'étape comme le dossier la nomme : « Dépôt modificatif »
+       pour un transfert de siège, « Immatriculation » pour une création. */
+    try{ if(d && typeof window.etapeLibelle==='function'){ var o=window.etapeLibelle(d,k); if(o) return o; } }catch(e){}
+    for(var i=0;i<ETAPES.length;i++) if(ETAPES[i][0]===k) return ETAPES[i][1]; return k; }
 
   window.etapeModele=function(k){ var c=cfg(); return c.modeles[k]||DEFS[k]||null; };
   window.etapeModeleEcrire=function(k,champ,v){ var c=cfg();
@@ -45058,7 +45088,7 @@ function testLienSignature() {
     var res=function(t){ return sur(function(){ return window.courrierResoudre(t,d); },t); };
     return {to:to,sujet:res(m.sujet),corps:res(m.corps),
       client:cl?(M.nomClient?M.nomClient(cl):S(cl.denomination)):'',
-      etape:lbl(key),ref:S(d.ref||d.numeroDossier||'')}; };
+      etape:lbl(key,d),ref:S(d.ref||d.numeroDossier||'')}; };
 
   function versFile(o,ref){ var p=P(); p.fileEnvoi=p.fileEnvoi||{items:[],journal:[]};
     var f=p.fileEnvoi; f.items=f.items||[];
@@ -46636,6 +46666,217 @@ function testLienSignature() {
             +'<button class="btn btn-sm btn-pri" onclick="cliFusionOuvrir(\''+ia+'\',\''+ib+'\')">Fusionner</button>'; }); }catch(e){}
         return h; };
       window.cliChaineCard.__fus706=1; } }catch(e){}
+})();
+</script>
+<script>
+/* ===== Mar'q v710 — Classement des demandes et ouverture de la chaîne aux modifications ===== */
+(function(){
+  if(window.__mqCh710) return; window.__mqCh710=1;
+  var M=window.MQ||{};
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4400,t||'info'); }catch(e){} }
+
+  /* ---------- 1. Trois natures au lieu de deux ----------
+     demNature ne connaissait que « création » et « administratif », et repliait tout
+     le reste sur « création ». Une demande de CGV ouvrait donc un dossier de création
+     de société. Les travaux de rédaction forment leur propre nature : ils ne passent
+     par aucun greffe et n'ouvrent pas de formalité. */
+  var RX_REDAC=/(\bcgv\b|\bcgu\b|\bnda\b|conditions? (generales?|d utilisation)|non[- ]divulgation|confidentialite|pacte d associes|contrat de (prestation|partenariat|sous[- ]?traitance)|sous[- ]?traitance|politique rgpd|charte rgpd|business plan|previsionnel financier|statuts sur mesure|redaction de)/;
+
+  /* les apostrophes deviennent des espaces : « pacte d'associés » et « pacte d associes »
+     doivent se reconnaître de la même façon */
+  function sansAccent(s){ return (''+(s||'')).toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/['\u2019\u02bc]/g,' ').replace(/\s+/g,' '); }
+  function texteDe(d){
+    var o=''; try{ o=(typeof IA!=='undefined'&&IA.objet)?IA.objet(d):''; }catch(e){}
+    return sansAccent(o+' '+((d&&d.serviceSouhaite)||'')+' '+((d&&d.message)||''));
+  }
+
+  try{ var _dn=window.demNature;
+    if(typeof _dn==='function' && !_dn.__ch710){
+      window.demNature=function(d){
+        if(!d) return 'creation';
+        if(d.nature==='creation'||d.nature==='admin'||d.nature==='redaction') return d.nature;
+        /* la rédaction se reconnaît avant tout le reste : « rédaction de CGV » contient
+           « redaction », qu'aucune des deux autres familles ne revendique */
+        if(RX_REDAC.test(texteDe(d))) return 'redaction';
+        return _dn.apply(this,arguments);
+      };
+      window.demNature.__ch710=1; } }catch(e){}
+
+  try{ var _dl=window.demNatLabel;
+    window.demNatLabel=function(n){
+      if(n==='redaction') return 'Rédaction';
+      if(n==='admin') return 'Modification';
+      if(typeof _dl==='function') return _dl.apply(this,arguments);
+      return 'Création'; };
+  }catch(e){}
+
+  /* ---------- 2. La chaîne s'ouvre aux modifications ----------
+     Le dossier de traitement ne s'ouvrait automatiquement que pour une création.
+     Les modèles de formalité (étapes, pièces, documents) existent pourtant déjà
+     pour le transfert de siège, le changement de dirigeant, le capital, la
+     dénomination, l'objet, la cession et la dissolution. */
+  try{ var _po=window.pmOuvreDossier;
+    if(typeof _po==='function' && !_po.__ch710){
+      window.pmOuvreDossier=function(d){
+        if(!d) return false;
+        if(typeof window.pmEstFormalite==='function' && !window.pmEstFormalite(d)) return false;
+        var n='creation'; try{ n=window.demNature(d); }catch(e){}
+        return n==='creation' || n==='admin';   /* la rédaction n'ouvre pas de formalité */
+      };
+      window.pmOuvreDossier.__ch710=1; } }catch(e){}
+
+  /* ---------- 3. Le dossier porte son type de formalité dès sa création ----------
+     Sans lui, les étapes et les pièces se redevinaient à chaque affichage ; avec lui,
+     elles sont fixées, visibles et modifiables. */
+  try{ var _cd=window.creerDossierDepuis;
+    if(typeof _cd==='function' && !_cd.__ch710){
+      window.creerDossierDepuis=function(id,noNav){
+        var dem=null; try{ dem=(DB.demandes||[]).filter(function(x){ return x.id===id; })[0]; }catch(e){}
+        var dos=_cd.apply(this,arguments);
+        try{
+          if(dos && !dos.formaliteType && typeof window.formaliteType==='function'){
+            dos.formaliteType=window.formaliteType(dem||dos);
+            if(dem){ try{ dos.nature=window.demNature(dem); }catch(e){} }
+          }
+          /* Un dossier ouvert depuis une demande n'avait aucun numéro de traitement :
+             le parcours formulaire en posait un, celui-ci non. La nature décide de la
+             série — CR pour une création, MD pour une modification. */
+          if(dos && !(''+(dos.numeroService||'')).trim() && typeof window.formTakeServiceNum==='function'){
+            dos.numeroService=window.formTakeServiceNum(dos.nature==='admin'?'modification':'creation');
+          }
+          if(dos && typeof save==='function') save();
+        }catch(e){}
+        return dos; };
+      window.creerDossierDepuis.__ch710=1; } }catch(e){}
+
+  /* ---------- 4. Les pièces demandées suivent le type de formalité ----------
+     espDocReq réclamait les dix-sept documents du dossier quel que soit l'objet :
+     un transfert de siège demandait les statuts, la liste des souscripteurs et la
+     déclaration de non-condamnation. Pour une modification, on s'en tient au modèle
+     du type, plus le procès-verbal et la lettre de mission, qui valent pour toutes.
+     Les créations gardent leur comportement : rien n'y est retiré. */
+  var TOUJOURS=['pv','lettremission'];
+
+  function modeleDe(type){
+    try{ var L=window.FORMALITE_TEMPLATES||[];
+      for(var i=0;i<L.length;i++) if(L[i].key===type) return L[i]; }catch(e){}
+    return null;
+  }
+  window.docPertinent=function(d,k){
+    try{
+      var type=(d&&d.formaliteType) || (typeof window.formaliteType==='function'?window.formaliteType(d):'');
+      if(!type || /^creation/.test(type)) return true;         /* création : inchangé */
+      var t=modeleDe(type); if(!t || !t.docs) return true;     /* modèle muet : inchangé */
+      if(TOUJOURS.indexOf(k)>=0) return true;
+      return t.docs.indexOf(k)>=0;
+    }catch(e){ return true; }
+  };
+
+  try{ var _dr=window.espDocReq;
+    if(typeof _dr==='function' && !_dr.__ch710){
+      window.espDocReq=function(d,k){
+        if(!d) return _dr.apply(this,arguments);
+        if(d.docsInclus && d.docsInclus[k]) return true;        /* remis par le cabinet */
+        if(d.docsExclus && d.docsExclus[k]) return false;
+        return window.docPertinent(d,k); };
+      window.espDocReq.__ch710=1; } }catch(e){}
+
+  /* Le cabinet garde la main : un document écarté par le modèle peut être remis. */
+  try{ var _dt=window.espDocToggleReq;
+    if(typeof _dt==='function' && !_dt.__ch710){
+      window.espDocToggleReq=function(id,k){
+        var d=null; try{ d=(DB.dossiers||[]).filter(function(x){ return x.id===id; })[0]; }catch(e){}
+        if(d && !window.docPertinent(d,k) && !(d.docsInclus&&d.docsInclus[k])){
+          d.docsInclus=d.docsInclus||{}; d.docsInclus[k]=true;
+          if(d.docsExclus) delete d.docsExclus[k];
+          try{ if(typeof save==='function') save(); if(typeof render==='function') render(); }catch(e){}
+          return; }
+        if(d && d.docsInclus && d.docsInclus[k]){
+          delete d.docsInclus[k];
+          try{ if(typeof save==='function') save(); if(typeof render==='function') render(); }catch(e){}
+          return; }
+        return _dt.apply(this,arguments); };
+      window.espDocToggleReq.__ch710=1; } }catch(e){}
+
+  /* ---------- Libellés d'étape selon la formalité ----------
+     Même séquence, mots justes. Une modification dépose un dossier modificatif au
+     guichet unique ; une dissolution y fait radier la société. */
+  var LIB={
+    admin:{ actes:'Actes & statuts', attestations:'Annonce légale', immatriculation:'Dépôt modificatif' },
+    /* une augmentation de capital exige aussi l'attestation de dépôt des fonds :
+       l'étape ne se résume pas à l'annonce */
+    capital:{ actes:'Actes & statuts', attestations:'Annonce & dépôt de capital', immatriculation:'Dépôt modificatif' },
+    dissolution:{ actes:'PV de dissolution', attestations:'Annonce légale', immatriculation:'Radiation' },
+    cession:{ actes:'Acte de cession', attestations:'Enregistrement aux impôts', immatriculation:'Registre des mouvements' }
+  };
+  window.etapeLibelle=function(d,k){
+    try{
+      var type=(d&&d.formaliteType)||'';
+      if(!type && typeof window.formaliteType==='function') type=window.formaliteType(d);
+      if(!type || /^creation/.test(type)) return '';        /* création : libellés d'origine */
+      var jeu=LIB[type]||LIB.admin;
+      return jeu[k]||'';
+    }catch(e){ return ''; }
+  };
+
+  /* ---------- Le dossier de dépôt suit la formalité ---------- */
+  /* Un transfert de siège se déposait avec la liste d'une création : statuts signés,
+     non-condamnation, attestation de dépôt des fonds, liste des souscripteurs. Aucune
+     de ces pièces n'existe pour une modification. La liste est désormais celle du
+     modèle de la formalité ; la création garde exactement la sienne. */
+  try{
+    var _p5=window.im5Pieces;
+    if(typeof _p5==='function' && !_p5.__dep710){
+      var TOUJ={pouvoir:{l:'Pouvoir du mandataire',src:'étape Actes'}};
+      window.im5Pieces=function(d){
+        var base=_p5.apply(this,arguments)||[];
+        try{
+          var type=(d&&d.formaliteType)||''; 
+          if(!type && typeof window.formaliteType==='function') type=window.formaliteType(d);
+          if(!type || /^creation/.test(type)) return base;           /* création : inchangée */
+          var t=null;
+          try{ (window.FORMALITE_TEMPLATES||[]).forEach(function(x){ if(x.key===type) t=x; }); }catch(e){}
+          if(!t) return base;
+          var s=d.sign||{}, a=d.attest||{}, dc=d.docs||{}, out=[];
+          /* les actes propres à la formalité, signés */
+          /* l'acte de la décision (PV) et le pouvoir accompagnent toute formalité
+             modificative ; s'y ajoutent les actes propres au modèle. */
+          (t.docs||[]).concat(['pv'],Object.keys(TOUJ)).forEach(function(k){
+            if(out.some(function(x){return x.k===k;})) return;
+            var lib=''; try{ lib=(window.espDocLabel?window.espDocLabel(k):'')||''; }catch(e){}
+            if(!lib) lib=(TOUJ[k]&&TOUJ[k].l)||k;
+            out.push({k:k,l:lib,ok:!!((s[k]&&s[k].ok)||(dc[k]&&dc[k].genere)),src:'étape Actes'});
+          });
+          /* l'annonce légale, et le dépôt des fonds seulement si le capital bouge */
+          out.push({k:'annonce',l:'Attestation de parution',ok:!!(a.annonce&&a.annonce.verifie),src:'étape Annonce légale'});
+          if(type==='capital') out.push({k:'capital',l:'Attestation de dépôt des fonds',ok:!!(a.capital&&a.capital.verifie),src:'étape Annonce & dépôt'});
+          return out;
+        }catch(e){ return base; }
+      };
+      window.im5Pieces.__dep710=1;
+    }
+  }catch(e){}
+
+  /* ---------- Reprise : les dossiers déjà ouverts reçoivent leur type ---------- */
+  window.chaineReprise=function(){
+    var n=0;
+    try{ (DB.dossiers||[]).forEach(function(d){
+      if(!d || d.formaliteType) return;
+      if(typeof window.formaliteType!=='function') return;
+      d.formaliteType=window.formaliteType(d); n++; }); }catch(e){}
+    if(n){ try{ if(typeof save==='function') save(); }catch(e){} }
+    return n;
+  };
+  try{ if(window.marqOccupe) window.marqOccupe(1);
+    var tours=0, fait=false;
+    var lance=function(){ if(fait) return; fait=true;
+      try{ window.chaineReprise(); }catch(e){}
+      try{ if(window.marqOccupe) window.marqOccupe(-1); }catch(e){} };
+    var guet=setInterval(function(){
+      var pret=false; try{ pret=!!document.querySelector('#nav .nav-btn'); }catch(e){}
+      if(pret || ++tours>60){ clearInterval(guet); lance(); } },100);
+  }catch(e){ try{ if(window.marqOccupe) window.marqOccupe(-1); }catch(e2){} }
 })();
 </script>
 </body>
