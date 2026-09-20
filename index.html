@@ -3347,7 +3347,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=710;
+var LAST_VER=711;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46878,6 +46878,490 @@ function testLienSignature() {
       if(pret || ++tours>60){ clearInterval(guet); lance(); } },100);
   }catch(e){ try{ if(window.marqOccupe) window.marqOccupe(-1); }catch(e2){} }
 })();
+</script>
+<script id="intel-doc-711">
+/* ===== Mar'q v711 — Intelligence documentaire : une phrase, le bon document, ce qui manque, ce qui bloque =====
+   La bibliothèque compte 58 modèles avec, pour chacun, ses champs déclarés
+   (ED_SCHEMA) et son générateur. Il manquait la porte d'entrée : rien ne
+   permettait de partir d'une phrase (« il me faut un CDI », « je veux créer
+   une SASU ») pour arriver au bon modèle. Et les contrôles de validité
+   existants — SIREN par clé de Luhn, SIRET, TVA intracom, IBAN par modulo 97,
+   e-mail — n'étaient que des pastilles d'affichage : rien n'empêchait de
+   finaliser un document portant un SIREN faux.
+
+   Trois choses, donc :
+     1. mqDocDetecte(phrase)   — la phrase est rapportée à un modèle, ou à un
+                                 paquet de modèles quand elle nomme une formalité.
+                                 Le score est rendu : au-dessous du seuil, on
+                                 propose au lieu d'affirmer.
+     2. mqDocChamps(k,…)       — ce que le référentiel sait déjà (v690) et ce
+                                 qu'il reste à demander, par groupe.
+     3. mqDocControles(k,data) — règles de conformité déclarées, bloquantes ou
+                                 non, branchées sur la finalisation.
+   100 % additif. Aucun modèle, aucun générateur, aucun schéma n'est modifié.
+   ===================================================================== */
+(function(){
+  if(window.__intelDoc) return; window.__intelDoc=1;
+
+  function E(s){ try{ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }catch(e){ return ''; } }
+  function B(){ try{ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }catch(e){ return {}; } }
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,null,t||undefined); }catch(e){} }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function sur(fn,d){ try{ return fn(); }catch(e){ return d; } }
+
+  /* les apostrophes deviennent des espaces, comme ailleurs : « pacte d'associés »
+     et « pacte d associes » doivent se reconnaître de la même façon */
+  function nrm(s){ return (''+(s==null?'':s)).toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g,'').replace(/['’ʼ]/g,' ')
+    .replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim(); }
+
+  /* ==================== 1) De la phrase au modèle ==================== */
+
+  /* Synonymes par clé de modèle. Un terme de plusieurs mots pèse plus lourd
+     qu'un mot seul : « cession de parts » doit primer sur « cession ». */
+  var SYN={
+    statuts:['statuts','statut de societe','projet de statuts'],
+    souscripteurs:['liste des souscripteurs','souscripteurs'],
+    pouvoir:['pouvoir','pouvoir rcs','pouvoir de formalites'],
+    dnc:['declaration de non condamnation','non condamnation','dnc','attestation de non condamnation'],
+    rbe:['beneficiaire effectif','beneficiaires effectifs','rbe','declaration des beneficiaires'],
+    cdi:['cdi','contrat a duree indeterminee','contrat de travail a duree indeterminee','embauche en cdi'],
+    cdd:['cdd','contrat a duree determinee','contrat de travail a duree determinee'],
+    avenant:['avenant','avenant au contrat'],
+    stc:['solde de tout compte','stc','recu pour solde de tout compte'],
+    certif:['certificat de travail'],
+    attemp:['attestation d emploi','attestation employeur'],
+    attsalaire:['attestation de salaire'],
+    attpresence:['attestation de presence'],
+    licenciement:['licenciement','lettre de licenciement'],
+    rupture:['rupture conventionnelle'],
+    convoc:['convocation a un entretien','convocation entretien','entretien prealable'],
+    fichepaie:['fiche de paie','bulletin de paie','bulletin de salaire','paie'],
+    registrepersonnel:['registre unique du personnel','registre du personnel'],
+    soustrait:['contrat de sous traitance','sous traitance','soustraitance'],
+    pv:['proces verbal','pv d assemblee','pv'],
+    pvapprob:['approbation des comptes','ago annuelle','assemblee generale ordinaire annuelle'],
+    convocag:['convocation a l assemblee','convocation assemblee'],
+    pvsiege:['transfert de siege','changement de siege','demenagement du siege'],
+    pvdenom:['changement de denomination','changement de nom','changement de raison sociale'],
+    pvobjet:['changement d objet','changement d activite','objet social'],
+    pvnomdir:['nomination de dirigeant','changement de gerant','changement de president','changement de dirigeant'],
+    augcapital:['augmentation de capital'],
+    redcapital:['reduction de capital'],
+    cesparts:['cession de parts','cession de parts sociales'],
+    cesactions:['cession d actions'],
+    promesse:['promesse de cession','promesse'],
+    dissol:['dissolution','dissolution anticipee'],
+    liquid:['cloture de liquidation','liquidation','radiation'],
+    sommeil:['mise en sommeil','cessation temporaire'],
+    reprise:['reprise d activite'],
+    attnonact:['attestation de non activite','non activite'],
+    contratdomicil:['contrat de domiciliation'],
+    attestdomicil:['attestation de domiciliation'],
+    decladomicile:['declaration de domiciliation','siege au domicile'],
+    depotcapital:['depot de capital','depot des fonds','attestation de depot des fonds'],
+    attparution:['attestation de parution','annonce legale','parution'],
+    lettremission:['lettre de mission'],
+    mandat:['mandat de representation'],
+    atthono:['attestation d honoraires'],
+    attca:['attestation de chiffre d affaires','attestation de ca'],
+    attregul:['regularite fiscale','attestation de vigilance','regularite sociale'],
+    optionis:['option pour l impot sur les societes','option is'],
+    optionreel:['option pour le regime reel','regime reel'],
+    bilanprev:['bilan previsionnel','previsionnel','business plan','plan financier'],
+    honneur:['attestation sur l honneur','declaration sur l honneur'],
+    procbancaire:['procuration bancaire','procuration'],
+    miseendemeure:['mise en demeure'],
+    relance:['lettre de relance','relance'],
+    resiliation:['lettre de resiliation','resiliation'],
+    mandatsepa:['mandat de prelevement sepa','prelevement sepa','sepa'],
+    factnorm:['facture'],
+    factbtp:['facture de situation','situation de travaux'],
+    devis:['devis'],
+    etatlieux:['etat des lieux'],
+    decharge:['decharge de changement de gerant','decharge'],
+    presence:['feuille de presence'],
+    rapportgestion:['rapport de gestion'],
+    acceptation:['lettre d acceptation des fonctions','acceptation des fonctions'],
+    cession:['cession']
+  };
+
+  /* Ce que le catalogue ne sait pas encore produire. Mieux vaut le dire que
+     rendre un document voisin en faisant comme si. */
+  var ABSENTS=[
+    ['nda',              ['nda','accord de confidentialite','non divulgation','accord de non divulgation']],
+    ['cgv',              ['cgv','conditions generales de vente']],
+    ['cgu',              ['cgu','conditions generales d utilisation']],
+    ['rgpd',             ['politique rgpd','charte rgpd','politique de confidentialite','registre des traitements']],
+    ['pacte',            ['pacte d associes','pacte d actionnaires']],
+    ['prestation',       ['contrat de prestation','contrat de prestation de services','contrat de partenariat']]
+  ];
+  var ABSENTS_LBL={nda:'Accord de confidentialité (NDA)',cgv:'Conditions générales de vente',
+    cgu:"Conditions générales d'utilisation",rgpd:'Politique RGPD',
+    pacte:"Pacte d'associés",prestation:'Contrat de prestation de services'};
+
+  function typesCat(){ return sur(function(){ return (typeof EDLIB_TYPES!=='undefined'&&EDLIB_TYPES)||window.EDLIB_TYPES||[]; },[]); }
+  function libelle(k){ var t=typesCat().filter(function(x){return x.k===k;})[0]; return (t&&t.l)||k; }
+
+  /* une expression de plusieurs mots vaut son nombre de mots ; un mot seul vaut 1 */
+  function poids(expr){ var n=nrm(expr).split(' ').length; return n>1?(n*2):1; }
+
+  function score(hay,k){
+    var s=0, vus=[];
+    var l=nrm(libelle(k));
+    if(l && l.length>3 && hay.indexOf(l)>=0){ s+=poids(l)+1; vus.push(libelle(k)); }
+    (SYN[k]||[]).forEach(function(t){
+      var n=nrm(t); if(!n) return;
+      if(hay.indexOf(n)>=0){ s+=poids(n); vus.push(t); }
+    });
+    return {s:s,vus:vus};
+  }
+
+  /* Paquets : une phrase peut nommer une formalité, pas un document. Créer une
+     SASU ne demande pas « un » document mais l'ensemble de l'acte constitutif. */
+  var CREA=/\b(creer|creation|constituer|constitution|immatriculer|immatriculation|monter|ouvrir)\b/;
+  var FORMES=/\b(sasu|sas|sarl|eurl|sci|scop|snc|societe|entreprise|boite)\b/;
+  var DOCS_CREA=['statuts','souscripteurs','dnc','pouvoir','rbe'];
+
+  function paquet(hay,phrase){
+    if(CREA.test(hay) && FORMES.test(hay)){
+      var f=(hay.match(/\b(sasu|sas|sarl|eurl|sci|snc)\b/)||[])[1];
+      return {key:'creation',label:'Création de société'+(f?(' ('+f.toUpperCase()+')'):''),
+              forme:f?f.toUpperCase():'', docs:DOCS_CREA.filter(function(k){ return SYN[k]; })};
+    }
+    /* une modification nommée : on reprend le modèle de formalité déjà en place */
+    var t=null;
+    try{
+      if(typeof window.formaliteType==='function'){
+        var key=window.formaliteType({serviceSouhaite:phrase});
+        if(key && !/^creation/.test(key)){
+          (window.FORMALITE_TEMPLATES||[]).forEach(function(x){ if(x.key===key) t=x; });
+        }
+      }
+    }catch(e){}
+    if(t && (t.docs||[]).length){
+      var L=['pv'].concat(t.docs).filter(function(k,i,a){ return a.indexOf(k)===i; });
+      return {key:t.key,label:t.label||t.key,forme:'',docs:L};
+    }
+    return null;
+  }
+
+  /* La phrase ne dit pas seulement QUEL document, elle dit souvent LEQUEL :
+     « sous-traitance BTP » n'est pas « sous-traitance », « créer une SARL »
+     n'est pas « créer une SAS ». Ces précisions sont reprises au lieu d'être
+     perdues, et le document naît déjà dans sa bonne variante. */
+  var VARIANTES={
+    soustrait:[[/\bbtp\b|batiment|gros oeuvre|second oeuvre/,{sttype:'BTP simplifié'}],
+               [/\bnormal\b|classique|standard/,{sttype:'Normal'}]],
+    pv:[[/extraordinaire|\bage\b/,{nature:'Extraordinaire'}],[/ordinaire|\bago\b/,{nature:'Ordinaire'}]]
+  };
+  function forme(hay){ var m=hay.match(/\b(sasu|sas|sarl|eurl|sci|snc)\b/); return m?m[1].toUpperCase():''; }
+  window.mqDocVariante=function(k,phrase){
+    var hay=' '+nrm(phrase)+' ', out={forme:forme(hay),champs:{}};
+    (VARIANTES[k]||[]).forEach(function(r){ if(r[0].test(hay)) Object.keys(r[1]).forEach(function(c){ if(out.champs[c]==null) out.champs[c]=r[1][c]; }); });
+    return out;
+  };
+
+  window.mqDocDetecte=function(phrase){
+    var hay=' '+nrm(phrase)+' ';
+    var out={phrase:S(phrase),candidats:[],paquet:null,absent:null,sur:false};
+    if(!nrm(phrase)) return out;
+
+    /* un modèle réclamé mais pas encore au catalogue : on le nomme */
+    for(var i=0;i<ABSENTS.length;i++){
+      var found=ABSENTS[i][1].filter(function(t){ return hay.indexOf(' '+nrm(t)+' ')>=0 || hay.indexOf(nrm(t))>=0; });
+      if(found.length){ out.absent={k:ABSENTS[i][0],l:ABSENTS_LBL[ABSENTS[i][0]],terme:found[0]}; }
+    }
+
+    var vus={};
+    typesCat().forEach(function(t){ if(t&&t.k) vus[t.k]=1; });
+    Object.keys(SYN).forEach(function(k){ vus[k]=1; });
+    Object.keys(vus).forEach(function(k){
+      var r=score(hay,k);
+      if(r.s>0) out.candidats.push({k:k,l:libelle(k),score:r.s,pourquoi:r.vus.join(', ')});
+    });
+    out.candidats.sort(function(a,b){ return b.score-a.score || a.l.localeCompare(b.l,'fr'); });
+    out.candidats=out.candidats.slice(0,5);
+    out.candidats.forEach(function(c){ c.variante=window.mqDocVariante(c.k,phrase); });
+
+    out.paquet=paquet(hay,phrase);
+    /* sûr si le meilleur candidat domine nettement, ou si un paquet est nommé */
+    var a=out.candidats[0], b=out.candidats[1];
+    out.sur=!!out.paquet || !!(a && a.score>=4 && (!b || a.score-b.score>=2));
+    return out;
+  };
+
+  /* ============ 2) Ce que l'on sait déjà, ce qu'il reste à demander ============ */
+
+  var IGNORE=/^(_|notes?$|observations?$|commentaire)/i;
+  var PAS_UNE_QUESTION=['chk','check','file','sig','sep','titre'];
+
+  function champsDuModele(k){
+    var out=[];
+    sur(function(){
+      var G=(typeof edSchema==='function')?edSchema(k):[];
+      (G||[]).forEach(function(g){
+        (g.f||[]).forEach(function(f){
+          var key=f[0]; if(!key||IGNORE.test(key)) return;
+          var typ=f[2]||'';
+          if(PAS_UNE_QUESTION.indexOf(typ)>=0) return;
+          out.push({key:key,lbl:f[1]||key,type:typ,groupe:g.g||'',opts:f[3]||null});
+        });
+      });
+    },null);
+    return out;
+  }
+  window.mqDocChampsModele=champsDuModele;
+
+  window.mqDocChamps=function(k,cid,did){
+    var champs=champsDuModele(k), ref={};
+    sur(function(){
+      if(typeof window.prefValeurs==='function'){
+        var M=window.prefValeurs(cid,did)||{};
+        Object.keys(M).forEach(function(kk){
+          var v=M[kk]; ref[nrm(kk)]={v:(v&&v.v!=null)?v.v:v, src:(v&&v.src)||''};
+        });
+      }
+    },null);
+    var connus=[], manques=[];
+    champs.forEach(function(c){
+      var hit=ref[nrm(c.key)]||null;
+      var v=hit?S(hit.v):'';
+      if(v) connus.push({key:c.key,lbl:c.lbl,v:v,src:(hit&&hit.src)||'référentiel',groupe:c.groupe});
+      else manques.push(c);
+    });
+    return {total:champs.length,connus:connus,manques:manques};
+  };
+
+  /* ================= 3) Règles de conformité déclarées ================= */
+  /* Chaque règle dit : sur quelles clés elle porte, ce qu'elle exige, et si
+     son échec bloque la finalisation ou se contente d'avertir. */
+  var REGLES=[
+    {id:'siren', cle:/(^|_)siren$|siren/, bloque:true,
+     ok:function(v){ return sur(function(){ return window.validSiren?window.validSiren(v):true; },true); },
+     dit:'SIREN invalide (9 chiffres, clé de Luhn)'},
+    {id:'siret', cle:/(^|_)siret$|siret/, bloque:true,
+     ok:function(v){ return sur(function(){ return window.validSiret?window.validSiret(v):true; },true); },
+     dit:'SIRET invalide (14 chiffres, clé de Luhn)'},
+    {id:'tva', cle:/tvaintra|(^|_)tva$|numtva/, bloque:true,
+     ok:function(v){ return sur(function(){ return window.validTvaFr?window.validTvaFr(v):true; },true); },
+     dit:'N° de TVA intracommunautaire invalide (FR + 11 caractères)'},
+    {id:'iban', cle:/iban/, bloque:true,
+     ok:function(v){ return sur(function(){ return window.validIBAN?window.validIBAN(v):true; },true); },
+     dit:'IBAN invalide (contrôle modulo 97)'},
+    {id:'email', cle:/mail/, bloque:true,
+     ok:function(v){ return sur(function(){ return window.validEmail?window.validEmail(v):true; },true); },
+     dit:'Adresse électronique invalide'},
+    {id:'cp', cle:/^(cp|salcp|domcp|ep_cp|st_cp)$|codepostal/, bloque:true,
+     ok:function(v){ return /^\d{5}$/.test(S(v).replace(/\s/g,'')); },
+     dit:'Code postal : 5 chiffres attendus'},
+    {id:'naissance', cle:/naiss/, bloque:true, date:true,
+     ok:function(v,t){ var d=jour(v); if(!d) return true; return d.getTime()<Date.now(); },
+     dit:'Date de naissance postérieure à aujourd’hui'},
+    {id:'naissance_age', cle:/naiss/, bloque:false, date:true,
+     ok:function(v){ var d=jour(v); if(!d) return true; var a=(Date.now()-d.getTime())/31557600000; return a>=16&&a<=110; },
+     dit:'Âge hors des bornes vraisemblables (16 à 110 ans)'},
+    {id:'date_bornes', cle:/date/, bloque:false, date:true,
+     ok:function(v){ var d=jour(v); if(!d) return true; var y=d.getFullYear(); return y>=1900&&y<=(new Date()).getFullYear()+10; },
+     dit:'Date hors bornes (avant 1900 ou au-delà de dix ans)'}
+  ];
+
+  function jour(v){
+    var s=S(v); if(!s) return null;
+    var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+    m=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+    if(m) return new Date(+m[3],+m[2]-1,+m[1]);
+    return null;
+  }
+
+  /* les couples début / fin : la fin ne précède pas le début */
+  function couples(data,champs){
+    var out=[], par={};
+    champs.forEach(function(c){
+      var k=c.key, n=nrm(k);
+      var m=n.match(/^(.*)(debut|fin)$/); if(!m) return;
+      var base=m[1]||'_'; par[base]=par[base]||{};
+      par[base][m[2]]=c;
+    });
+    Object.keys(par).forEach(function(b){
+      var p=par[b]; if(!p.debut||!p.fin) return;
+      var d1=jour(data[p.debut.key]), d2=jour(data[p.fin.key]);
+      if(d1&&d2&&d2.getTime()<d1.getTime())
+        out.push({key:p.fin.key,lbl:p.fin.lbl,raison:'« '+p.fin.lbl+' » précède « '+p.debut.lbl+' »',bloque:true});
+    });
+    return out;
+  }
+
+  window.mqDocControles=function(k,data){
+    data=data||{};
+    /* On parcourt les données PRÉSENTES, pas les champs déclarés : un document
+       peut porter une valeur sous une clé absente du schéma (reprise, import,
+       champ ajouté par un module) et cette valeur doit être contrôlée comme
+       les autres. Le schéma ne sert plus qu'à nommer joliment le champ. */
+    var champs=champsDuModele(k), bloquants=[], avertissements=[];
+    var libelles={}; champs.forEach(function(c){ libelles[c.key]=c; });
+    var cles=Object.keys(data).filter(function(key){ return !IGNORE.test(key); });
+    champs.forEach(function(c){ if(cles.indexOf(c.key)<0 && data[c.key]!=null) cles.push(c.key); });
+    cles.forEach(function(key){
+      var c=libelles[key]||{key:key,lbl:key,type:''};
+      var v=data[key]; if(v==null||S(v)==='') return;   /* le vide est un manque, pas une faute */
+      if(typeof v==='boolean'||typeof v==='object') return;
+      var n=nrm(c.key);
+      REGLES.forEach(function(r){
+        if(!r.cle.test(n) && !r.cle.test(c.key)) return;
+        if(r.date && !jour(v)) return;
+        if(r.ok(v,c.type)) return;
+        var e={key:c.key,lbl:c.lbl,raison:r.dit,regle:r.id};
+        (r.bloque?bloquants:avertissements).push(e);
+      });
+    });
+    couples(data,cles.map(function(key){ return libelles[key]||{key:key,lbl:key}; }))
+      .forEach(function(e){ bloquants.push({key:e.key,lbl:e.lbl,raison:e.raison,regle:'chronologie'}); });
+    return {bloquants:bloquants,avertissements:avertissements,regles:REGLES.length};
+  };
+  window.mqDocRegles=function(){ return REGLES.map(function(r){ return {id:r.id,bloque:!!r.bloque,dit:r.dit}; }); };
+
+  /* La barrière : on ne finalise pas un document dont une donnée est fausse.
+     Un champ vide reste traité par la chaîne existante (v671), qui refuse
+     déjà de finaliser un document incomplet. */
+  try{
+    var _fin=window.edLibSaveDoc;
+    if(typeof _fin==='function' && !_fin.__intel711){
+      window.edLibSaveDoc=function(id){
+        try{
+          var d=((B().editionsLibres)||[]).filter(function(x){ return x.id===id; })[0];
+          if(d){
+            var r=window.mqDocControles(d.k,d.data||{});
+            if(r.bloquants.length){
+              T('Document non conforme — '+r.bloquants.length+' donnée(s) à corriger : '
+                +r.bloquants.slice(0,3).map(function(b){ return b.lbl+' ('+b.raison+')'; }).join(' · ')
+                +(r.bloquants.length>3?' …':''),'error');
+              return false;
+            }
+          }
+        }catch(e){}
+        return _fin.apply(this,arguments);
+      };
+      window.edLibSaveDoc.__intel711=1;
+    }
+  }catch(e){}
+
+  /* ==================== La porte d'entrée ==================== */
+
+  window.mqIntelSet=function(v){ window.__intelQ=S(v); };
+  window.mqIntelChercher=function(){
+    var inp=document.getElementById('intel-q');
+    var q=inp?S(inp.value):S(window.__intelQ);
+    window.__intelQ=q;
+    window.__intelRes=q?window.mqDocDetecte(q):null;
+    try{ render(); }catch(e){}
+    try{ var i2=document.getElementById('intel-q'); if(i2){ i2.value=q; i2.focus(); } }catch(e){}
+  };
+  window.mqIntelVider=function(){ window.__intelQ=''; window.__intelRes=null; try{ render(); }catch(e){} };
+
+  window.mqIntelCreer=function(k,forme){
+    if(typeof window.edLibNew!=='function'){ T('Création de document indisponible.','error'); return; }
+    var va=window.mqDocVariante(k,S(window.__intelQ));
+    var avant=((B().editionsLibres)||[]).length;
+    window.edLibNew(k,forme||va.forme||'');
+    /* Le nouveau document est en tête de liste (edLibNew empile par le début).
+       On ne se fie pas à state.edLibId : un module postérieur le remet à vide. */
+    var L=(B().editionsLibres)||[];
+    var d=(L.length>avant && L[0] && L[0].k && (L[0].k===k || L[0].k.indexOf(k)===0))?L[0]:null;
+    var id=d?d.id:null;
+    try{
+      if(d){ d.data=d.data||{}; Object.keys(va.champs).forEach(function(c){ if(!S(d.data[c])) d.data[c]=va.champs[c]; });
+        if(Object.keys(va.champs).length && typeof save==='function') save(); }
+    }catch(e){}
+    T('« '+libelle(k)+' » créé'+(id?' — '+(window.mqDocChamps(k).manques.length)+' information(s) à compléter':''),'success');
+    try{ if(typeof go==='function') go('editions'); }catch(e){}
+  };
+  window.mqIntelCreerPaquet=function(){
+    var r=window.__intelRes; if(!r||!r.paquet) return;
+    var f=r.paquet.forme||window.mqDocVariante('',r.phrase).forme||'', n=0, dernier=null;
+    r.paquet.docs.forEach(function(k){
+      try{ window.edLibNew(k,f); n++; dernier=(typeof state!=='undefined'&&state)?state.edLibId:null; }catch(e){}
+    });
+    T(n+' document(s) créé(s) pour « '+r.paquet.label+' »','success');
+    try{ if(typeof go==='function') go('editions'); }catch(e){}
+  };
+
+  function ligneCand(c,i){
+    return '<div class="intel-row'+(i===0?' best':'')+'">'
+      +'<span class="intel-l"><b>'+E(c.l)+'</b><small>'+E(c.pourquoi||'')+'</small></span>'
+      +'<span class="intel-sc">'+c.score+'</span>'
+      +'<button class="btn btn-sm'+(i===0?' btn-pri':'')+'" onclick="mqIntelCreer(\''+E(c.k)+'\')">Créer</button>'
+      +'</div>';
+  }
+
+  window.mqIntelCard=function(){
+    var q=S(window.__intelQ), r=window.__intelRes;
+    var h='<div class="card intel-card"><div class="card-h"><h2>Que faut-il produire ?</h2>'
+      +'<span class="sub" style="margin-left:auto">'+typesCat().length+' modèles · '+window.mqDocRegles().length+' règles de conformité</span></div>'
+      +'<div class="card-b">'
+      +'<div class="intel-q"><input id="intel-q" type="text" placeholder="Une phrase suffit : « il me faut un CDI », « je veux créer une SASU », « transfert de siège »" value="'+E(q)+'" '
+      +'oninput="mqIntelSet(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();mqIntelChercher();}">'
+      +'<button class="btn btn-pri btn-sm" onclick="mqIntelChercher()">Chercher</button>'
+      +(q?'<button class="btn btn-sm btn-ghost" onclick="mqIntelVider()">Effacer</button>':'')
+      +'</div>';
+
+    if(!r){ h+='<p class="hint" style="margin:10px 0 0">Le modèle est reconnu à partir de vos mots, les informations déjà connues sont reprises du référentiel, et seules les données manquantes restent à saisir.</p>'; }
+    else {
+      if(r.absent){
+        h+='<div class="intel-abs">Aucun modèle de <b>'+E(r.absent.l)+'</b> au catalogue. '
+          +'Ce document se rédige encore à la main — dites-le si vous voulez qu’il rejoigne la bibliothèque.</div>';
+      }
+      if(r.paquet){
+        h+='<div class="intel-pack"><div class="intel-pack-h">'+E(r.paquet.label)+' — '+r.paquet.docs.length+' document(s)</div>'
+          +'<div class="intel-pack-l">'+r.paquet.docs.map(function(k){ return '<span>'+E(libelle(k))+'</span>'; }).join('')+'</div>'
+          +'<button class="btn btn-pri btn-sm" onclick="mqIntelCreerPaquet()">Créer les '+r.paquet.docs.length+' documents</button></div>';
+      }
+      if(r.candidats.length){
+        h+='<div class="intel-h">'+(r.sur?'Modèle reconnu':'À confirmer — plusieurs modèles possibles')+'</div>'
+          +r.candidats.map(ligneCand).join('');
+      } else if(!r.paquet && !r.absent){
+        h+='<div class="intel-abs">Rien de reconnu dans cette phrase. Essayez le nom du document ou de la formalité.</div>';
+      }
+    }
+    return h+'</div></div>';
+  };
+
+  try{
+    var _pp=window.pagePilotage;
+    if(typeof _pp==='function' && !_pp.__intel711){
+      window.pagePilotage=function(){
+        var h=_pp.apply(this,arguments);
+        try{ if(typeof h==='string') h=window.mqIntelCard()+h; }catch(e){}
+        return h;
+      };
+      Object.keys(_pp).forEach(function(k){ try{ window.pagePilotage[k]=_pp[k]; }catch(e){} });
+      window.pagePilotage.__intel711=1;
+    }
+  }catch(e){}
+
+  try{
+    if(!document.getElementById('intel-css')){
+      var st=document.createElement('style'); st.id='intel-css';
+      st.textContent='.intel-card .card-b{padding-top:12px}'
+       +'.intel-q{display:flex;gap:8px;align-items:center;flex-wrap:wrap}'
+       +'.intel-q input{flex:1;min-width:280px;padding:9px 12px;border-radius:9px}'
+       +'.intel-h{margin:14px 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.7}'
+       +'.intel-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:9px;margin-bottom:6px}'
+       +'.intel-row.best{border-color:rgba(214,158,62,.55);background:rgba(214,158,62,.07)}'
+       +'.intel-l{flex:1;min-width:0;display:flex;flex-direction:column}'
+       +'.intel-l small{opacity:.6;font-size:11px}'
+       +'.intel-sc{font-size:11px;opacity:.6;font-family:ui-monospace,monospace}'
+       +'.intel-abs{margin:12px 0 0;padding:9px 11px;border-radius:9px;border:1px solid rgba(232,138,114,.4);background:rgba(232,138,114,.08);font-size:12.5px}'
+       +'.intel-pack{margin:12px 0 0;padding:10px 12px;border-radius:10px;border:1px solid rgba(47,174,95,.4);background:rgba(47,174,95,.07)}'
+       +'.intel-pack-h{font-weight:600;margin-bottom:6px}'
+       +'.intel-pack-l{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}'
+       +'.intel-pack-l span{font-size:11.5px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.07)}';
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+})();
+
 </script>
 </body>
 </html>
