@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=719;
+var LAST_VER=720;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -15645,7 +15645,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
       var gateM='<div id="fi-gate" class="fi-gate '+(okM?'ok':'ko')+'">'+window.formGateInner(okM,gateMtxt)+'</div>';
       var actM='<div class="fi-actions"><div class="fi-actions-col">'+gateM+'<div class="fi-actions-in">'
         +'<button class="btn btn-ghost" onclick="formReset()">Réinitialiser</button>'
-        +'<button class="btn btn-ghost" onclick="formBrouillon()">Brouillon</button>'
+        +'<button class="btn btn-ghost" onclick="formBrouillon()">Enregistrer le brouillon</button>'
         +'<div class="fi-actions-r">'
         +'<button class="btn'+(okM?'':' is-disabled')+'" id="fi-save"'+disM+' onclick="formCreerDossier(false)">Enregistrer le dossier</button>'
         +'<button class="btn btn-pri'+(okM?'':' is-disabled')+'" id="fi-save-doc"'+disM+' onclick="formCreerDossier(true)">Enregistrer &amp; ouvrir les documents</button>'
@@ -15763,7 +15763,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     var gate='<div id="fi-gate" class="fi-gate '+(okAll?'ok':'ko')+'">'+window.formGateInner(okAll,gateTxt)+'</div>';
     var actions='<div class="fi-actions"><div class="fi-actions-col">'+gate+'<div class="fi-actions-in">'
       +'<button class="btn btn-ghost" onclick="formReset()">Réinitialiser</button>'
-      +'<button class="btn btn-ghost" onclick="formBrouillon()">Brouillon</button>'
+      +'<button class="btn btn-ghost" onclick="formBrouillon()">Enregistrer le brouillon</button>'
       +'<div class="fi-actions-r">'
       +'<button class="btn'+(okAll?'':' is-disabled')+'" id="fi-save"'+dis+' onclick="formCreerDossier(false)">Enregistrer le dossier</button>'
       +'<button class="btn btn-pri'+(okAll?'':' is-disabled')+'" id="fi-save-doc"'+dis+' onclick="formCreerDossier(true)">Enregistrer &amp; ouvrir les documents</button>'
@@ -16498,16 +16498,25 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   }
   try{ var _bn=window.buildNav; if(typeof _bn==='function'){ window.buildNav=function(){var r=_bn.apply(this,arguments);try{injectBtn();}catch(e){}return r;}; } }catch(e){}
 
-  /* Aligne le bord gauche de la barre fixe sur le bord droit RÉEL de la barre latérale
-     (le grid .app peut être décalé par une gouttière/scrollbar → éviter le chevauchement du contour). */
+  /* Cale la barre fixe sur la COLONNE DE CONTENU, pas sur la fenêtre.
+     Deux pièges, tous deux mesurés :
+       - getBoundingClientRect() rend des pixels écran, alors qu'une variable CSS est
+         relue en pixels CSS. Sous le zoom d'affichage (html{zoom:1.1}), écrire 212
+         plaçait la barre à 233 : 21 px de décalage, soit exactement le zoom.
+       - « right:0 » se cale sur la fenêtre, donc SOUS la barre de défilement : les
+         boutons d'enregistrement dépassaient de 13 px le bord des cartes.
+     On lit donc #view (la colonne réelle) et on convertit en pixels CSS. */
   function fiBarAlign(){
     try{
       var root=document.documentElement;
-      if(window.innerWidth<=860){ root.style.removeProperty('--fi-bar-left'); return; }
-      var a=document.querySelector('aside');if(!a){root.style.removeProperty('--fi-bar-left');return;}
-      var r=a.getBoundingClientRect();
-      if(r.width>0 && r.right>0 && r.left>=0){ root.style.setProperty('--fi-bar-left', Math.round(r.right)+'px'); }
-      else root.style.removeProperty('--fi-bar-left');
+      var effacer=function(){ root.style.removeProperty('--fi-bar-left'); root.style.removeProperty('--fi-bar-right'); };
+      if(window.innerWidth<=860){ effacer(); return; }
+      var v=document.getElementById('view'); if(!v){ effacer(); return; }
+      var r=v.getBoundingClientRect(); if(!(r.width>0&&r.left>=0)){ effacer(); return; }
+      var z=parseFloat(getComputedStyle(root).zoom); if(!(z>0)) z=1;
+      var droite=window.innerWidth-r.right; if(!(droite>=0)) droite=0;
+      root.style.setProperty('--fi-bar-left', (Math.round(r.left/z*10)/10)+'px');
+      root.style.setProperty('--fi-bar-right', (Math.round(droite/z*10)/10)+'px');
     }catch(e){}
   }
   window.fiBarAlign=fiBarAlign;
@@ -16538,7 +16547,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     '.fi-assoc-t{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8f8f98;font-weight:700;margin-bottom:8px}',
     '.fi-ax{position:absolute;top:8px;right:8px;width:24px;height:24px;border:1px solid #2c2c30;background:#141416;color:#c9c9d2;border-radius:7px;cursor:pointer;line-height:1;font-size:12px;transition:.15s ease}',
     '.fi-ax:hover{background:#1d1d20;color:#fff}',
-    '.fi-actions{position:fixed;left:var(--fi-bar-left,192px);right:0;bottom:0;z-index:40;background:#050506;border-top:1px solid #1c1c1e;box-shadow:0 -10px 26px -14px rgba(0,0,0,.75)}',
+    '.fi-actions{position:fixed;left:var(--fi-bar-left,192px);right:var(--fi-bar-right,0px);bottom:0;z-index:40;background:#050506;border-top:1px solid #1c1c1e;box-shadow:0 -10px 26px -14px rgba(0,0,0,.75)}',
     '.fi-actions-col{max-width:920px;width:100%;box-sizing:border-box;margin:0 auto;display:flex;flex-direction:column;gap:8px;padding:10px 22px}',
     '.fi-actions-in{display:flex;align-items:center;gap:10px}',
     '.fi-actions-r{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}',
@@ -16568,7 +16577,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     '.fi-nature{display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap}',
     '.fi-nat{flex:1;min-width:180px;padding:9px 12px;border:1px solid #262629;border-radius:10px;background:#0d0d0f;color:#c9cbce;font:600 12.5px system-ui,sans-serif;cursor:pointer;transition:.15s ease}',
     '.fi-nat:hover{border-color:#3a3a40;color:#eef0f4}',
-    '.fi-nat.on{background:#1c1c1e;color:#fff;border-color:#4a4a52;box-shadow:inset 0 0 0 1px #4a4a52}',
+    '.fi-nat.on{border-color:#8a8a93;box-shadow:inset 0 0 0 1.5px #8a8a93,0 3px 12px -5px rgba(138,138,147,.75)}',
     '.fi-dup{margin-top:12px;border:1px solid rgba(170,130,74,.55);border-radius:10px;background:rgba(120,90,42,.14);padding:11px 13px}',
     '.fi-dup>b{display:block;font-size:12.5px;color:#f0d6b6}',
     '.fi-dup-note{font-size:11.5px;color:#cbb89a;margin:3px 0 8px;line-height:1.45}',
@@ -38200,7 +38209,7 @@ function testLienSignature() {
     side.innerHTML='<div class="card ff-card"><div class="card-b"><h5>Dossier en direct</h5>'+rec+'</div></div>'
       +'<div class="card ff-card"><div class="card-b"><h5>🌐 En ligne'+(R?' <span class="ff-tag ok">'+((R.sources||[]).filter(function(s){return s.ok;}).length)+' sources</span>':'')+'</h5>'+online+'</div></div>'
       +'<div class="card ff-card"><div class="card-b"><h5>À compléter'+(ml.length?' <span class="ff-tag warn">'+ml.length+'</span>':'')+'</h5>'+mq+'</div></div>'
-      +'<div class="card ff-card"><div class="card-b"><h5>Brouillon</h5><div class="ff-hint">'+(dr&&dr.ts?('Dernier : '+E(dr.label||'')+' · '+E(new Date(dr.ts).toLocaleString('fr-FR'))):'Aucun brouillon nommé pour l\'instant.')+'</div><div class="ff-btns"><button type="button" class="btn btn-sm btn-ghost" onclick="formBrouillon()">Enregistrer le brouillon</button></div><div class="ff-hint dim">La saisie est enregistrée automatiquement avant toute mise à jour.</div></div></div>'; }
+      +'<div class="card ff-card"><div class="card-b"><h5>Brouillon</h5><div class="ff-hint">'+(dr&&dr.ts?('Dernier : '+E(dr.label||'')+' · '+E(new Date(dr.ts).toLocaleString('fr-FR'))):'Aucun brouillon nommé pour l\'instant.')+'</div><div class="ff-hint dim">La saisie est enregistrée automatiquement avant toute mise à jour. Pour nommer un brouillon : « Enregistrer le brouillon », dans la barre du bas.</div></div></div>'; }
   window.ffVoirEnLigne=function(){ try{ var o=FD(); o.extra=o.extra||{}; delete o.extra.registreMasque; if(typeof render==='function')render(); setTimeout(function(){ var p=document.querySelector('#view .fi-reg'); if(p)p.scrollIntoView({behavior:'smooth',block:'start'}); },80); }catch(e){} };
 
   /* ---------- Liseré bleu : champs remplis depuis internet ---------- */
@@ -40961,7 +40970,7 @@ function testLienSignature() {
     P+'.btn.btn-sm svg{width:12px!important;height:12px!important}',
     P+'.btn>*{vertical-align:middle}',
     /* ── boutons des modules (mêmes règles de centrage et de contour) ── */
-    P+'.inv-tb,'+P+'.inv-addl,'+P+'.fb-tv,'+P+'.ckp-rbtn,'+P+'.dem-mode-b,'+P+'.dem-nat-b,'+P+'.cli-tab,'+P+'.fi-subtab,'+P+'.fp-filt,'+P+'.ed2-pc-chip,'+P+'.ed2-pc-v,'+P+'.ed2-cat,'+P+'.inv-sb,'+P+'.fb-type,'+P+'.inv-lx,'+P+'.topbar-refresh,'+P+'.topbar-theme,'+P+'.dots{display:inline-flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;box-sizing:border-box!important;line-height:1.2!important}',
+    P+'.inv-tb,'+P+'.inv-addl,'+P+'.fb-tv,'+P+'.ckp-rbtn,'+P+'.dem-mode-b,'+P+'.dem-nat-b,'+P+'.cli-tab,'+P+'.fi-subtab,'+P+'.fi-nat,'+P+'.fp-filt,'+P+'.ed2-pc-chip,'+P+'.ed2-pc-v,'+P+'.ed2-cat,'+P+'.inv-sb,'+P+'.fb-type,'+P+'.inv-lx,'+P+'.topbar-refresh,'+P+'.topbar-theme,'+P+'.dots{display:inline-flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;box-sizing:border-box!important;line-height:1.2!important}',
     P+'.inv-tb{min-height:34px!important;padding:7px 13px!important;border-radius:9px!important;border-width:1px!important;font-size:12.5px!important}',
     P+'.inv-addl{min-height:36px!important;border-radius:9px!important;border-width:1px!important}',
     P+'.inv-lx{border-radius:7px!important;border-width:1px!important}',
@@ -40975,6 +40984,10 @@ function testLienSignature() {
     P+'.dem-view-acts{display:flex!important;flex-wrap:wrap;gap:8px!important}',
     P+'#ov-f,'+P+'.ov-f{display:flex!important;justify-content:center!important;gap:8px!important;flex-wrap:wrap}',
     P+'.fb-lbtns{justify-content:center!important}',
+    /* Formulaire & Étude de marché : la barre du bas se lit comme un groupe,
+       pas comme deux paquets collés aux bords. */
+    P+'.fi-actions-in{justify-content:center!important;flex-wrap:wrap;gap:10px!important}',
+    P+'.fi-actions-r{margin-left:0!important;justify-content:center!important}',
     P+'.if-presets,'+P+'.fb-modchips{justify-content:flex-start}',
     /* ── contours ── */
     P+'.card{border-radius:12px!important;border-width:1px!important;border-style:solid!important}',
@@ -40993,10 +41006,15 @@ function testLienSignature() {
     P+'.ckp-lk{padding:3px 6px!important}',
     P+'.ed2-pc-v{border-radius:8px!important}',
     /* ── v641 : onglets internes des modules unifiés (même hauteur, même police, même rayon, même contour) ── */
-    P+':is(.dem-mode,.dem-nat,.cli-tabs,.fi-subtabs-in,.fp-filters,.ed2-pc-chips,.ckp-racc,.emf-chips,.fb-tvap,.fb-modchips){display:flex!important;flex-wrap:wrap;gap:6px!important;align-items:center}',
-    P+':is(.dem-mode-b,.dem-nat-b,.cli-tab,.fi-subtab,.fp-filt,.ed2-pc-chip,.ckp-rbtn,.emf-chip,.fb-tv){min-height:32px!important;padding:6px 12px!important;border-radius:9px!important;border-width:1px!important;border-style:solid!important;font-size:12.5px!important;font-weight:600!important;line-height:1.2!important;box-sizing:border-box!important}',
+    P+':is(.dem-mode,.dem-nat,.cli-tabs,.fi-subtabs-in,.fi-nature,.fp-filters,.ed2-pc-chips,.ckp-racc,.emf-chips,.fb-tvap,.fb-modchips){display:flex!important;flex-wrap:wrap;gap:6px!important;align-items:center}',
+    P+':is(.dem-mode-b,.dem-nat-b,.cli-tab,.fi-subtab,.fi-nat,.fp-filt,.ed2-pc-chip,.ckp-rbtn,.emf-chip,.fb-tv){min-height:32px!important;padding:6px 12px!important;border-radius:9px!important;border-width:1px!important;border-style:solid!important;font-size:12.5px!important;font-weight:600!important;line-height:1.2!important;box-sizing:border-box!important}',
     P+':is(.dem-nat-b,.fi-subtab){min-height:32px!important;height:auto!important}',
-    P+':is(.dem-mode,.dem-nat,.cli-tabs){padding:4px!important;border-radius:11px!important}'
+    P+':is(.dem-mode,.dem-nat,.cli-tabs){padding:4px!important;border-radius:11px!important}',
+    /* La pilule d’onglets est dessinée pour deux moitiés égales : l’indicateur
+       glisse d’exactement 50 %. Le display:flex de la famille ci-dessus la
+       cassait — les onglets se tassaient à gauche et un tiers de la pilule
+       restait vide. Cette règle vient donc après elle. */
+    P+'.fi-subtabs-in{display:grid!important;grid-template-columns:1fr 1fr!important}'
   ].join('\n');
   var st=document.createElement('style'); st.id='ui-polish-css'; st.textContent=css; document.head.appendChild(st);
   /* rester en dernier dans <head> (les thèmes injectent après le rendu) */
