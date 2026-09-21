@@ -3726,7 +3726,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=715;
+var LAST_VER=716;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -44916,8 +44916,18 @@ function testLienSignature() {
       if(typeof f!=='function'||f['__'+marque]) return false;
       window[nom]=function(){ var r=f.apply(this,arguments); try{ return fn.call(this,r,arguments); }catch(e){ return r; } };
       window[nom]['__'+marque]=1; return true; }catch(e){ return false; } };
-  MQ.apresRendu=function(fn,marque,delai){ return MQ.greffe('render',function(r){
-      setTimeout(function(){ try{ fn(); }catch(e){} },delai==null?60:delai); return r; },marque); };
+  /* Les cartes greffées juste après le rendu se posent AVANT la peinture.
+     Avec un simple délai, le navigateur affichait d'abord la page amputée de
+     ces cartes, puis les voyait surgir : à chaque clic, l'écran semblait se
+     rafraîchir. Une image d'animation suffit, et elle précède la peinture.
+     Les délais longs — posés pour attendre autre chose que le rendu — sont
+     conservés tels quels. */
+  MQ.apresRendu=function(fn,marque,delai){ var d=(delai==null?60:delai);
+    return MQ.greffe('render',function(r){
+      if(d<=90&&typeof requestAnimationFrame==='function')
+        requestAnimationFrame(function(){ try{ fn(); }catch(e){} });
+      else setTimeout(function(){ try{ fn(); }catch(e){} },d);
+      return r; },marque); };
   MQ.style=function(id,css){ try{ if(document.getElementById(id)) return false;
       var s=document.createElement('style'); s.id=id; s.textContent=css; document.head.appendChild(s); return true; }catch(e){ return false; } };
 
@@ -50387,9 +50397,13 @@ function testLienSignature() {
   var CSS=
   /* --- 1. la page se pose au lieu d'apparaître --- */
    '@keyframes mqPose{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}'
-  +'#view>.card,#view>.pc-wrap,#view>.mod-wrap,#view>.dash-wrap{animation:mqPose .26s cubic-bezier(.22,.7,.3,1) both}'
-  +'#view>.card:nth-child(2){animation-delay:.03s}#view>.card:nth-child(3){animation-delay:.06s}'
-  +'#view>.card:nth-child(4){animation-delay:.09s}#view>.card:nth-child(n+5){animation-delay:.12s}'
+  /* L'entrée ne se joue qu'au CHANGEMENT de page. Un rendu déclenché par un
+     bouton reconstruit le même écran : le rejouer donnait l'impression que la
+     page « s'actualisait » à chaque appui. */
+  +'#view.mq-entre>.card,#view.mq-entre>.pc-wrap,#view.mq-entre>.mod-wrap,#view.mq-entre>.dash-wrap'
+    +'{animation:mqPose .26s cubic-bezier(.22,.7,.3,1) both}'
+  +'#view.mq-entre>.card:nth-child(2){animation-delay:.03s}#view.mq-entre>.card:nth-child(3){animation-delay:.06s}'
+  +'#view.mq-entre>.card:nth-child(4){animation-delay:.09s}#view.mq-entre>.card:nth-child(n+5){animation-delay:.12s}'
   /* --- 3. la douceur des états : rien ne saute --- */
   +'#view .card,#view .btn,#view .kpi,#view .nav-btn,.pc-row,.rp-l,.mp-i,.pd-j{'
     +'transition:background-color .17s ease,border-color .17s ease,color .17s ease,'
@@ -50405,14 +50419,36 @@ function testLienSignature() {
   +'#ov.show .modal{animation:mqOvC .22s cubic-bezier(.22,.7,.3,1) both}'
   /* --- 6. qui demande moins d'animation n'en a aucune --- */
   +'@media(prefers-reduced-motion:reduce){'
-    +'#view>.card,#view>.pc-wrap,#view>.mod-wrap,#view>.dash-wrap,'
+    +'#view.mq-entre>.card,#view.mq-entre>.pc-wrap,#view.mq-entre>.mod-wrap,#view.mq-entre>.dash-wrap,'
     +'#ov.show,#ov.show .modal{animation:none!important}'
     +'#view .card,#view .btn,#view .kpi,.pc-row,.rp-l,.mp-i,.pd-j{transition:none!important}'
     +'#view{scroll-behavior:auto}}';
   try{ if(M.style) M.style('mq-fluide-css',CSS);
        else { var s=document.createElement('style'); s.id='mq-fluide-css'; s.textContent=CSS; document.head.appendChild(s); } }catch(e){}
 
-  /* --- 7. une mesure honnête du temps de rendu, consultable --- */
+  /* --- 7. l'entrée, au changement de page seulement --- */
+  (function(){
+    var derniere=null, minuteur=null;
+    function pageCourante(){ try{ return (typeof state!=='undefined'&&state)?state.page:''; }catch(e){ return ''; } }
+    function apres(){
+      var V=document.getElementById('view'); if(!V) return;
+      var p=pageCourante();
+      if(p===derniere){ V.classList.remove('mq-entre'); return; }
+      derniere=p;
+      V.classList.remove('mq-entre');
+      /* forcer le navigateur à reprendre l'animation depuis le début */
+      void V.offsetWidth;
+      V.classList.add('mq-entre');
+      if(minuteur) clearTimeout(minuteur);
+      minuteur=setTimeout(function(){ try{ V.classList.remove('mq-entre'); }catch(e){} },600);
+    }
+    try{ var _r=window.render;
+      if(typeof _r==='function'&&!_r.__mqEntre){
+        window.render=function(){ var out=_r.apply(this,arguments); try{ apres(); }catch(e){} return out; };
+        window.render.__mqEntre=1; } }catch(e){}
+  })();
+
+  /* --- 8. une mesure honnête du temps de rendu, consultable --- */
   window.mqRendu=function(n){ n=n||3; var pages=[], out={};
     try{ pages=(typeof PAGES!=='undefined')?PAGES.map(function(p){ return p.id; }):[]; }catch(e){}
     var avant=null; try{ avant=state.page; }catch(e){}
