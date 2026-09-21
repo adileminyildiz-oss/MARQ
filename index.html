@@ -652,8 +652,13 @@ aside .nav-btn:hover{color:#000}
   function normSecours(s){ return (''+(s||'')).toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
   /* ---------- miroir IndexedDB de la base (même magasin que la persistance étendue) ---------- */
-  function idb(nom, magasin){ return new Promise(function(res,rej){ try{ var rq=indexedDB.open(nom,1);
-    rq.onupgradeneeded=function(){ try{ if(!rq.result.objectStoreNames.contains(magasin)) rq.result.createObjectStore(magasin); }catch(e){} };
+  /* Le magasin des instantanés est créé ailleurs avec une clé interne (« ts »).
+     Si ce helper le créait sans clé, la forme du magasin dépendait de qui
+     ouvrait la base en premier, et l'écriture échouait une fois sur deux.
+     On lui passe donc la même clé. */
+  function idb(nom, magasin, clePath){ return new Promise(function(res,rej){ try{ var rq=indexedDB.open(nom,1);
+    rq.onupgradeneeded=function(){ try{ if(!rq.result.objectStoreNames.contains(magasin))
+      rq.result.createObjectStore(magasin, clePath?{keyPath:clePath}:undefined); }catch(e){} };
     rq.onsuccess=function(){ res(rq.result); }; rq.onerror=function(){ rej(rq.error); }; }catch(e){ rej(e); } }); }
   function idbPut(nom, magasin, cle, val){ return idb(nom,magasin).then(function(db){ return new Promise(function(res,rej){
     try{ var tx=db.transaction(magasin,'readwrite'); tx.objectStore(magasin).put(val,cle); tx.oncomplete=function(){res(true);}; tx.onerror=function(){rej(tx.error);}; }catch(e){ rej(e); } }); }); }
@@ -813,14 +818,18 @@ aside .nav-btn:hover{color:#000}
   /* ---------- instantanés déjà pris en clair : on les chiffre à l'activation ---------- */
   function chiffrerInstantanes(){
     try{
-      idb('last-backups','snap').then(function(db){
+      idb('last-backups','snap','ts').then(function(db){
         var tx=db.transaction('snap','readwrite'), st=tx.objectStore('snap'), q=st.openCursor();
         q.onsuccess=function(ev){ var c=ev.target.result; if(!c) return;
-          var v=c.value; var cur=c;
+          var v=c.value, cle=c.key; var cur=c;
           if(v && typeof v.data==='string' && !estEnv(v.data)){
             env(v.data).then(function(e){ if(e==null) return;
-              idb('last-backups','snap').then(function(d2){ try{ var t2=d2.transaction('snap','readwrite');
-                v.data=e; v.chiffre=true; t2.objectStore('snap').put(v); }catch(_){} }).catch(function(){});
+              idb('last-backups','snap','ts').then(function(d2){ try{
+                var t2=d2.transaction('snap','readwrite'), s2=t2.objectStore('snap');
+                v.data=e; v.chiffre=true;
+                /* selon la forme du magasin trouvé sur ce poste */
+                if(s2.keyPath) s2.put(v); else s2.put(v, cle);
+              }catch(_){} }).catch(function(){});
             });
           }
           cur.continue();
@@ -3726,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=716;
+var LAST_VER=717;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -11179,7 +11188,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     var head='<div class="card-h"><h2>🔔 Journal d\'activité</h2><span class="sub" style="margin-left:auto">'+L.length+' événement(s)</span></div>';
     if(!L.length)return '<div class="card" style="margin-top:16px">'+head+'<div class="card-b"><div class="tk-empty">Aucun événement récent.</div></div></div>';
     var rows=L.map(function(x){var dt=(typeof frDate==='function'&&x.date)?frDate(x.date):(x.date||'');
-      return '<div class="nt-row"><span class="nt-date">'+E(dt)+'</span><div class="nt-main"><b>'+E(nom(x.d))+'</b><span class="nt-txt">'+E(x.t)+'</span></div></div>';}).join('');
+      return '<div class="jact-row"><span class="jact-date">'+E(dt)+'</span><div class="jact-main"><b>'+E(nom(x.d))+'</b><span class="jact-txt">'+E(x.t)+'</span></div></div>';}).join('');
     return '<div class="card" style="margin-top:16px">'+head+'<div class="card-b">'+rows+'</div></div>';
   };
 
@@ -11194,8 +11203,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
       +'.tk-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line,#2a2a2e)}'
       +'.tk-row:first-child{border-top:none}.tk-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px}'
       +'.tk-main{flex:1;min-width:0}.tk-lbl{display:block;font-size:12px;color:var(--ink2,#5b5040)}'
-      +'.nt-row{display:flex;gap:12px;padding:7px 0;border-top:1px solid var(--line,#2a2a2e);font-size:13px}.nt-row:first-child{border-top:none}'
-      +'.nt-date{flex:0 0 92px;color:var(--ink3,#8a8a93);font-size:11.5px}.nt-main{flex:1;min-width:0}.nt-txt{display:block;color:var(--ink2,#5b5040);font-size:12px}';
+      +'.jact-row{display:flex;gap:12px;padding:7px 0;border-top:1px solid var(--line,#2a2a2e);font-size:13px}.jact-row:first-child{border-top:none}'
+      +'.jact-date{flex:0 0 92px;color:var(--ink3,#8a8a93);font-size:11.5px}.jact-main{flex:1;min-width:0}'
+      +'.jact-main b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      +'.jact-txt{display:block;color:var(--ink2,#5b5040);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';
     document.head.appendChild(st);} }catch(e){}
 })();
 </script>
@@ -43298,6 +43309,10 @@ function testLienSignature() {
   function frD(dIso){ if(!dIso) return ''; var p=(''+dIso).slice(0,10).split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):dIso; }
   function ageJ(ts){ if(!ts) return null; var t=(typeof ts==='number')?ts:Date.parse(ts); if(isNaN(t)) return null; return Math.floor((Date.now()-t)/86400000); }
   function dateOf(x){ if(!x) return ''; var c=[x.quand,x.nd,x.d,x.date,x.echeance,x.ech,x.dateEch,x.debut,x.key]; for(var i=0;i<c.length;i++){ var v=c[i]; if(v instanceof Date) return iso(v); if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10); } return ''; }
+  /* Le nom du dossier retombe sur sa référence quand aucun client n'est
+     résolu ; lui ajouter la référence l'affichait alors deux fois. */
+  function titreDoss(d){ var n=nomDossier(d), r=(d&&d.ref)||'';
+    return (r&&n.indexOf(r)<0)?(n+' · '+r):n; }
   function nomDossier(d){ var n=''; try{ if(fn('dossierClients')&&d&&d.ref!==undefined){ n=dossierClients(d)||''; if(/^(—|Expéditeur|Client)$/i.test(n)) n=''; } }catch(e){} if(!n&&d&&d.intake&&d.intake.societe&&d.intake.societe.denomination) n=d.intake.societe.denomination; return n||(d&&(d.clientNom||d.societe||d.nom||d.denomination||d.ref))||'Dossier'; }
   function ouvrirDossier(id){ try{ state.dossierId=id; state.selected=id; }catch(e){} go('espace'); }
   function ouvrirDemande(id){ state.page='demandes'; if(fn('demOuvrirVue')) demOuvrirVue(id); else render(); }
@@ -43329,8 +43344,8 @@ function testLienSignature() {
     /* demandes sans suite */
     if(on('dem')){ (DB.demandes||[]).forEach(function(d){ if(d.archived||d.dossierId||/clôtur|cloture|refus/i.test(d.statut||'')) return; var age=ageJ(d.date||d.ts||d.recu); if(age==null||age<2) return; add({key:'dem:'+d.id,src:'dem',niveau:age>=7?'crit':'warn',cat:'retard',quand:iso(Date.now()-age*86400000),titre:(d.societe||d.nom||d.name||d.email||'Demande'),detail:'demande sans suite depuis '+age+' j',page:'demandes',open:function(){ ouvrirDemande(d.id); }}); }); }
     /* traitement des dossiers */
-    if(on('trw')){ (DB.dossiers||[]).forEach(function(d){ if(d.archived||/clôtur|cloture/i.test(d.statut||'')) return; var p=fn('trwPlan')?safe(function(){ return trwPlan(d.id); },null):null; if(p&&!p.terminee){ var cur=p.courante||{}; var bl=(cur.bloq||[]).length; if(bl){ add({key:'trwb:'+d.id+':'+(cur.k||cur.n||''),src:'trw',niveau:'warn',cat:'aujourdhui',quand:today(),titre:nomDossier(d)+' · '+(d.ref||''),detail:'étape « '+(cur.lbl||cur.titre||cur.k||'en cours')+' » bloquée : '+bl+' point(s) à lever',page:'espace',open:function(){ ouvrirDossier(d.id); }}); } }
-      var age=ageJ(d.updated||d.maj); if(age!=null&&age>=14){ add({key:'trws:'+d.id,src:'trw',niveau:'info',cat:'semaine',quand:today(),titre:nomDossier(d)+' · '+(d.ref||''),detail:'dossier sans mouvement depuis '+age+' j',page:'espace',open:function(){ ouvrirDossier(d.id); }}); } }); }
+    if(on('trw')){ (DB.dossiers||[]).forEach(function(d){ if(d.archived||/clôtur|cloture/i.test(d.statut||'')) return; var p=fn('trwPlan')?safe(function(){ return trwPlan(d.id); },null):null; if(p&&!p.terminee){ var cur=p.courante||{}; var bl=(cur.bloq||[]).length; if(bl){ add({key:'trwb:'+d.id+':'+(cur.k||cur.n||''),src:'trw',niveau:'warn',cat:'aujourdhui',quand:today(),titre:titreDoss(d),detail:'étape « '+(cur.lbl||cur.titre||cur.k||'en cours')+' » bloquée : '+bl+' point(s) à lever',page:'espace',open:function(){ ouvrirDossier(d.id); }}); } }
+      var age=ageJ(d.updated||d.maj); if(age!=null&&age>=14){ add({key:'trws:'+d.id,src:'trw',niveau:'info',cat:'semaine',quand:today(),titre:titreDoss(d),detail:'dossier sans mouvement depuis '+age+' j',page:'espace',open:function(){ ouvrirDossier(d.id); }}); } }); }
     /* signatures */
     if(on('sg')&&fn('sgChaineBilan')){ var s=safe(sgChaineBilan,null); if(s){ (s.aRelancer||[]).forEach(function(r){ add({key:'sg:'+(r.d&&r.d.id),src:'sg',niveau:'warn',cat:'aujourdhui',quand:today(),titre:r.nom||nomDossier(r.d),detail:'signature en attente — relance à envoyer',page:'services',open:function(){ window.__svcView='signature'; go('services'); }}); }); (s.epuisees||[]).forEach(function(r){ add({key:'sge:'+(r.d&&r.d.id),src:'sg',niveau:'crit',cat:'retard',quand:today(),titre:r.nom||nomDossier(r.d),detail:'signature : relances épuisées — contacter le client',page:'services',open:function(){ window.__svcView='signature'; go('services'); }}); }); } }
     /* questionnaire en ligne */
@@ -43379,7 +43394,7 @@ function testLienSignature() {
   window.prevAutosHTML=function(){ var rows=AUTOS.map(function(a){ var o=autoObj(a.obj,false); var on=o&&o[a.k]!=null?!!o[a.k]:false; return '<label class="pv-auto"><input type="checkbox" '+(on?'checked':'')+' onchange="prevAutoSet(\''+a.obj+'\',\''+a.k+'\',this.checked)"><span class="pv-auto-l"><b>'+E(a.lbl)+'</b><span>'+E(a.txt)+(o&&o[a.k]!=null?'':' · <i>réglage par défaut</i>')+'</span></span><button class="btn btn-sm btn-ghost" onclick="go(\''+a.page+'\')">Ouvrir</button></label>'; }).join(''); return '<div class="pv-autos">'+rows+'</div>'; };
   /* ---------- rendu ---------- */
   var CAT={retard:'En retard',aujourdhui:'Aujourd\'hui',semaine:'Sous 7 jours',mois:'Sous 30 jours',systeme:'Système'};
-  function row(o,i){ return '<div class="pv-row niv-'+o.niveau+(o.vu?' vu':'')+(o.nouveau?' nouveau':'')+'"><span class="pv-dot"></span><span class="pv-main"><b>'+E(o.titre)+'</b><span>'+E(o.detail)+(o.nouveau?' <em>nouveau</em>':'')+'</span></span><span class="pv-when">'+(o.cat==='systeme'?E(SRC[o.src]||''):(o.quand?E(frD(o.quand)):''))+'<small>'+E(SRC[o.src]||'')+'</small></span><span class="pv-act"><button class="btn btn-sm btn-pri" onclick="prevOuvrir('+i+')">Ouvrir</button>'+(o.vu?'':'<button class="btn btn-sm btn-ghost" onclick="prevVu(\''+E(o.key)+'\')">Vu</button>')+'<button class="btn btn-sm btn-ghost" title="Reporter de 7 jours" onclick="prevReporter(\''+E(o.key)+'\',7)">+7 j</button></span></div>'; }
+  function row(o,i){ return '<div class="pv-row niv-'+o.niveau+(o.vu?' vu':'')+(o.nouveau?' nouveau':'')+'"><span class="pv-dot"></span><span class="pv-main"><b>'+E(o.titre)+'</b><span class="pv-det"><span class="pv-dt">'+E(o.detail)+'</span>'+(o.nouveau?'<em>nouveau</em>':'')+'</span></span><span class="pv-when">'+(o.cat==='systeme'?E(SRC[o.src]||''):(o.quand?E(frD(o.quand)):''))+'<small>'+E(SRC[o.src]||'')+'</small></span><span class="pv-act"><button class="btn btn-sm btn-pri" onclick="prevOuvrir('+i+')">Ouvrir</button>'+(o.vu?'':'<button class="btn btn-sm btn-ghost" onclick="prevVu(\''+E(o.key)+'\')">Vu</button>')+'<button class="btn btn-sm btn-ghost" title="Reporter de 7 jours" onclick="prevReporter(\''+E(o.key)+'\',7)">+7 j</button></span></div>'; }
   window.prevCard=function(){ var b=prevBilan(), c=b.cfg; var L=prevItems(); window.__prevList=L; var idx={}; L.forEach(function(o,i){ idx[o.key]=i; });
     var head='<div class="card-h"><h2>Prévoyance — ce qu\'il faut prévoir</h2><div class="pv-hb"><span class="pv-gw">'+b.total+' point(s) · '+b.nouveaux+' nouveau(x) · '+b.crit+' critique(s)</span><button class="btn btn-sm btn-ghost" onclick="prevToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-ghost" onclick="prevToutVu()"'+(b.nonVus?'':' disabled')+'>Tout marquer vu</button><button class="btn btn-sm btn-pri" onclick="prevScan(false)">Analyser maintenant</button></div></div>';
     if(c.reduit) return '<div class="card pv-card">'+head+'</div>';
@@ -43405,6 +43420,9 @@ function testLienSignature() {
    +'.pv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.pv-k{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px}.pv-k b{display:block;font-size:17px}.pv-k span{font-size:11px;opacity:.65}.pv-k.warn{border-color:rgba(217,154,58,.5);background:rgba(217,154,58,.08)}.pv-k.crit{border-color:rgba(224,80,80,.55);background:rgba(224,80,80,.08)}'
    +'.pv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}.pv-sec{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px}.pv-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:6px}.pv-h span{opacity:.6}'
    +'.pv-row{display:grid;grid-template-columns:10px 1fr auto auto;gap:9px;align-items:center;padding:6px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px}.pv-row:first-of-type{border-top:0}.pv-row.vu{opacity:.55}.pv-dot{width:8px;height:8px;border-radius:50%;background:#8a8a93}.pv-row.niv-warn .pv-dot{background:#e0b060}.pv-row.niv-crit .pv-dot{background:#f08a80;box-shadow:0 0 0 3px rgba(240,138,128,.2)}'
+   +'.pv-main .pv-det{display:flex;align-items:center;gap:5px;min-width:0}'
+   +'.pv-main .pv-dt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+   +'.pv-main .pv-det>em{flex:0 0 auto}'
    +'.pv-main{display:flex;flex-direction:column;min-width:0}.pv-main b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pv-main span{font-size:11.5px;color:#9a9aa3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pv-main em{font-style:normal;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:0 5px;border-radius:9px;background:#f1f1f4;color:#111;margin-left:4px;font-weight:700;font-size:11px}'
    +'.pv-when{display:flex;flex-direction:column;align-items:flex-end;font-size:11.5px;white-space:nowrap}.pv-when small{font-size:11px;opacity:.55}.pv-act{display:flex;gap:5px}.pv-empty{font-size:12px;opacity:.55;padding:2px 0}.pv-more{font-size:11.5px;opacity:.6;padding-top:4px}'
    +'.pv-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:12.5px}.pv-opts label{display:inline-flex;align-items:center;gap:6px}.pv-opts input[type=number]{width:56px;padding:3px 6px}.pv-opts input[type=email]{padding:3px 6px}'
@@ -50460,6 +50478,188 @@ function testLienSignature() {
       out[id]=Math.round(t[Math.floor(t.length/2)]); });
     try{ if(avant){ state.page=avant; render(); } }catch(e){}
     return out; };
+})();
+</script>
+<script id="mq-cartes-717">
+/* ---------------------------------------------------------------------------
+   Ouvrir et ranger les cartes d'informations (v717)
+
+   Chaque carte à en-tête se replie d'un clic et se rouvre d'un clic. L'état
+   est retenu par poste, écran par écran : une carte rangée le reste jusqu'à
+   ce qu'on la rouvre. Un bouton de la barre du haut range ou ouvre tout
+   l'écran d'un coup.
+
+   Le repli n'ajoute et ne retire aucun nœud : il pose une classe sur la carte
+   et masque ce qui suit l'en-tête. Rien dans le contenu ne peut donc casser,
+   et le dépliage retrouve exactement ce qui était là.
+--------------------------------------------------------------------------- */
+(function(){
+  'use strict';
+  var CLE='marq-cartes-rangees';
+  var etat=null;
+
+  function lire(){ if(etat) return etat;
+    try{ etat=JSON.parse(localStorage.getItem(CLE)||'{}')||{}; }catch(e){ etat={}; }
+    return etat; }
+  function ecrire(){ try{ localStorage.setItem(CLE,JSON.stringify(lire())); }catch(e){} }
+
+  function page(){ try{ return (typeof state!=='undefined'&&state.page)||''; }catch(e){ return ''; } }
+  function txt(n){ return (''+((n&&n.textContent)||'')).replace(/\s+/g,' ').trim().slice(0,60); }
+
+  /* La clé d'une carte : l'écran, son titre, et son rang parmi les cartes de
+     même titre — de sorte qu'une carte répétée garde chacune son état. */
+  /* Deux cartes d'information titrent en h3 plutôt qu'en h2 ; ce sont des
+     cartes comme les autres, et elles se rangent comme les autres. */
+  function titre(carte){ return carte.querySelector(':scope > .card-h h2, :scope > .card-h h3'); }
+  function cle(carte,rang){ return page()+'|'+(txt(titre(carte))||'(sans titre)')+'|'+rang; }
+
+  function corps(carte){
+    var out=[], n=carte.firstElementChild;
+    while(n){ if(!n.classList.contains('card-h')) out.push(n); n=n.nextElementSibling; }
+    return out; }
+
+  function pliable(carte){
+    if(carte.tagName==='DETAILS') return false;           /* déjà repliable */
+    if(carte.closest('#ov,.modal,.doc-page,.inv-paper,.st-page')) return false;
+    var h=carte.querySelector(':scope > .card-h'); if(!h) return false;
+    if(!titre(carte)) return false;
+    return corps(carte).length>0; }
+
+  function appliquer(carte,range){
+    carte.classList.toggle('mq-range',!!range);
+    var b=carte.querySelector(':scope > .card-h > .mq-pli');
+    if(b){ b.setAttribute('aria-expanded',range?'false':'true');
+           b.setAttribute('title',range?'Ouvrir cette carte':'Ranger cette carte');
+           b.setAttribute('aria-label',range?'Ouvrir cette carte':'Ranger cette carte'); } }
+
+  function basculer(carte){
+    var k=carte.getAttribute('data-mqk'); if(!k) return;
+    var E=lire(), range=!E[k];
+    if(range) E[k]=1; else delete E[k];
+    ecrire(); appliquer(carte,range);
+    if(!range&&!reduit()){ carte.classList.remove('mq-ouvre'); void carte.offsetWidth;
+      carte.classList.add('mq-ouvre');
+      setTimeout(function(){ carte.classList.remove('mq-ouvre'); },320); }
+    majBouton(); }
+
+  function reduit(){ try{ return window.matchMedia
+    &&window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+
+  function cartes(){ var V=document.getElementById('view');
+    return V?Array.prototype.slice.call(V.querySelectorAll('.card')).filter(pliable):[]; }
+
+  /* ---- équipement après chaque rendu ---- */
+  function equiper(){
+    var vus={};
+    cartes().forEach(function(c){
+      var h=c.querySelector(':scope > .card-h');
+      var base=page()+'|'+(txt(titre(c))||'(sans titre)');
+      vus[base]=(vus[base]||0)+1;
+      var k=cle(c,vus[base]-1);
+      c.setAttribute('data-mqk',k);
+      if(!h.querySelector(':scope > .mq-pli')){
+        var b=document.createElement('button');
+        b.type='button'; b.className='mq-pli';
+        b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"'
+          +' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+        b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); basculer(c); });
+        h.appendChild(b);
+        h.classList.add('mq-pli-h');
+        h.addEventListener('click',function(ev){
+          if(ev.target.closest('button,a,input,select,textarea,label,.kb-dots,.kb-menu')) return;
+          basculer(c); });
+      }
+      appliquer(c,!!lire()[k]);
+    });
+    majBouton(); }
+
+  /* ---- tout ouvrir / tout ranger ---- */
+  window.cartesTout=function(ouvrir){
+    var E=lire();
+    cartes().forEach(function(c){ var k=c.getAttribute('data-mqk'); if(!k) return;
+      if(ouvrir) delete E[k]; else E[k]=1;
+      appliquer(c,!ouvrir); });
+    ecrire(); majBouton();
+    try{ if(typeof toast==='function')
+      toast(ouvrir?'Toutes les cartes sont ouvertes.':'Toutes les cartes sont rangées.'); }catch(e){} };
+
+  function toutesRangees(){ var L=cartes(); if(!L.length) return false;
+    return L.every(function(c){ return c.classList.contains('mq-range'); }); }
+
+  function majBouton(){
+    var b=document.getElementById('mq-pli-tout'); if(!b) return;
+    var L=cartes();
+    b.style.display=L.length?'':'none';
+    var tout=toutesRangees();
+    b.setAttribute('data-ouvre',tout?'1':'0');
+    var t=tout?'Ouvrir toutes les cartes de cet écran':'Ranger toutes les cartes de cet écran';
+    b.setAttribute('title',t); b.setAttribute('aria-label',t); }
+
+  function poserBouton(){
+    if(document.getElementById('mq-pli-tout')) return;
+    var barre=document.querySelector('.topbar'); if(!barre) return;
+    var apres=barre.querySelector('.topbar-refresh');
+    var b=document.createElement('button');
+    b.id='mq-pli-tout'; b.type='button'; b.className='topbar-refresh mq-pli-tout';
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"'
+      +' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      +'<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>'
+      +'<path class="mq-ch" d="M8.5 15.2l3.5-3.4 3.5 3.4"/></svg>';
+    b.addEventListener('click',function(){ window.cartesTout(b.getAttribute('data-ouvre')==='1'); });
+    if(apres&&apres.parentNode) apres.parentNode.insertBefore(b,apres);
+    else barre.appendChild(b); }
+
+  /* ---- style ---- */
+  try{ if(!document.getElementById('mq-cartes-css')){
+    var st=document.createElement('style'); st.id='mq-cartes-css';
+    st.textContent=
+      '.card-h.mq-pli-h{cursor:pointer}'
+     +'.card-h.mq-pli-h>h2,.card-h.mq-pli-h>h3{flex:0 1 auto;min-width:0;overflow:hidden;'
+       +'text-overflow:ellipsis;white-space:nowrap}'
+     /* un sous-titre long était tranché en plein mot contre le bord de la
+        carte : il se termine désormais par des points de suspension. */
+     +'.card-h .sub{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+     /* Tous les en-têtes de carte passent à la ligne quand leur contenu est
+        long : en flux, le chevron se retrouvait sur une deuxième ligne. Il
+        est donc ancré au coin haut-droit, où on le cherche, et l'en-tête
+        lui réserve sa place pour que rien ne passe dessous. */
+     +'.card-h.mq-pli-h{position:relative;padding-right:34px}'
+     +'.mq-pli{position:absolute;top:7px;right:8px;display:inline-flex;align-items:center;'
+       +'justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;'
+       +'background:transparent;color:var(--ink-3,#8a8a93);cursor:pointer;opacity:.55;'
+       +'transition:opacity .15s,background .15s,color .15s}'
+     +'.card-h:hover .mq-pli,.mq-pli:focus-visible{opacity:1;color:var(--ink,#e9e9ee)}'
+     +'.mq-pli:hover{background:rgba(255,255,255,.07)}'
+     +'.mq-pli svg{width:15px;height:15px;display:block;transition:transform .2s ease}'
+     +'.mq-range>.card-h>.mq-pli svg{transform:rotate(-90deg)}'
+     +'.mq-range>.card-h{border-bottom-color:transparent}'
+     +'.mq-range>*:not(.card-h){display:none !important}'
+     +'@keyframes mqCarteOuvre{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}'
+     +'.mq-ouvre>*:not(.card-h){animation:mqCarteOuvre .2s cubic-bezier(.22,.7,.3,1) both}'
+     +'.mq-pli-tout .mq-ch{transition:transform .2s ease;transform-origin:12px 13.5px}'
+     +'.mq-pli-tout[data-ouvre="1"] .mq-ch{transform:rotate(180deg)}'
+     +'@media (prefers-reduced-motion: reduce){.mq-pli svg,.mq-pli-tout .mq-ch{transition:none}'
+       +'.mq-ouvre>*:not(.card-h){animation:none}}';
+    document.head.appendChild(st); } }catch(e){}
+
+  /* ---- greffe ---- */
+  function poser(){ try{ poserBouton(); equiper(); }catch(e){} }
+  try{
+    if(window.MQ&&MQ.apresRendu) MQ.apresRendu(poser,'cartes717',0);
+    else { var _r=window.render; if(typeof _r==='function'){
+      window.render=function(){ var v=_r.apply(this,arguments);
+        try{ requestAnimationFrame(poser); }catch(e){ poser(); } return v; }; } }
+  }catch(e){}
+  try{ if(document.readyState!=='loading') setTimeout(poser,0);
+       else document.addEventListener('DOMContentLoaded',function(){ setTimeout(poser,0); }); }catch(e){}
+
+  /* Le menu « ⋮ » n'a que trois points pour tout contenu : sans libellé, ni
+     l'utilisateur au survol ni un lecteur d'écran ne sait ce qu'il ouvre. */
+  function nommerKebab(){ try{
+    document.querySelectorAll('.kb-dots:not([aria-label])').forEach(function(b){
+      b.setAttribute('aria-label','Autres actions');
+      if(!b.getAttribute('title')) b.setAttribute('title','Autres actions'); }); }catch(e){} }
+  try{ if(window.MQ&&MQ.apresRendu) MQ.apresRendu(nommerKebab,'kebab717',0); }catch(e){}
 })();
 </script>
 </body>
