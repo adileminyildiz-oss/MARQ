@@ -29,7 +29,7 @@ const ECRANS=['formulaire','etudemarche','params'];
     const m=await pg.evaluate(()=>{
       const CH='input,select,textarea';
       const dedans=[], entre=[]; let nonMarq=0, paires=0;
-      document.querySelectorAll('#view .card-b').forEach(cb=>{
+      document.querySelectorAll('#view .card-b, #view .frow > div').forEach(cb=>{
         const k=Array.from(cb.children);
         k.forEach((x,i)=>{
           if(x.tagName!=='LABEL') return;
@@ -57,6 +57,55 @@ const ECRANS=['formulaire','etudemarche','params'];
         m.entre+' contre '+m.dedans);
     }
   }
+
+  // ---- les champs courts vont deux par deux ----
+  for(const id of ECRANS){
+    await poser(id);
+    const m=await pg.evaluate(()=>{
+      const corps=document.querySelector('#view .card-b');
+      const larg=corps?corps.getBoundingClientRect().width:0;
+      const demi=Array.from(document.querySelectorAll('#view .mq-demi'))
+        .filter(c=>c.getBoundingClientRect().width);
+      const trop=demi.filter(c=>c.getBoundingClientRect().width>larg*0.62);
+      const rows=Array.from(document.querySelectorAll('#view .frow[data-mqrow]'));
+      // une aide déplacée doit rester dans la colonne de son champ
+      let aidesEgarees=0;
+      rows.forEach(r=>Array.from(r.children).forEach(col=>{
+        const c=col.querySelector('input,select,textarea');
+        col.querySelectorAll('.hint,small').forEach(a=>{
+          if(!c||a.previousElementSibling!==c) aidesEgarees++; });
+      }));
+      // aucun champ long ne doit avoir été rétréci
+      const longs=Array.from(document.querySelectorAll('#view textarea.mq-demi')).length;
+      return {nDemi:demi.length, trop:trop.length, nRows:rows.length, aidesEgarees, longs,
+        exTrop:trop.slice(0,2).map(c=>Math.round(c.getBoundingClientRect().width)+' sur '+Math.round(larg))};
+    });
+    A(m.trop===0, id+' : aucun champ court ne s’étire sur toute la largeur',
+      m.trop+' trop large(s) '+m.exTrop.join(', '));
+    A(m.longs===0, id+' : aucune zone de texte libre n’a été rétrécie', m.longs+' rétrécie(s)');
+    A(m.aidesEgarees===0, id+' : une aide déplacée reste sous son champ', m.aidesEgarees+' égarée(s)');
+  }
+
+  // ---- le déplacement ne perd ni la valeur ni le câblage ----
+  await poser('formulaire');
+  const dep=await pg.evaluate(()=>{
+    const row=document.querySelector('#view .frow[data-mqrow]');
+    if(!row) return {absent:true};
+    const c=row.querySelector('input');
+    const avant={id:c.id||'', onch:!!c.getAttribute('onchange'), oninp:!!c.getAttribute('oninput')};
+    c.value='ESSAI DE SAISIE';
+    c.dispatchEvent(new Event('change',{bubbles:true}));
+    c.dispatchEvent(new Event('input',{bubbles:true}));
+    return {absent:false, avant, valeur:c.value,
+      dansColonne: c.parentElement.parentElement.classList.contains('frow'),
+      etiquette: c.previousElementSibling && c.previousElementSibling.tagName==='LABEL'};
+  });
+  A(!dep.absent,'au moins une rangée a été formée par appariement');
+  A(dep.dansColonne===true,'le champ déplacé est bien dans une colonne de rangée');
+  A(dep.etiquette===true,'son étiquette le précède toujours (le code qui la cherche la trouve)');
+  A(dep.valeur==='ESSAI DE SAISIE','le champ déplacé reste saisissable');
+  A(dep.avant.id!=='' || dep.avant.onch || dep.avant.oninp,
+    'le champ déplacé garde son identifiant ou son câblage',JSON.stringify(dep.avant));
 
   // ---- les rangées à deux colonnes s'alignent par le haut ----
   await poser('formulaire');

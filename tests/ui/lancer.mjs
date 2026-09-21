@@ -6,6 +6,13 @@
  *
  * Les suites sont lancées par vagues : plus d'une dizaine de Chromium à la fois
  * se gênent et font apparaître des échecs de minutage qui n'en sont pas.
+ *
+ * Deux suites font exception. « sauvt » et « chiffret » montent un serveur,
+ * dérivent des clés et écrivent dans IndexedDB : sous huit navigateurs
+ * simultanés elles dépassent leurs propres délais et échouent au hasard, une
+ * fois sur trois environ. Un filet qui ment de temps en temps ne protège
+ * personne — et il a failli masquer un vrai défaut de confidentialité. Elles
+ * passent donc en dernier, seules, pour une poignée de secondes de plus.
  */
 import { readdirSync } from 'fs';
 import { spawn } from 'child_process';
@@ -14,6 +21,8 @@ import { fileURLToPath } from 'url';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 const LARGEUR = Number(process.env.MARQ_TESTS_PAR_VAGUE || 8);
+
+const LOURDES = new Set(['sauvt', 'chiffret']);
 
 const demandees = process.argv.slice(2);
 const suites = readdirSync(ICI)
@@ -38,9 +47,14 @@ function lancer(nom) {
   });
 }
 
+const legeres = suites.filter(n => !LOURDES.has(n));
+const lourdes = suites.filter(n => LOURDES.has(n));
+const vagues = [];
+for (let i = 0; i < legeres.length; i += LARGEUR) vagues.push(legeres.slice(i, i + LARGEUR));
+lourdes.forEach(n => vagues.push([n]));      // chacune seule, en fin de course
+
 const resultats = [];
-for (let i = 0; i < suites.length; i += LARGEUR) {
-  const vague = suites.slice(i, i + LARGEUR);
+for (const vague of vagues) {
   const r = await Promise.all(vague.map(lancer));
   r.forEach(x => {
     console.log((x.code === 0 ? '  ok  ' : '  ÉCHEC ') + x.nom + ' : ' + x.bilan);

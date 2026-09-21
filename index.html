@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=718;
+var LAST_VER=719;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -50689,6 +50689,88 @@ function testLienSignature() {
 
   function ecranDeForme(){ try{ return !!ECRANS[(typeof state!=='undefined'&&state.page)||'']; }catch(e){ return false; } }
 
+  /* ------------------------------------------------------------------
+     Les champs courts vont deux par deux.
+
+     Un champ court étiré sur toute la largeur d'une carte laisse une place
+     vide à sa droite et allonge le formulaire pour rien. Deux champs courts
+     qui se suivent sont donc mis côte à côte ; celui qui n'a pas de voisin
+     court garde tout de même la largeur d'une colonne.
+
+     Est « long » par nature ce qui reçoit du texte libre — une zone de
+     saisie multiligne, une adresse, un objet social, un corps de message :
+     ceux-là gardent toute la largeur.
+
+     Le rapprochement DÉPLACE les nœuds existants, il ne les recrée pas : les
+     valeurs saisies, les écouteurs et les identifiants sont conservés, et
+     l'étiquette reste juste avant son champ — ce dont dépend le code qui
+     remonte au frère précédent pour retrouver le nom d'un champ.
+  ------------------------------------------------------------------ */
+  var LONG=/adresse|objet social|description|descriptif|vision|corps|notes?|observ|commentaire|pr[ée]cision|segment|filtres|message/i;
+
+  function estCourt(lab,ctl){
+    if(ctl.tagName==='TEXTAREA') return false;
+    return !LONG.test((lab.textContent||'').trim());
+  }
+
+  function estAide(el){
+    if(!el||!el.classList) return false;
+    return el.classList.contains('hint')||el.classList.contains('fi-hint')
+      ||el.classList.contains('ff-hint')||el.tagName==='SMALL';
+  }
+
+  function colonne(g){
+    var d=document.createElement('div');
+    d.appendChild(g.l); d.appendChild(g.c);
+    if(g.aide) d.appendChild(g.aide);
+    return d;
+  }
+
+  function apparier(){
+    if(!ecranDeForme()) return;
+    var V=document.getElementById('view'); if(!V) return;
+    var corps=V.querySelectorAll('.card-b');
+    for(var n=0;n<corps.length;n++){
+      var cb=corps[n], k=Array.prototype.slice.call(cb.children), groupes=[], i;
+      for(i=0;i<k.length;i++){
+        var l=k[i], c=k[i+1];
+        if(!(l.tagName==='LABEL'&&c&&c.matches&&c.matches('input,select,textarea'))) continue;
+        /* une aide collée au champ fait partie du groupe et le suit ;
+           tout autre bloc accroché derrière interdit le déplacement, pour
+           ne pas séparer un champ de ce qui le complète. */
+        var aide=null, apres=k[i+2], saut=2;
+        if(apres&&apres.tagName!=='LABEL'&&estAide(apres)){ aide=apres; apres=k[i+3]; saut=3; }
+        var libre = !apres || apres.tagName==='LABEL'
+          || (apres.classList&&apres.classList.contains('frow'));
+        groupes.push({l:l,c:c,aide:aide,court:estCourt(l,c),libre:libre,rang:i,saut:saut});
+        i+=saut-1;
+      }
+      /* deux courts qui se suivent → une rangée à deux colonnes */
+      var att=null;
+      for(i=0;i<groupes.length;i++){
+        var g=groupes[i];
+        if(!g.court){ if(att){ att.seul=true; att=null; } continue; }
+        if(!g.libre){ if(att){ att.seul=true; att=null; } g.seul=true; continue; }
+        if(att && groupes[i-1]===att && g.rang===att.rang+att.saut){ att.avec=g; att=null; }
+        else { if(att) att.seul=true; att=g; }
+      }
+      if(att) att.seul=true;
+
+      for(i=0;i<groupes.length;i++){
+        var G=groupes[i];
+        if(G.avec){
+          var row=document.createElement('div');
+          row.className='frow'; row.setAttribute('data-mqrow','1');
+          cb.insertBefore(row,G.l);
+          row.appendChild(colonne(G));
+          row.appendChild(colonne(G.avec));
+        } else if(G.seul){
+          G.c.classList.add('mq-demi');   /* largeur d'une colonne */
+        }
+      }
+    }
+  }
+
   function marquer(){
     if(!ecranDeForme()) return;
     var V=document.getElementById('view'); if(!V) return;
@@ -50769,11 +50851,14 @@ function testLienSignature() {
      +'.fi-card .card-b>.frow:first-child{margin-top:0}'
      +'.fi-card .card-b>.frow+.frow{margin-top:18px}'
       /* un champ suivi d'une aide : l'aide appartient au groupe */
-     +'.fi-card .card-b .hint,.fi-card .card-b .fx-adv{margin-top:6px}';
+     +'.fi-card .card-b .hint,.fi-card .card-b .fx-adv{margin-top:6px}'
+      /* un champ court sans voisin garde la largeur d'une colonne */
+     +'.mq-demi{max-width:calc(50% - 8px)}'
+     +'@media(max-width:700px){.mq-demi{max-width:100%}}';
     document.head.appendChild(st); } }catch(e){}
 
   try{
-    var poser=function(){ marquer(); aligner(); };
+    var poser=function(){ apparier(); marquer(); aligner(); };
     if(window.MQ&&MQ.apresRendu) MQ.apresRendu(poser,'form718',0);
     else { var _r=window.render; if(typeof _r==='function'){
       window.render=function(){ var v=_r.apply(this,arguments);
