@@ -1,14 +1,47 @@
 # Portail client Mar'q — backend léger
 
+## Marche locale — un poste, une personne
+
+C'est le mode retenu : le serveur tourne **sur la machine du cabinet** et ne
+répond qu'à elle. Une commande suffit.
+
+```bash
+cd server/portal
+npm run local
+```
+
+Au premier lancement, le script fabrique le fichier `.env` avec des secrets
+tirés au hasard, puis affiche les deux seules choses à connaître :
+
+```
+  Adresse à coller dans Mar'q : http://localhost:8787
+  Jeton du cabinet             : 3f9a…
+```
+
+Reportez-les dans Mar'q — **Services › Coffre-fort & portail › Serveur du
+portail** — et le portail client fonctionne. Les lancements suivants
+réutilisent le même `.env` : le jeton ne change pas, les sessions ouvertes
+survivent.
+
+Le serveur écoute **127.0.0.1** : il est injoignable depuis le reste du réseau.
+Pour l'ouvrir volontairement (autre machine, hébergement), mettez
+`HOST=0.0.0.0` dans le `.env` — en sachant ce que cela expose.
+
+Le contrôle de mise en marche de Mar'q interroge ce serveur et dit s'il répond.
+
+---
+
+## Si un jour vous voulez l'héberger
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/adileminyildiz-oss/last)
 
-> **Déploiement en un clic** — le bouton ci-dessus utilise le fichier `render.yaml`
-> à la **racine** du dépôt : Render crée le service, génère `CABINET_TOKEN` et
-> `JWT_SECRET`, monte le disque persistant. Réglez ensuite `ALLOWED_ORIGIN` sur
-> l'URL de votre site. Un **déploiement automatique Fly.io** (GitHub Actions) est
-> aussi fourni — voir l'option D plus bas.
+> Le bouton ci-dessus utilise le fichier `render.yaml` à la **racine** du dépôt :
+> Render crée le service, génère `CABINET_TOKEN` et `JWT_SECRET`, monte le disque
+> persistant. Réglez ensuite `ALLOWED_ORIGIN` sur l'URL de votre site. Un
+> **déploiement automatique Fly.io** (GitHub Actions) est aussi fourni — voir
+> l'option D plus bas. Rien de tout cela n'est nécessaire pour la marche locale.
 
-## Déployer, en un geste
+### Déployer, en un geste
 
 Le déploiement est **déjà outillé** : `.github/workflows/deploy-portal.yml`
 crée l'application, le volume persistant, pose les secrets et déploie — puis
@@ -66,6 +99,12 @@ poussés par le cabinet, et le portail front les interroge par `fetch`.
 
 ```bash
 cd server/portal
+npm run local               # fabrique le .env au besoin, puis démarre
+```
+
+Ou à la main, pour garder la maîtrise des secrets :
+
+```bash
 cp .env.example .env        # puis éditez les secrets
 npm start                   # démarre sur http://localhost:8787 (aucun npm install requis)
 ```

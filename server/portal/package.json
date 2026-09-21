@@ -11,9 +11,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check lib/config.js && node --check lib/crypto.js && node --check lib/store.js && node --check lib/ratelimit.js",
+    "check": "node --check server.js && node --check lib/config.js && node --check lib/crypto.js && node --check lib/store.js && node --check lib/ratelimit.js && node --check scripts/local.js",
     "smoke": "node scripts/smoke.js",
-    "verifier-deploiement": "node scripts/verifier-deploiement.mjs"
+    "verifier-deploiement": "node scripts/verifier-deploiement.mjs",
+    "local": "node scripts/local.js"
   },
   "license": "UNLICENSED"
 }

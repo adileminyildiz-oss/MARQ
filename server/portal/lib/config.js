@@ -39,6 +39,12 @@ const config = {
   // Port d'écoute HTTP.
   PORT: parseInt(process.env.PORT || '8787', 10),
 
+  // Interface d'écoute. Par défaut 127.0.0.1 : le serveur n'est joignable que
+  // depuis CE poste, ce qui est le cas d'usage — un poste, une personne. Pour
+  // l'exposer volontairement (autre machine du réseau, hébergement), mettre
+  // HOST=0.0.0.0 dans le .env.
+  HOST: process.env.HOST || '127.0.0.1',
+
   // Secret partagé du cabinet : requis pour appeler les endpoints /admin/*.
   CABINET_TOKEN: process.env.CABINET_TOKEN || '',
 

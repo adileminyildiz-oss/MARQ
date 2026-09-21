@@ -22,6 +22,32 @@ Une page de connexion (mot de passe) protège l'outil. Seule l'empreinte
 Changer le mot de passe : calculer l'empreinte du nouveau
 (`printf '%s' 'MONMOTDEPASSE' | sha256sum`) et remplacer `LAST_PWD_HASH`.
 
+## Marche locale — un poste, une personne
+
+Le logiciel tourne dans le navigateur, sur la machine du cabinet ; les données
+ne la quittent pas. Le portail client dispose d'un serveur qui reste **local** :
+
+```bash
+cd server/portal && npm run local
+```
+
+Il fabrique sa configuration au premier lancement, n'écoute que `127.0.0.1` et
+affiche l'adresse et le jeton à recopier dans Mar'q. Voir
+`server/portal/README.md`.
+
+## Trois repères de l'exploitation
+
+- **Suivi** — chaque demande suit quinze jalons, de sa réception à la remise au
+  client, puis jusqu'à l'encaissement et l'archivage. On y lit le jalon courant,
+  ce qui retient le dossier et depuis combien de jours.
+- **Répertoire du dossier** — chaque dossier possède son répertoire, adressé par
+  son numéro et non par le nom de la société : deux sociétés homonymes ne peuvent
+  pas se voir. Un contrôle d'étanchéité cherche activement les fuites.
+- **Contrôle de mise en marche** (Paramètres) — dix examens avant l'exploitation :
+  identité du cabinet, numérotation, étanchéité, remplissage réel des documents,
+  dossiers et demandes, facturation, automatismes, sauvegarde, chiffrement,
+  affichage de chaque écran et serveur local.
+
 ## Structure
 - `index.html` — l'application complète (HTML/CSS/JS en un seul fichier)
 - `formulaire.html` — formulaire public d'ouverture de dossier (client)

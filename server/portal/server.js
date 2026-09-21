@@ -354,8 +354,10 @@ function demarrer() {
   store.init(config.DATA_DIR);
   const avert = verifierSecrets();
   avert.forEach(function (a) { console.warn('⚠  ' + a); });
-  serveur.listen(config.PORT, function () {
-    console.log('Portail Mar\'q — serveur démarré sur http://localhost:' + config.PORT);
+  serveur.listen(config.PORT, config.HOST, function () {
+    const local = config.HOST === '127.0.0.1' || config.HOST === 'localhost';
+    console.log('Portail Mar\'q — serveur démarré sur http://' + (local ? 'localhost' : config.HOST) + ':' + config.PORT);
+    console.log('Écoute    : ' + config.HOST + (local ? ' (ce poste uniquement)' : ' (ACCESSIBLE DEPUIS LE RÉSEAU)'));
     console.log('Données   : ' + config.DATA_DIR);
     console.log('Origines  : ' + config.ALLOWED_ORIGIN.join(', '));
   });

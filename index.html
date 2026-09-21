@@ -3726,7 +3726,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=714;
+var LAST_VER=715;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -27153,7 +27153,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'.q-billto{margin:30px 0 22px}.q-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;color:#8c8c8c;font-weight:600;margin-bottom:6px}.q-bt-nom{font-size:14.5px;font-weight:700}.q-bt-sm{font-size:12px;color:#6d6d6d;line-height:1.55}'
       +'.q-tbl{width:100%;border-collapse:collapse;font-size:12.5px}.q-tbl th{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8c;font-weight:600;padding:0 5px 11px;border-bottom:1.5px solid #1a1a1a;text-align:left}.q-tbl th.r{text-align:right}.q-tbl td{padding:14px 5px;border-bottom:1px solid #ededed;text-align:left}.q-tbl td.r{text-align:right}.q-tbl .q-desc{width:46%}'
       +'.q-tot{margin:18px 0 0 auto;width:300px}.q-trow{display:flex;justify-content:space-between;padding:6px 5px;font-size:13px}.q-trow span{color:#6d6d6d}.q-trow b{font-weight:600}.q-grand{margin-top:6px;border-top:1.5px solid #1a1a1a;padding-top:11px;font-weight:700;font-size:16px}'
-      +'.q-pay{display:flex;gap:34px;border-top:1px solid #ededed;padding-top:17px}.q-pay-c{flex:1}.q-legal{margin-top:16px;font-size:9.5px;color:#a6a6a6;line-height:1.6}'
+      +'.q-pay{display:flex;gap:34px;border-top:1px solid #ededed;padding-top:17px}.q-pay-c{flex:1}.q-legal{margin-top:16px;font-size:10px;color:#a6a6a6;line-height:1.55}'
       +'.inv-paper.m-mode{padding:0 0 20px;font-family:"Inter",Arial,sans-serif}.m-band{display:flex;justify-content:space-between;gap:20px;background:#0f2740;color:#fff;padding:24px 30px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.m-title{font-size:26px;font-weight:800;letter-spacing:.06em}.m-num{font-size:12px;opacity:.85;margin-top:4px}.m-band-r{text-align:right}.m-em-nom{font-size:15px;font-weight:700}.m-em-sm{font-size:10.5px;opacity:.85;margin-top:3px}.m-mode .m-info,.m-mode .m-tbl,.m-mode .m-tot,.m-mode .m-foot{margin-left:30px;margin-right:30px}.m-info{display:flex;justify-content:space-between;gap:26px;margin-top:22px}.m-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#8c8c8c;font-weight:700;margin-bottom:5px}.m-nom{font-size:13.5px;font-weight:700}.m-sm{font-size:11px;color:#6d6d6d;line-height:1.6;margin-top:2px}.m-info-dates{text-align:right}.m-info-dates span{font-size:9px;text-transform:uppercase;color:#8c8c8c;font-weight:700;margin-right:8px}.m-info-dates b{font-size:12px}.m-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px}.m-tbl th{font-size:9px;text-transform:uppercase;color:#8c8c8c;font-weight:700;padding:0 5px 9px;border-bottom:2px solid #0f2740;text-align:left}.m-tbl th.r{text-align:right}.m-tbl td{padding:11px 5px;border-bottom:1px solid #ededed}.m-tbl td.r{text-align:right}.m-tot{width:280px;margin:16px 0 0 auto}.m-tot>div{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px}.m-tot span{color:#6d6d6d}.m-grand{border-top:2px solid #0f2740;margin-top:5px;padding-top:9px!important;font-weight:800;font-size:15px}.m-foot{margin-top:16px;border-top:1px solid #ededed;padding-top:14px}.m-cond{font-size:11px;color:#5a6270;line-height:1.55}.m-note{font-style:italic;margin-top:4px}.m-mentions{margin-top:9px;font-size:9px;color:#a6a6a6;line-height:1.6}'
       +'.inv-paper.c-mode{font-family:Georgia,"Times New Roman",serif;color:#1c1c1c}.c-head{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #1c1c1c;padding-bottom:14px}.c-em-nom{font-size:16px;font-weight:700}.c-em-sm{font-size:11px;color:#4a4a4a;line-height:1.6;margin-top:4px}.c-doc{text-align:right}.c-doc-t{font-size:22px;font-weight:700;letter-spacing:.08em}.c-doc-m{font-size:11.5px;color:#333;margin-top:8px;line-height:1.7}.c-cli{margin:18px 0;font-size:12px}.c-cli-l{font-size:10px;text-transform:uppercase;color:#777;font-weight:700}.c-cli-b{margin-top:4px;line-height:1.6}.c-tbl{width:100%;border-collapse:collapse;font-size:12px}.c-tbl th,.c-tbl td{border:1px solid #cfcfcf;padding:8px;text-align:left}.c-tbl th{background:#f2f2f2;font-size:10px;text-transform:uppercase;color:#555;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}.c-tbl th.r,.c-tbl td.r{text-align:right}.c-tot{width:270px;margin:14px 0 0 auto}.c-tot>div{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-bottom:1px solid #eee}.c-tot span{color:#555}.c-grand{border:none;border-top:2px solid #1c1c1c!important;margin-top:4px;padding-top:8px!important;font-weight:700;font-size:14.5px}.c-foot{margin-top:16px;border-top:1px solid #ccc;padding-top:12px}.c-cond{font-size:11px;color:#444;line-height:1.55}.c-note{font-style:italic;margin-top:4px}.c-mentions{margin-top:9px;font-size:9px;color:#888;line-height:1.6}</style>'
       +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body>'
@@ -27301,7 +27301,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
     '.q-tbl{width:100%;border-collapse:collapse;font-size:12px}.q-tbl th{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8c;font-weight:600;padding:0 4px 10px;border-bottom:1.5px solid #1a1a1a;text-align:left}.q-tbl th.r{text-align:right}.q-tbl td{padding:13px 4px;border-bottom:1px solid #ededed;color:#1a1a1a;text-align:left}.q-tbl td.r{text-align:right}.q-tbl .q-desc{width:46%}',
     '.q-tot{margin:16px 0 0 auto;width:56%;max-width:290px}.q-trow{display:flex;justify-content:space-between;padding:5px 4px;font-size:12.5px}.q-trow span{color:#6d6d6d}.q-trow b{color:#1a1a1a;font-weight:600}.q-grand{margin-top:6px;border-top:1.5px solid #1a1a1a;padding-top:10px;font-weight:700;font-size:15px}',
     '.q-pay{display:flex;gap:30px;border-top:1px solid #ededed;padding-top:16px}.q-pay-c{flex:1}',
-    '.q-legal{margin-top:14px;font-size:9px;color:#a6a6a6;line-height:1.6}',
+    '.q-legal{margin-top:14px;font-size:10px;color:#a6a6a6;line-height:1.55}',
     /* --- Isolation du document : feuille blanche, immunité au thème sombre (surspécificité id pour battre le sélecteur nucléaire du thème) --- */
     'html body:not(#mq):not(#mq) #inv-prev .inv-paper{background:#fff!important;color:#1a1a1a!important}',
     'html body:not(#mq):not(#mq) #inv-prev .inv-paper *{background:transparent!important;background-color:transparent!important;color:#1a1a1a!important;border-color:#ededed!important;box-shadow:none!important}',
@@ -44073,6 +44073,13 @@ function testLienSignature() {
 
   /* ── point hebdomadaire ── */
   function lundi(d){ d=d?new Date(d):new Date(); var j=(d.getDay()+6)%7; d.setHours(0,0,0,0); d.setDate(d.getDate()-j); return d; }
+  /* v715 : le point de la semaine se prépare le lundi ou le mardi — pour la
+     semaine qui vient de s'achever, la seule sur laquelle le client attend un
+     compte rendu. Le reste du temps, c'est la semaine en cours. */
+  function hebdoDefautSem(){ var d=new Date(); var j=d.getDay();
+    if(j===1||j===2){ var L=lundi(d); L.setDate(L.getDate()-7); return L.toISOString().slice(0,10); }
+    return null; }
+  window.hebdoDefautSem=hebdoDefautSem;
   window.hebdoSociete=function(S,semaine){ if(!S) return null; var L0=lundi(semaine), L1=new Date(L0.getTime()+7*86400000); var t0=L0.getTime(), t1=L1.getTime(); var i0=L0.toISOString().slice(0,10), i1=L1.toISOString().slice(0,10);
     var H={societe:S,debut:i0,fin:new Date(L1.getTime()-86400000).toISOString().slice(0,10),fait:[],enCours:[],aVenir:[],attendu:S.attendu||[],conseils:conseilsSociete(S),chiffres:{}};
     /* fait cette semaine : historique + notes + étapes validées */
@@ -44103,7 +44110,7 @@ function testLienSignature() {
     return '<div class="sy-doc sy-'+mode+'">'+h+'</div>'; };
   var HS={cid:null,mode:'client',sem:null};
   function repaint(){ var box=document.getElementById('hb-body'); if(!box) return; var S=window.syntheseSociete(HS.cid); var H=S&&window.hebdoSociete(S,HS.sem); box.innerHTML=H?window.hebdoHTML(H,HS.mode):'<div class="hint">Société introuvable.</div>'; try{ setTimeout(function(){ window.syAjuster&&window.syAjuster('hb-body'); },0); }catch(e){} document.querySelectorAll('.hb-mode').forEach(function(b){ b.classList.toggle('btn-pri',b.getAttribute('data-m')===HS.mode); }); }
-  window.hebdoOuvrir=function(cid,mode){ var st=(typeof syntheseCourante==='function')?syntheseCourante():null; HS.cid=cid||(st&&st.cid); if(!HS.cid){ T('Ouvrez d\'abord une société.','warn'); return; } HS.mode=mode==='cabinet'?'cabinet':'client'; HS.sem=null;
+  window.hebdoOuvrir=function(cid,mode){ var st=(typeof syntheseCourante==='function')?syntheseCourante():null; HS.cid=cid||(st&&st.cid); if(!HS.cid){ T('Ouvrez d\'abord une société.','warn'); return; } HS.mode=mode==='cabinet'?'cabinet':'client'; HS.sem=hebdoDefautSem();
     var S=window.syntheseSociete(HS.cid); if(!S){ T('Société introuvable.','warn'); return; }
     var body='<div class="sy-bar"><button type="button" class="btn btn-sm hb-mode" data-m="client" onclick="hebdoMode(\'client\')">Version client</button><button type="button" class="btn btn-sm hb-mode" data-m="cabinet" onclick="hebdoMode(\'cabinet\')">Version cabinet (préparation)</button><button type="button" class="btn btn-sm btn-ghost" onclick="hebdoSemaine(-1)">Semaine précédente</button><button type="button" class="btn btn-sm btn-ghost" onclick="hebdoSemaine(1)">Semaine suivante</button></div><div id="hb-body"></div>';
     var foot='<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn" onclick="hebdoImprimer()">Imprimer / PDF</button><button class="btn btn-pri" onclick="hebdoEnvoyer()">Envoyer au client</button>';
@@ -44113,7 +44120,9 @@ function testLienSignature() {
   window.hebdoImprimer=function(mode){ var S=window.syntheseSociete(HS.cid); if(!S) return; var H=window.hebdoSociete(S,HS.sem); var html=window.hebdoHTML(H,mode||HS.mode); var w=null; try{ w=window.open('','_blank'); }catch(e){} if(!w){ T('Autorisez les fenêtres pour imprimer le point hebdomadaire.','warn'); return; }
     w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Point de la semaine · '+E(S.nom)+'</title><style>'+(window.__syPrintCSS||'')+(window.__csPrintCSS||'')+'</style></head><body>'+html+'<script>setTimeout(function(){window.print();},250);<\/script></body></html>'); w.document.close(); };
   window.hebdoTexte=function(S,H){ var l=[]; l.push('Bonjour,'); l.push(''); l.push('Voici le point de la semaine du '+frD(H.debut)+' au '+frD(H.fin)+' sur votre dossier'+(S.nom?(' '+S.nom):'')+'.');
-    if(H.fait.length){ l.push(''); l.push('Ce qui a avancé :'); H.fait.slice(0,8).forEach(function(f){ l.push(' - '+f.l); }); }
+    l.push(''); l.push('Ce qui a avancé :');
+    if(H.fait.length) H.fait.slice(0,8).forEach(function(f){ l.push(' - '+f.l); });
+    else l.push(' - aucune avancée enregistrée sur cette semaine.');
     if(H.enCours.length){ l.push(''); l.push('Où en est votre dossier :'); H.enCours.forEach(function(e){ l.push(' - '+e.l+(e.pieces&&e.pieces.manquantes.length?(' (pièces attendues : '+e.pieces.manquantes.join(', ')+')'):'')); }); }
     var av=H.aVenir.filter(function(x){ return !x.interne; }); if(av.length){ l.push(''); l.push('À venir :'); av.slice(0,6).forEach(function(x){ l.push(' - '+frD(x.date)+' : '+x.l); }); }
     if(H.attendu.length){ l.push(''); l.push('Ce que nous attendons de vous :'); H.attendu.forEach(function(a){ l.push(' - '+a.l); }); }
@@ -49049,5 +49058,1369 @@ function testLienSignature() {
 })();
 </script>
 
+<script id="mq-rep-715">
+/* ============================================================
+   Mar'q — Le répertoire du dossier (v715)
+   Chaque dossier possède un répertoire qui n'appartient qu'à lui :
+   un code stable tiré de son numéro, une arborescence fixe, et
+   tout ce qui le concerne rangé dedans. Rien n'y est adressé par le
+   NOM du client — deux sociétés homonymes ne peuvent donc pas se
+   voir. Un contrôle d'étanchéité cherche activement les fuites, et
+   le portail refuse de s'ouvrir sur un nom qui désigne deux clients.
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__mqRep) return; window.__mqRep=1;
+  var M=window.MQ||{};
+  var RXA=new RegExp('[\\u0300-\\u036f]','g');
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function db(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=db(); b.parametres=b.parametres||{}; return b.parametres; }
+  function tous(){ return db().dossiers||[]; }
+  function dossier(id){ return tous().filter(function(x){ return x.id===id; })[0]||null; }
+  function clients(){ return db().clients||[]; }
+  function cliDe(id){ return clients().filter(function(x){ return x.id===id; })[0]||null; }
+  function nomCli(c){ if(!c) return ''; return S(c.denomination)||S((c.prenom||'')+' '+(c.nom||'')); }
+  function sansAcc(s){ try{ return (''+(s==null?'':s)).normalize('NFD').replace(RXA,''); }catch(e){ return ''+(s==null?'':s); } }
+  function cle(s){ return sansAcc(s).toLowerCase().replace(/[^a-z0-9]+/g,''); }
+  function T(m,t){ try{ if(M.dire) M.dire(m,t); else if(typeof toast==='function') toast(m); }catch(e){} }
+  function frD(v){ return M.jour?M.jour(v):S(v); }
+  function eur(v){ return M.eur?M.eur(v):(S(v)+' €'); }
+  function nomDossierCli(d){ if(!d) return '';
+    var c=cliDe((d.clientIds||[])[0]); if(c) return nomCli(c);
+    return S(d.clientNom)||''; }
+
+  /* ---------------- 1. l'adresse du répertoire ----------------
+     Le code vient du NUMÉRO du dossier (unique et jamais réemployé,
+     registre v703/v704), pas du nom du client. Il reste donc stable
+     si la société est renommée, et distinct pour deux homonymes. */
+  function seg(s,n){ s=sansAcc(s).toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    return s.slice(0,n||26); }
+  window.repNumero=function(d){ return S(d&&(d.numeroDossier||d.ref))||''; };
+  window.repCode=function(d){ if(!d) return '';
+    var num=seg(window.repNumero(d),34)||('SANS-NUMERO-'+seg(d.id,10));
+    var nom=seg(nomDossierCli(d),24);
+    return nom?(num+'_'+nom):num; };
+  window.repAnnee=function(d){ if(!d) return S(new Date().getFullYear());
+    var n=window.repNumero(d), m=/(20\d{2})/.exec(n); if(m) return m[1];
+    var i=M.iso?M.iso(d.createdAt):S(d.createdAt).slice(0,10);
+    return (i&&i.slice(0,4))||S(new Date().getFullYear()); };
+  window.repChemin=function(d){ return 'Dossiers/'+window.repAnnee(d)+'/'+window.repCode(d); };
+
+  window.repSections=[
+    {k:'demande',   dir:'01-Demande',                  lbl:'Demande'},
+    {k:'pieces',    dir:'02-Pieces-du-client',         lbl:'Pièces du client'},
+    {k:'documents', dir:'03-Documents-generes',        lbl:'Documents générés'},
+    {k:'actes',     dir:'04-Actes-signes',             lbl:'Actes signés'},
+    {k:'annonce',   dir:'05-Annonce-legale',           lbl:'Annonce légale'},
+    {k:'depot',     dir:'06-Depot-et-immatriculation', lbl:'Dépôt & immatriculation'},
+    {k:'factures',  dir:'07-Facturation',              lbl:'Facturation'},
+    {k:'livraison', dir:'08-Livraison-au-client',      lbl:'Livraison au client'},
+    {k:'suivi',     dir:'09-Suivi',                    lbl:'Suivi du dossier'}
+  ];
+
+  /* ---------------- 2. le contenu, lu du dossier lui-même ----------------
+     Tout est lu depuis l'objet du dossier : les fichiers du client sont
+     imbriqués dedans, donc rien d'un autre dossier ne peut y entrer. */
+  function octetsDataUrl(u){ u=S(u); var i=u.indexOf(','); if(i<0) return 0;
+    var b=u.slice(i+1).replace(/[^A-Za-z0-9+/=]/g,''); var pad=(b.match(/=+$/)||[''])[0].length;
+    return Math.max(0,Math.floor(b.length*3/4)-pad); }
+  function nomFichier(s,dft){ s=S(s)||S(dft)||'document';
+    return s.replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').slice(0,90); }
+  function it(nom,o){ o=o||{}; o.nom=nomFichier(nom); if(o.octets==null) o.octets=o.data?octetsDataUrl(o.data):(o.texte?o.texte.length:0); return o; }
+
+  function piecesListe(d){
+    var out=[], vu={};
+    Object.keys(d.pieces||{}).forEach(function(k){ var p=(d.pieces||{})[k]||{};
+      if(!p.recu&&!p.data&&!p.nom) return; vu[k]=1;
+      out.push(it(p.nom||(k+'.pdf'),{cle:k,data:p.data||'',recu:!!p.recu,
+        etat:p.data?'fichier joint':'déclarée reçue'})); });
+    Object.keys(d.piecesRecues||{}).forEach(function(k){ if(vu[k]||!(d.piecesRecues||{})[k]) return;
+      out.push(it(k+' (reçue)',{cle:k,etat:'déclarée reçue'})); });
+    (d.attachments||[]).forEach(function(a,i){ if(!a) return;
+      out.push(it(a.nom||a.name||('piece-jointe-'+(i+1)),{data:a.dataUrl||a.data||'',etat:'pièce jointe du message'})); });
+    return out; }
+
+  function docsListe(d){
+    var req=[]; try{ if(typeof espDocsRequis==='function') req=espDocsRequis(d)||[]; }catch(e){}
+    if(!req.length){ try{ if(typeof ESP_DOCS!=='undefined') req=(ESP_DOCS||[]).filter(function(dc){
+      try{ return (typeof espDocReq==='function')?espDocReq(d,dc.k):false; }catch(e){ return false; } }); }catch(e){} }
+    var appr=(d.docFolder&&d.docFolder.approved)||{};
+    return req.map(function(dc){ var g=(d.docs||{})[dc.k];
+      var gen=!!(g&&(g.genere||(Array.isArray(g)&&g.length)));
+      return it((dc.l||dc.k)+'.html',{cle:dc.k,libelle:dc.l||dc.k,genere:gen,approuve:appr[dc.k]===true,
+        etat:gen?(appr[dc.k]===true?'approuvé':'à vérifier'):'à générer'}); }); }
+
+  function actesListe(d){
+    var out=[]; var sg=d.sign||{};
+    Object.keys(sg).forEach(function(k){ var s=sg[k]||{}; if(!s.ok) return;
+      out.push(it((k)+' — signé.html',{cle:k,etat:'signé'+(s.date?(' le '+frD(s.date)):'')})); });
+    var env=d.signEnv||{}; if(env.statut) out.push(it('circuit-de-signature.txt',{etat:'circuit : '+S(env.statut)}));
+    return out; }
+
+  function annonceListe(d){
+    var a=d.annonceLegale||{}, out=[];
+    if(a.fichier&&(a.fichier.dataUrl||a.fichier.data))
+      out.push(it(a.fichier.name||'attestation-de-parution.pdf',{data:a.fichier.dataUrl||a.fichier.data,etat:'attestation de parution'}));
+    else if(a.commande) out.push(it('annonce-commandee.txt',{etat:'commandée, attestation attendue'}));
+    return out; }
+
+  function depotListe(d){
+    var out=[], s=d.inpiSuivi||{};
+    if(s.statut&&s.statut!=='afaire') out.push(it('depot-guichet-unique.txt',
+      {etat:S(s.statut)+(s.reference?(' · '+S(s.reference)):'')+(s.dateDepot?(' · déposé le '+frD(s.dateDepot)):'')}));
+    if(d.inpi&&d.inpi.reference) out.push(it('reference-inpi.txt',{etat:S(d.inpi.reference)+' · '+S(d.inpi.status||'')}));
+    var cap=(d.pieces||{}).capital||(d.pieces||{}).attestationCapital;
+    if(cap&&cap.data) out.push(it(cap.nom||'attestation-depot-des-fonds.pdf',{data:cap.data,etat:'dépôt des fonds'}));
+    return out; }
+
+  function facturier(){ var p=P(); return p.facturier||[]; }
+  function facturesListe(d){
+    return facturier().filter(function(f){ return f.dossierId===d.id; }).map(function(f){
+      var mt=0; try{ var c=window.invCalc&&window.invCalc(f); mt=(c&&c.net!=null)?+c.net:(+f.ttc||0); }catch(e){ mt=+f.ttc||0; }
+      return it(((f.type==='devis')?'Devis ':'Facture ')+S(f.numero||'')+'.html',
+        {cle:f.id,etat:(f.type==='devis'?'devis':'facture')+' · '+eur(mt)+(f.paye?' · encaissée':'')}); }); }
+
+  function livraisonListe(d){
+    var c=d.cloture||{}, out=[];
+    if(c.remis) out.push(it('bordereau-de-remise.html',{etat:'remis le '+frD(c.remis)+(c.remisA?(' à '+S(c.remisA)):'')}));
+    return out; }
+
+  function suiviListe(d){
+    var n=0; try{ var F=window.filDossier&&window.filDossier(d.id); n=(F&&F.evts&&F.evts.length)||0; }catch(e){}
+    return [it('fil-du-dossier.html',{etat:n+' évènement'+(n>1?'s':'')})]; }
+
+  function demandeListe(d){
+    var out=[], dem=(db().demandes||[]).filter(function(x){ return x.dossierId===d.id; })[0];
+    if(dem) out.push(it('demande-du-client.html',{etat:'reçue le '+frD(dem.date)+(dem.canal?(' · '+S(dem.canal)):'')}));
+    if(d.intake) out.push(it('questionnaire-renseigne.html',{etat:'questionnaire du client'}));
+    return out; }
+
+  var LECTEURS={demande:demandeListe,pieces:piecesListe,documents:docsListe,actes:actesListe,
+    annonce:annonceListe,depot:depotListe,factures:facturesListe,livraison:livraisonListe,suivi:suiviListe};
+
+  window.repContenu=function(id){
+    var d=dossier(id); if(!d) return null;
+    var c=cliDe((d.clientIds||[])[0]);
+    var secs=window.repSections.map(function(s){
+      var items=[]; try{ items=LECTEURS[s.k](d)||[]; }catch(e){ items=[]; }
+      var oct=0; items.forEach(function(x){ oct+=(+x.octets||0); });
+      return {k:s.k,dir:s.dir,lbl:s.lbl,items:items,octets:oct}; });
+    var nb=0,oct=0,fich=0;
+    secs.forEach(function(s){ nb+=s.items.length; oct+=s.octets;
+      s.items.forEach(function(x){ if(x.data) fich++; }); });
+    return {id:d.id,code:window.repCode(d),chemin:window.repChemin(d),numero:window.repNumero(d),
+      annee:window.repAnnee(d),client:{id:c?c.id:'',nom:nomDossierCli(d)},
+      formalite:S(d.formalite||d.formaliteType||d.serviceSouhaite||''),
+      sections:secs,nb:nb,octets:oct,fichiers:fich}; };
+
+  /* ---------------- 3. le contrôle d'étanchéité ----------------
+     Il cherche les chemins par lesquels un document pourrait passer
+     d'un dossier à l'autre, ou d'un client à l'autre. */
+  function coffreItems(){ try{ var o=JSON.parse(localStorage.getItem('last-svc')||'{}')||{};
+      return ((o.coffre&&o.coffre.items)||[]); }catch(e){ return []; } }
+  function coffreEcrire(items){ try{ var o=JSON.parse(localStorage.getItem('last-svc')||'{}')||{};
+      o.coffre=o.coffre||{}; o.coffre.items=items; localStorage.setItem('last-svc',JSON.stringify(o)); return true; }catch(e){ return false; } }
+
+  var _etanche=null;
+  function _etOublier(){ _etanche=null; }
+  window.repEtancheite=function(){
+    if(_etanche) return _etanche;
+    var A=[], D=tous(), C=clients();
+    function al(niv,quoi,detail,o){ var x={niv:niv,quoi:quoi,detail:detail}; if(o) for(var k in o) x[k]=o[k]; A.push(x); }
+
+    /* a. deux dossiers au même répertoire : les fichiers se mélangeraient */
+    var parCode={}; D.forEach(function(d){ var c=window.repCode(d); (parCode[c]=parCode[c]||[]).push(d); });
+    Object.keys(parCode).forEach(function(c){ if(parCode[c].length<2) return;
+      al('grave','Deux dossiers pour un même répertoire',
+        'Le répertoire « '+c+' » est revendiqué par '+parCode[c].length+' dossiers ('
+        +parCode[c].map(function(d){ return S(d.ref||d.id); }).join(', ')+'). Leurs pièces se retrouveraient ensemble.',
+        {dosId:parCode[c][0].id,fix:'numero'}); });
+
+    /* b. dossier sans numéro : pas d'adresse stable */
+    D.forEach(function(d){ if(!window.repNumero(d))
+      al('grave','Dossier sans numéro','Le dossier '+S(d.id)+' n’a ni numéro ni référence : son répertoire ne peut pas être adressé.',{dosId:d.id,fix:'numero'}); });
+
+    /* c. dossier sans client rattaché : ses documents n'appartiennent à personne */
+    D.forEach(function(d){ var c=cliDe((d.clientIds||[])[0]);
+      if(!c) al('grave','Dossier sans client','Le dossier '+S(d.ref||d.id)+' n’est rattaché à aucune fiche client : impossible de savoir à qui livrer, ni à qui ses documents appartiennent.',{dosId:d.id,fix:'client'}); });
+
+    /* d. deux clients pour un même nom : le portail les confondrait */
+    var parNom={}; C.forEach(function(c){ var k=cle(nomCli(c)); if(!k) return; (parNom[k]=parNom[k]||[]).push(c); });
+    Object.keys(parNom).forEach(function(k){ if(parNom[k].length<2) return;
+      al('grave','Deux clients portent le même nom',
+        '« '+nomCli(parNom[k][0])+' » désigne '+parNom[k].length+' fiches clientes. Le portail et le coffre s’adressent par le nom : chacune verrait les documents de l’autre. L’accès au portail est bloqué pour ce nom tant qu’il n’est pas distingué.',
+        {cliId:parNom[k][0].id,fix:'homonyme'}); });
+
+    /* e. document du coffre rattaché à un dossier qui n'existe plus */
+    var items=coffreItems();
+    items.forEach(function(x,i){ if(!x) return;
+      if(x.dosId&&!dossier(x.dosId))
+        al('grave','Document rattaché à un dossier disparu','« '+S(x.nom)+' » pointe vers un dossier qui n’existe plus.',{idx:i,fix:'detacher'});
+      if(x.dosId&&x.cliId){ var dd=dossier(x.dosId);
+        if(dd&&(dd.clientIds||[])[0]&&(dd.clientIds||[])[0]!==x.cliId)
+          al('grave','Document sous le mauvais client','« '+S(x.nom)+' » est classé sous un client différent de celui de son dossier.',{idx:i,fix:'recaler'}); }
+      if(!x.cliId&&S(x.client)){ var k2=cle(x.client);
+        if((parNom[k2]||[]).length>1)
+          al('grave','Document sous un nom ambigu','« '+S(x.nom)+' » est classé sous « '+S(x.client)+' », un nom qui désigne plusieurs clients.',{idx:i,fix:'homonyme'});
+        else if(!(parNom[k2]||[]).length)
+          al('vigilance','Document sans client connu','« '+S(x.nom)+' » est classé sous « '+S(x.client)+' », qui ne correspond à aucune fiche cliente.',{idx:i,fix:'rattacher'}); }
+      if(!S(x.client))
+        al('vigilance','Document sans client','« '+S(x.nom)+' » n’est rattaché à aucun client : il ne peut être ni livré ni retrouvé.',{idx:i,fix:'rattacher'}); });
+
+    var graves=A.filter(function(x){ return x.niv==='grave'; }).length;
+    _etanche={ok:!A.length,alertes:A,graves:graves,vigilance:A.length-graves,
+      dossiers:D.length,documents:items.length,
+      repertoires:Object.keys(parCode).length};
+    try{ Promise.resolve().then(_etOublier); }catch(e){ setTimeout(_etOublier,0); }
+    return _etanche; };
+
+  /* réparation de ce qui peut l'être sans décider à la place de l'opérateur :
+     on estampille les documents dont le client est identifiable sans ambiguïté. */
+  window.repEstampiller=function(){
+    var items=coffreItems(), C=clients(), n=0;
+    var parNom={}; C.forEach(function(c){ var k=cle(nomCli(c)); if(!k) return; (parNom[k]=parNom[k]||[]).push(c); });
+    items.forEach(function(x){ if(!x||x.cliId) return; var k=cle(x.client);
+      if((parNom[k]||[]).length===1){ x.cliId=parNom[k][0].id; n++; } });
+    if(n) coffreEcrire(items);
+    T(n?(n+' document'+(n>1?'s':'')+' rattaché'+(n>1?'s':'')+' à son client.'):'Rien à rattacher : chaque document a déjà son client.', n?'ok':'info');
+    try{ if(typeof render==='function') render(); }catch(e){}
+    return n; };
+
+  /* ---------------- 4. le verrou du portail ----------------
+     Un nom qui désigne deux clients n'ouvre plus le portail : mieux vaut
+     un accès refusé qu'un client qui lit le dossier d'un autre. */
+  function homonymes(nom){ var k=cle(nom); if(!k) return [];
+    return clients().filter(function(c){ return cle(nomCli(c))===k; }); }
+  window.repPortailAmbigu=function(nom){ return homonymes(nom).length>1; };
+  try{ var _op=window.openPortail;
+    if(typeof _op==='function'&&!_op.__rep){
+      window.openPortail=function(nom,code){
+        if(window.repPortailAmbigu(nom)){
+          T('Accès refusé : « '+S(nom)+' » désigne plusieurs clients. Distinguez les fiches avant d’ouvrir le portail.','warn');
+          return; }
+        return _op.apply(this,arguments); };
+      window.openPortail.__rep=1; } }catch(e){}
+  try{ var _pl=window.svcPortLogin;
+    if(typeof _pl==='function'&&!_pl.__rep){
+      window.svcPortLogin=function(){
+        var nom=((document.getElementById('port-in-client')||{}).value||'');
+        if(window.repPortailAmbigu(nom)){
+          try{ var er=document.getElementById('port-err'); if(er) er.textContent='Accès indisponible : contactez votre cabinet.'; }catch(e){}
+          T('Accès refusé : ce nom désigne plusieurs clients.','warn'); return; }
+        return _pl.apply(this,arguments); };
+      window.svcPortLogin.__rep=1; } }catch(e){}
+
+  /* les documents versés au coffre depuis un dossier portent désormais
+     leur dossier et leur client — plus jamais seulement un nom. */
+  try{ var _cv=window.coVerser;
+    if(typeof _cv==='function'&&!_cv.__rep){
+      window.coVerser=function(i){ var r=_cv.apply(this,arguments);
+        try{ window.repEstampiller(); }catch(e){} return r; };
+      window.coVerser.__rep=1; } }catch(e){}
+
+  /* ---------------- 5. l'export : une vraie arborescence ---------------- */
+  var CRC=(function(){ var t=[]; for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+  function crc32(u8){ var c=0xFFFFFFFF; for(var i=0;i<u8.length;i++) c=CRC[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+  function u16(n){ return [n&255,(n>>8)&255]; }
+  function u32(n){ return [n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255]; }
+  function b64u8(b64){ try{ var s=atob(b64); var u=new Uint8Array(s.length);
+      for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }catch(e){ return new Uint8Array(0); } }
+  function u8De(x){ if(x.data){ var i=S(x.data).indexOf(','); if(i>=0) return b64u8(S(x.data).slice(i+1)); }
+    return new TextEncoder().encode(x.texte||''); }
+  function zip(files){
+    var enc=new TextEncoder(), parts=[], cd=[], off=0;
+    files.forEach(function(f){ var data=f.u8||enc.encode(f.texte||''), name=enc.encode(f.nom), crc=crc32(data);
+      var loc=[].concat([0x50,0x4b,0x03,0x04],u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0));
+      parts.push(new Uint8Array(loc),name,data);
+      cd.push(new Uint8Array([].concat([0x50,0x4b,0x01,0x02],u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off))),name);
+      off+=loc.length+name.length+data.length; });
+    var start=off, size=0; cd.forEach(function(p){ size+=p.length; }); cd.forEach(function(p){ parts.push(p); });
+    parts.push(new Uint8Array([].concat([0x50,0x4b,0x05,0x06],u16(0),u16(0),u16(files.length),u16(files.length),u32(size),u32(start),u16(0))));
+    var tot=0; parts.forEach(function(p){ tot+=p.length; });
+    var out=new Uint8Array(tot), pos=0; parts.forEach(function(p){ out.set(p,pos); pos+=p.length; });
+    return out; }
+
+  function docHTML(titre,corps){
+    return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>'+E(titre)+'</title>'
+      +'<style>body{margin:0;background:#eef0f2;font-family:Georgia,serif;color:#111;line-height:1.6}'
+      +'.p{max-width:820px;margin:22px auto;background:#fff;padding:40px 46px;box-shadow:0 2px 12px rgba(0,0,0,.14)}'
+      +'h1{font-size:21px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 6px}'
+      +'table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid #ddd;padding:5px 8px;text-align:left}'
+      +'.m{color:#555;font-size:12px}</style></head><body><div class="p">'+corps+'</div></body></html>'; }
+
+  window.repExporter=function(id){
+    var R=window.repContenu(id); if(!R){ T('Dossier introuvable.','warn'); return false; }
+    var d=dossier(id), files=[], racine=window.repCode(d)+'/';
+    R.sections.forEach(function(s){
+      var vus={};
+      s.items.forEach(function(x){
+        var nom=x.nom, i=2; while(vus[nom]){ nom=x.nom.replace(/(\.[a-z0-9]+)?$/i,' ('+(i++)+')$1'); }
+        vus[nom]=1;
+        var f={nom:racine+s.dir+'/'+nom};
+        if(x.data){ f.u8=u8De(x); }
+        else if(s.k==='documents'&&x.cle){ var inner=''; try{ inner=espDocHTML(d,{k:x.cle,l:x.libelle}); }catch(e){ inner='<p class="m">Document non généré.</p>'; }
+          f.texte=docHTML(x.libelle||x.cle,inner); }
+        else if(s.k==='suivi'){ var fh=''; try{ fh=window.filDocHTML?window.filDocHTML(id):''; }catch(e){}
+          f.texte=docHTML('Fil du dossier',fh||'<p class="m">Aucun évènement.</p>'); }
+        else { f.texte=docHTML(x.nom,'<h1>'+E(x.nom)+'</h1><p class="m">'+E(x.etat||'')+'</p>'); }
+        files.push(f); });
+      if(!s.items.length) files.push({nom:racine+s.dir+'/(vide).txt',
+        texte:'Aucune pièce dans « '+s.lbl+' » à la date du '+frD(M.auj?M.auj():'')+'.\n'}); });
+    /* le sommaire : ce que contient le répertoire, section par section */
+    var som='<h1>Répertoire '+E(R.code)+'</h1>'
+      +'<p class="m">'+E(R.client.nom||'client non rattaché')+(R.formalite?(' · '+E(R.formalite)):'')
+      +' · '+E(R.chemin)+' · établi le '+E(frD(M.auj?M.auj():''))+'</p>'
+      +'<table><tr><th>Section</th><th>Pièces</th><th>Détail</th></tr>'
+      +R.sections.map(function(s){ return '<tr><td>'+E(s.dir)+'</td><td>'+s.items.length+'</td><td class="m">'
+        +E(s.items.map(function(x){ return x.nom; }).join(' · ')||'—')+'</td></tr>'; }).join('')
+      +'</table><p class="m">'+R.nb+' pièce(s) au total.</p>';
+    files.unshift({nom:racine+'00-Sommaire.html',texte:docHTML('Répertoire '+R.code,som)});
+    try{ var blob=new Blob([zip(files)],{type:'application/zip'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=window.repCode(d)+'.zip'; document.body.appendChild(a); a.click();
+      setTimeout(function(){ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} },200);
+      T('Répertoire exporté — '+files.length+' fichier(s).','ok');
+      try{ if(M.noter) M.noter('repJournal',{action:'Export du répertoire',detail:R.code+' · '+files.length+' fichier(s)',dosId:id}); }catch(e){}
+      return true; }catch(e){ T('Export impossible.','warn'); return false; } };
+
+  /* ---------------- 6. la carte dans le dossier ---------------- */
+  window.repCarte=function(d){
+    if(!d) return ''; var R=window.repContenu(d.id); if(!R) return '';
+    var lignes=R.sections.map(function(s){
+      var det=s.items.length
+        ? s.items.slice(0,4).map(function(x){ return E(x.nom); }).join(' · ')+(s.items.length>4?(' · +'+(s.items.length-4)):'')
+        : '<i>vide</i>';
+      return '<div class="rp-l'+(s.items.length?'':' rp-vide')+'">'
+        +'<span class="rp-d">'+E(s.dir)+'</span>'
+        +'<span class="rp-n">'+s.items.length+'</span>'
+        +'<span class="rp-i">'+det+'</span></div>'; }).join('');
+    var et=window.repEtancheite();
+    var mien=et.alertes.filter(function(a){ return a.dosId===d.id; });
+    return '<div class="card rp-card" data-sp="trt/repertoire"><div class="card-h"><h2>Répertoire du dossier</h2>'
+      +'<span class="sub" style="margin-left:auto">'+E(R.code)+'</span></div><div class="card-b">'
+      +'<div class="rp-adr">'+E(R.chemin)+'</div>'
+      +'<div class="rp-meta">'+E(R.client.nom||'client non rattaché')+(R.formalite?(' · '+E(R.formalite)):'')
+        +' · '+R.nb+' pièce(s)'
+        +(R.fichiers?(', dont '+R.fichiers+' fichier'+(R.fichiers>1?'s':'')+' joint'+(R.fichiers>1?'s':'')
+            +' ('+E(M.octets?M.octets(R.octets):(R.octets+' o'))+')'):'')+'</div>'
+      +(mien.length?('<div class="rp-warn">'+mien.map(function(a){ return E(a.quoi)+' — '+E(a.detail); }).join('<br>')+'</div>'):'')
+      +'<div class="rp-list">'+lignes+'</div>'
+      +'<div class="rp-acts"><button class="btn btn-pri" onclick="repExporter(\''+E(d.id)+'\')">Exporter le répertoire</button>'
+      +'<button class="btn" onclick="repEtancheiteVoir()">Contrôler l’étanchéité</button></div>'
+      +'<div class="rp-note">Ce répertoire n’appartient qu’à ce dossier. Il est adressé par son numéro, jamais par le nom de la société : deux sociétés homonymes ne peuvent pas se voir.</div>'
+      +'</div></div>'; };
+
+  window.repEtancheiteVoir=function(){
+    var R=window.repEtancheite();
+    var corps='<div class="rp-et">'
+      +'<div class="rp-et-k"><span><b>'+R.dossiers+'</b><i>dossiers</i></span>'
+      +'<span><b>'+R.repertoires+'</b><i>répertoires distincts</i></span>'
+      +'<span><b>'+R.documents+'</b><i>documents au coffre</i></span>'
+      +'<span class="'+(R.graves?'rp-ko':'rp-ok')+'"><b>'+R.graves+'</b><i>fuite(s) possible(s)</i></span>'
+      +'<span><b>'+R.vigilance+'</b><i>point(s) de vigilance</i></span></div>'
+      +(R.ok?'<div class="rp-et-ok">Aucune fuite possible : chaque dossier a son répertoire, chaque document son client.</div>'
+        :('<div class="rp-et-l">'+R.alertes.map(function(a){
+            return '<div class="rp-et-i rp-'+a.niv+'"><b>'+E(a.quoi)+'</b><span>'+E(a.detail)+'</span></div>'; }).join('')+'</div>'))
+      +'<div class="rp-note">Le contrôle cherche les chemins par lesquels un document pourrait passer d’un dossier ou d’un client à l’autre : répertoires en collision, dossiers sans numéro ni client, documents rattachés à un dossier disparu, noms qui désignent plusieurs sociétés.</div>'
+      +'</div>';
+    var pied='<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'
+      +'<button class="btn" onclick="repEstampiller()">Rattacher les documents identifiables</button>';
+    try{ openModal('Étanchéité des répertoires',corps,pied); }catch(e){ T('Contrôle : '+R.graves+' fuite(s) possible(s).','info'); } };
+
+  /* greffe : la carte s'affiche dans le dossier ouvert (Traitement) */
+  function greffe(){ try{
+    var st=(typeof state!=='undefined'&&state)||{}; if(st.page!=='espace') return;
+    var did=st.espaceDossier; if(!did) return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.rp-card')) return;
+    var d=dossier(did); if(!d) return;
+    var h=window.repCarte(d); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h; v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  try{ if(M.apresRendu) M.apresRendu(greffe,'rep715',70); }catch(e){}
+
+  var CSS='.rp-adr{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:6px 10px;'
+    +'border-radius:7px;background:rgba(255,255,255,.05);display:inline-block;margin:0 0 6px}'
+    +'.rp-meta{font-size:11.5px;opacity:.7;margin:0 0 10px}'
+    +'.rp-list{display:flex;flex-direction:column;border-radius:8px;overflow:hidden;'
+      +'border:1px solid rgba(255,255,255,.09)}'
+    +'.rp-l{display:grid;grid-template-columns:1fr 34px 2fr;gap:10px;align-items:center;font-size:12px;'
+      +'padding:6px 10px;border-top:1px solid rgba(255,255,255,.06)}'
+    +'.rp-l:first-child{border-top:0}'
+    +'.rp-d{font-family:ui-monospace,Menlo,monospace;font-size:11.5px}'
+    +'.rp-n{text-align:right;font-variant-numeric:tabular-nums;opacity:.85}'
+    +'.rp-i{opacity:.62;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    +'.rp-vide{opacity:.5}.rp-vide .rp-i i{font-style:italic}'
+    +'.rp-acts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0}'
+    +'.rp-note{margin-top:10px;font-size:11.5px;opacity:.7;line-height:1.55}'
+    +'.rp-warn{font-size:12px;padding:8px 11px;border-radius:8px;margin:0 0 10px;'
+      +'background:rgba(230,140,90,.1);border:1px solid rgba(230,140,90,.34)}'
+    +'.rp-et-k{display:flex;gap:20px;flex-wrap:wrap;padding:10px 12px;border-radius:9px;'
+      +'border:1px solid rgba(255,255,255,.1);margin:0 0 12px}'
+    +'.rp-et-k b{display:block;font-size:16px}.rp-et-k i{font-style:normal;font-size:11px;opacity:.65}'
+    +'.rp-et-k .rp-ok b{color:#7fd0a0}.rp-et-k .rp-ko b{color:#e8907a}'
+    +'.rp-et-ok{font-size:12.5px;padding:10px 12px;border-radius:8px;'
+      +'background:rgba(90,200,140,.08);border:1px solid rgba(90,200,140,.3)}'
+    +'.rp-et-l{display:flex;flex-direction:column;gap:7px}'
+    +'.rp-et-i{font-size:12px;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.1)}'
+    +'.rp-et-i b{display:block;margin-bottom:2px}.rp-et-i span{opacity:.72;line-height:1.5}'
+    +'.rp-grave{background:rgba(230,120,100,.1);border-color:rgba(230,120,100,.36)}'
+    +'.rp-vigilance{background:rgba(230,190,90,.08);border-color:rgba(230,190,90,.3)}'
+    +'@media(max-width:820px){.rp-l{grid-template-columns:1fr auto}.rp-i{display:none}}';
+  try{ if(M.style) M.style('rp-715-css',CSS); }catch(e){}
+})();
+</script>
+<script id="mq-parcours-715">
+/* ============================================================
+   Mar'q — Le suivi de bout en bout (v715)
+   Une demande entre, un service sort. Entre les deux, quinze jalons
+   toujours les mêmes : on voit d'un coup d'oeil où en est chaque
+   demande, ce qui la retient, depuis combien de jours, et quelle est
+   la prochaine action. Rien ne peut se perdre en route : ce qui n'est
+   pas franchi reste visible jusqu'à la remise au client.
+   100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__mqParcours) return; window.__mqParcours=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function db(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=db(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ try{ if(M.dire) M.dire(m,t); else if(typeof toast==='function') toast(m); }catch(e){} }
+  function ts(v){ return M.ts?M.ts(v):(v?(+v||Date.parse(''+v)||0):0); }
+  function frD(v){ return M.jour?M.jour(v):S(v); }
+  function eur(v){ return M.eur?M.eur(v):(S(v)+' €'); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function dossier(id){ return (db().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function cliDe(id){ return (db().clients||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function nomCli(c){ if(!c) return ''; return S(c.denomination)||S((c.prenom||'')+' '+(c.nom||'')); }
+  function facturier(){ return P().facturier||[]; }
+  function jours(t){ return t?Math.floor((Date.now()-t)/86400000):null; }
+
+  /* ---------------- les quinze jalons ----------------
+     delai = nombre de jours au-delà duquel rester à ce jalon est un retard. */
+  window.PARCOURS=[
+    {k:'recue',     lbl:'Demande reçue',           ph:'Demande',    delai:1},
+    {k:'qualifiee', lbl:'Demande qualifiée',       ph:'Demande',    delai:2},
+    {k:'devis',     lbl:'Devis établi',            ph:'Engagement', delai:3},
+    {k:'accord',    lbl:'Accord du client',        ph:'Engagement', delai:10},
+    {k:'dossier',   lbl:'Dossier ouvert',          ph:'Engagement', delai:1},
+    {k:'pieces',    lbl:'Pièces réunies',          ph:'Instruction',delai:10},
+    {k:'actes',     lbl:'Actes établis',           ph:'Instruction',delai:3},
+    {k:'signature', lbl:'Actes signés',            ph:'Instruction',delai:7},
+    {k:'annonce',   lbl:'Annonce légale parue',    ph:'Formalité',  delai:7},
+    {k:'depot',     lbl:'Dossier déposé',          ph:'Formalité',  delai:2},
+    {k:'obtention', lbl:'Immatriculation obtenue', ph:'Formalité',  delai:21},
+    {k:'livraison', lbl:'Remis au client',         ph:'Livraison',  delai:2},
+    {k:'facture',   lbl:'Honoraires facturés',     ph:'Livraison',  delai:3},
+    {k:'encaisse',  lbl:'Honoraires encaissés',    ph:'Livraison',  delai:30},
+    {k:'archive',   lbl:'Dossier archivé',         ph:'Livraison',  delai:15}
+  ];
+  var PHASES=['Demande','Engagement','Instruction','Formalité','Livraison'];
+
+  /* les jalons qui ne concernent pas certaines prestations */
+  var SANS_FORMALITE=/marque|approbation des comptes|pacte|statuts sur mesure|cgv|cgu|rgpd|confidentialit|domiciliation|compte pro|assurance|mise en relation|conseil|audit|pr[ée]visionnel/i;
+  function horsCircuit(d,dem){
+    var txt=S((d&&(d.formalite||d.formaliteType))||'')+' '+S(dem&&dem.serviceSouhaite)+' '+S(d&&d.serviceSouhaite);
+    var h={}; try{ var man=(d&&d.parcours&&d.parcours.hors)||{}; Object.keys(man).forEach(function(k){ if(man[k]) h[k]=1; }); }catch(e){}
+    if(SANS_FORMALITE.test(txt)){ ['annonce','depot','obtention'].forEach(function(k){ if(h[k]==null) h[k]=1; }); }
+    return h; }
+  window.parcoursHors=function(id,k){ var d=dossier(id); if(!d) return;
+    d.parcours=d.parcours||{}; d.parcours.hors=d.parcours.hors||{};
+    d.parcours.hors[k]=!d.parcours.hors[k];
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof render==='function') render(); }catch(e){} };
+
+  /* ---------------- les détecteurs ----------------
+     Chacun lit l'état réel du dossier : aucun jalon ne se déclare
+     franchi sans la trace qui le prouve. */
+  function piecesManquantes(d){
+    var L=[]; try{ if(typeof enregPieces==='function') L=enregPieces(d)||[]; }catch(e){}
+    if(!L.length){ try{ if(typeof piecesRequises==='function') L=piecesRequises(d)||[]; }catch(e){} }
+    return L.filter(function(p){ if(!p) return false; if(p.origine&&p.origine!=='client') return false;
+      var st=(d.pieces||{})[p.k]||{}; if(st.recu||st.data) return false;
+      if((d.piecesRecues||{})[p.k]) return false;
+      if((d.docs||{})[p.k]&&((d.docs||{})[p.k]||[]).length) return false;
+      return true; }).map(function(p){ return S(p.l||p.libelle||p.k); }); }
+  function docsRequis(d){ try{ return (typeof espDocsRequis==='function')?(espDocsRequis(d)||[]):[]; }catch(e){ return []; } }
+  function devisDe(d,dem){
+    var cid=(d&&(d.clientIds||[])[0])||'';
+    return facturier().filter(function(f){
+      var t=S(f.type)||(f.numero&&/^DEV/i.test(f.numero)?'devis':'');
+      if(t!=='devis') return false;
+      if(d&&f.dossierId===d.id) return true;
+      if(cid&&f.clientId===cid) return true;
+      return false; }); }
+  function facturesDe(d){ if(!d) return [];
+    return facturier().filter(function(f){ return f.dossierId===d.id && S(f.type)!=='devis' && S(f.type)!=='avoir'; }); }
+
+  function etatJalons(dem,d){
+    var w=(d&&d.wf)||{}, cl=(d&&d.cloture)||{}, out={};
+    function set(k,fait,t,detail,bloque,action){ out[k]={fait:!!fait,ts:+t||0,detail:S(detail),bloque:S(bloque),action:S(action)}; }
+
+    /* Demande */
+    var tRecue=dem?(ts(dem.ts)||ts(dem.date)||ts(d&&d.createdAt)):(ts(d&&d.createdAt));
+    set('recue',!!(dem||d),tRecue,dem?('reçue'+(dem.canal?(' par '+S(dem.canal)):'')):'dossier ouvert sans demande enregistrée','',
+      'Enregistrer la demande du client.');
+    var qual=!!(dem&&(S(dem.statut)&&S(dem.statut)!=='Nouveau'||S(dem.assigneA)||S(dem.dossierId)))||!!d;
+    set('qualifiee',qual,ts(dem&&dem.decisionTs)||ts(d&&d.createdAt)||0,
+      dem?(S(dem.statut)||'à qualifier')+(S(dem.assigneA)?' · assignée':''):'',
+      qual?'':'La demande n’est ni qualifiée ni assignée.','Qualifier la demande et l’assigner.');
+
+    /* Engagement */
+    var dv=devisDe(d,dem), dvEmis=dv.filter(function(f){ return S(f.statut)==='emise'; });
+    set('devis',dvEmis.length>0,ts(dvEmis[0]&&(dvEmis[0].dateEmise||dvEmis[0].date))||0,
+      dvEmis.length?('devis '+S(dvEmis[0].numero||'')):'', dvEmis.length?'':'Aucun devis émis.','Établir et envoyer le devis.');
+    var acc=dv.filter(function(f){ return f.accepte; })[0]||null;
+    var accOk=!!acc||!!(dem&&S(dem.decision)==='accepte')||!!(d&&d.id);
+    set('accord',accOk,ts(acc&&acc.accepte)||ts(dem&&dem.decisionTs)||0,
+      acc?('devis accepté'):(dem&&S(dem.decision)==='accepte'?'demande acceptée':''),
+      accOk?'':'Le client n’a pas encore donné son accord.','Obtenir l’accord du client sur le devis.');
+    set('dossier',!!d,ts(d&&(w.demande||d.createdAt))||0, d?S(d.ref||d.numeroDossier||''):'',
+      d?'':'Aucun dossier n’est ouvert pour cette demande.','Ouvrir le dossier de traitement.');
+
+    if(!d){ /* sans dossier, la suite n'a pas encore d'objet mesurable */
+      ['pieces','actes','signature','annonce','depot','obtention','livraison','facture','encaisse','archive']
+        .forEach(function(k){ set(k,false,0,'','Le dossier n’est pas encore ouvert.',''); });
+      return out; }
+
+    /* Instruction */
+    var mq=piecesManquantes(d);
+    set('pieces',!!w.pieces||(!mq.length&&Object.keys(d.pieces||{}).length>0),ts(w.pieces)||0,
+      mq.length?(mq.length+' pièce(s) attendue(s)'):'toutes les pièces sont là',
+      mq.length?('Pièces attendues du client : '+mq.slice(0,6).join(', ')+(mq.length>6?'…':'')):'',
+      'Réunir les pièces du client, puis valider l’étape Pièces.');
+    var req=docsRequis(d), appr=(d.docFolder&&d.docFolder.approved)||{};
+    var nonGen=req.filter(function(x){ return !((d.docs||{})[x.k]&&(d.docs||{})[x.k].genere); });
+    var nonAppr=req.filter(function(x){ return appr[x.k]!==true; });
+    set('actes',!!w.actes||(req.length>0&&!nonGen.length&&!nonAppr.length),ts(w.actes)||0,
+      req.length?((req.length-nonGen.length)+' / '+req.length+' acte(s) établi(s)'):'aucun acte requis',
+      nonGen.length?('À générer : '+nonGen.map(function(x){ return S(x.l); }).slice(0,5).join(', ')):
+        (nonAppr.length?('À vérifier : '+nonAppr.map(function(x){ return S(x.l); }).slice(0,5).join(', ')):''),
+      'Générer les actes, puis les faire vérifier.');
+    var sg=d.sign||{}, env=d.signEnv||{};
+    var signes=req.filter(function(x){ return sg[x.k]&&sg[x.k].ok; }).length;
+    var sOk=(req.length>0&&signes===req.length)||/sign[ée]/i.test(S(env.statut));
+    set('signature',sOk,ts(env.signeLe)||ts(w.actes)||0,
+      req.length?(signes+' / '+req.length+' signé(s)'):S(env.statut||''),
+      sOk?'':(env.statut?('circuit de signature : '+S(env.statut)):'Les actes ne sont pas signés.'),
+      'Faire signer les actes par le client.');
+
+    /* Formalité */
+    var an=d.annonceLegale||{};
+    var anOk=!!(an.fichier&&(an.fichier.dataUrl||an.fichier.data))||!!w.attestations;
+    set('annonce',anOk,ts(an.parutionLe)||ts(w.attestations)||0,
+      anOk?'attestation reçue':(an.commande?'commandée, attestation attendue':''),
+      anOk?'':(an.commande?'L’attestation de parution n’est pas revenue.':'L’annonce légale n’est pas commandée.'),
+      'Commander l’annonce et classer l’attestation de parution.');
+    var su=d.inpiSuivi||{}, dep=/depose|déposé|instruction|immatricul/i.test(S(su.statut))||!!(d.inpi&&d.inpi.reference);
+    set('depot',dep,ts(su.dateDepot)||ts(d.inpi&&d.inpi.ts)||0,
+      dep?('déposé'+(su.reference?(' · '+S(su.reference)):'')):'',
+      dep?'':'Le dossier n’est pas déposé au guichet unique.','Déposer le dossier au guichet unique.');
+    var obt=/immatricul/i.test(S(su.statut))||!!w.immatriculation;
+    set('obtention',obt,ts(w.immatriculation)||0, obt?'immatriculation obtenue':'',
+      obt?'':'L’immatriculation n’est pas encore prononcée.','Suivre le dépôt et classer le K-bis.');
+
+    /* Livraison */
+    set('livraison',!!cl.remis,ts(cl.remis)||0, cl.remis?('remis'+(cl.remisA?(' à '+S(cl.remisA)):'')):'',
+      cl.remis?'':'Le client n’a pas encore reçu son dossier.','Remettre le dossier au client.');
+    var fs=facturesDe(d), fEmise=fs.filter(function(f){ return S(f.statut)==='emise'; })[0]||null;
+    var fOk=!!cl.factureId||!!fEmise;
+    set('facture',fOk,ts(cl.factureLe)||ts(fEmise&&(fEmise.dateEmise||fEmise.date))||0,
+      fOk?('facture '+S(cl.factureNum||(fEmise&&fEmise.numero)||'')):'',
+      fOk?'':'Les honoraires ne sont pas facturés.','Facturer les honoraires.');
+    var paye=!!cl.regle||fs.some(function(f){ return f.paye; });
+    set('encaisse',paye,ts(cl.regle)||ts((fs.filter(function(f){ return f.paye; })[0]||{}).paye&&(fs.filter(function(f){ return f.paye; })[0]||{}).paye.ts)||0,
+      paye?'encaissé':'', paye?'':'Les honoraires ne sont pas encaissés.','Encaisser et rapprocher le règlement.');
+    var arch=!!d.archived||S(d.statut)==='Clôturé'||!!w.cloture;
+    set('archive',arch,ts(w.cloture)||0, arch?'archivé':'', arch?'':'Le dossier n’est pas clôturé.','Clôturer et archiver le dossier.');
+    return out; }
+
+  /* ---------------- le parcours d'une demande ---------------- */
+  window.parcours=function(ref){
+    var dem=null,d=null;
+    if(ref&&typeof ref==='object'){ dem=ref.dem||null; d=ref.dos||null; }
+    else { var id=S(ref);
+      dem=(db().demandes||[]).filter(function(x){ return x.id===id; })[0]||null;
+      if(dem&&dem.dossierId) d=dossier(dem.dossierId);
+      if(!dem){ d=dossier(id); if(d) dem=(db().demandes||[]).filter(function(x){ return x.dossierId===d.id; })[0]||null; } }
+    if(!dem&&!d) return null;
+    var faits=etatJalons(dem,d), hors=horsCircuit(d,dem);
+    var J=[], dernier=0, pos=-1;
+    window.PARCOURS.forEach(function(j,i){
+      var f=faits[j.k]||{fait:false,ts:0,detail:'',bloque:'',action:''};
+      var so=!!hors[j.k];
+      var etat=so?'sansobjet':(f.fait?'fait':'attente');
+      if(f.fait&&f.ts>dernier) dernier=f.ts;
+      J.push({k:j.k,lbl:j.lbl,ph:j.ph,delai:j.delai,etat:etat,ts:f.ts,
+        detail:f.detail,bloque:f.bloque,action:f.action,sansobjet:so}); });
+    /* Un jalon resté ouvert que les suivants ont dépassé n'est plus « en cours » :
+       il a été passé outre. On le dit, mais il ne retient plus le dossier. */
+    var dernierFait=-1;
+    J.forEach(function(x,i){ if(x.etat==='fait') dernierFait=i; });
+    for(var i=0;i<J.length;i++){
+      if(J[i].etat!=='attente') continue;
+      if(i<dernierFait){ J[i].etat='depasse'; continue; }
+      if(pos<0){ J[i].etat='encours'; pos=i; } }
+    var fini=(pos<0);
+    var comptes=J.filter(function(x){ return !x.sansobjet; });
+    var faitsN=comptes.filter(function(x){ return x.etat==='fait'; }).length;
+    var avance=comptes.length?Math.round(faitsN*100/comptes.length):0;
+    var depuis=dernier||faits.recue&&faits.recue.ts||0;
+    var immobile=jours(depuis);
+    var cur=pos>=0?J[pos]:null;
+    var retard=!!(cur&&immobile!=null&&immobile>cur.delai);
+    var cid=(d&&(d.clientIds||[])[0])||'';
+    var nom=nomCli(cliDe(cid))||S(dem&&dem.clientNom)||S(d&&d.clientNom)||'client non rattaché';
+    return {id:(dem&&dem.id)||(d&&d.id)||'',demId:(dem&&dem.id)||'',dosId:(d&&d.id)||'',
+      nom:nom,ref:S((d&&(d.numeroDossier||d.ref))||''),
+      formalite:S((d&&(d.formalite||d.formaliteType))||(dem&&dem.serviceSouhaite)||''),
+      jalons:J,pos:pos,phase:cur?cur.ph:'Livraison',avance:avance,fini:fini,
+      passes:J.filter(function(x){ return x.etat==='depasse'; }).map(function(x){ return x.lbl; }),
+      courant:cur,prochain:cur?{k:cur.k,lbl:cur.lbl,action:cur.action,bloque:cur.bloque}:null,
+      depuis:depuis,immobile:immobile,retard:retard,
+      recueLe:(faits.recue&&faits.recue.ts)||0,
+      livreLe:(faits.livraison&&faits.livraison.fait)?faits.livraison.ts:0}; };
+
+  /* Le compteur du menu, la page et le contrôle demandent tous la même liste
+     pendant un même rendu. On la calcule une fois et on l'oublie aussitôt la
+     tâche courante finie : jamais de résultat périmé d'une action à l'autre. */
+  var _tous=null;
+  function _oublier(){ _tous=null; }
+  function _retenir(v){ _tous=v;
+    try{ Promise.resolve().then(_oublier); }catch(e){ setTimeout(_oublier,0); }
+    return v; }
+  window.parcoursOublier=_oublier;
+  window.parcoursTous=function(){
+    if(_tous) return _tous;
+    var out=[], vus={};
+    (db().demandes||[]).forEach(function(dem){ if(dem&&dem.archived) return;
+      var p=window.parcours(dem.id); if(!p) return; if(p.dosId) vus[p.dosId]=1; out.push(p); });
+    (db().dossiers||[]).forEach(function(d){ if(!d||vus[d.id]) return;
+      var p=window.parcours(d.id); if(p) out.push(p); });
+    out.sort(function(a,b){
+      if(a.fini!==b.fini) return a.fini?1:-1;
+      if(a.retard!==b.retard) return a.retard?-1:1;
+      return (b.immobile||0)-(a.immobile||0); });
+    return _retenir(out); };
+
+  window.parcoursBilan=function(){
+    var L=window.parcoursTous();
+    var b={total:L.length,encours:0,retard:0,livres:0,parPhase:{},immobileMax:0,bloques:0};
+    PHASES.forEach(function(p){ b.parPhase[p]=0; });
+    L.forEach(function(p){ if(p.fini) b.livres++; else { b.encours++; b.parPhase[p.phase]=(b.parPhase[p.phase]||0)+1; }
+      if(p.retard) b.retard++;
+      if(p.courant&&p.courant.bloque) b.bloques++;
+      if((p.immobile||0)>b.immobileMax&&!p.fini) b.immobileMax=p.immobile||0; });
+    b.livraisons=L.filter(function(p){ return p.livreLe; }).length;
+    return b; };
+
+  /* ---------------- la page Suivi ---------------- */
+  var VS={filtre:'',phase:''};
+  window.suiviFiltre=function(v){ VS.filtre=S(v); try{ render(); }catch(e){} };
+  window.suiviPhase=function(p){ VS.phase=(VS.phase===p)?'':S(p); try{ render(); }catch(e){} };
+
+  function pastille(j){
+    var t=j.lbl+(j.detail?(' — '+j.detail):'')+(j.bloque?(' — '+j.bloque):'')+(j.ts?(' · '+frD(new Date(j.ts).toISOString())):'');
+    return '<span class="pc-p pc-'+j.etat+'" title="'+E(t)+'"></span>'; }
+
+  function ligne(p){
+    var ph=''; var last='';
+    p.jalons.forEach(function(j){ if(j.ph!==last){ ph+=(last?'<span class="pc-sep"></span>':''); last=j.ph; } ph+=pastille(j); });
+    var cur=p.courant;
+    var eta=p.fini
+      ? '<span class="pc-fin">Livré et clos</span>'
+      : ('<span class="pc-cur">'+E(cur?cur.lbl:'')+'</span>'
+         +(p.immobile!=null?('<span class="pc-j'+(p.retard?' pc-late':'')+'">'+p.immobile+' j</span>'):''));
+    return '<div class="pc-row'+(p.retard?' is-late':'')+(p.fini?' is-fin':'')+'" onclick="suiviOuvrir(\''+jq(p.id)+'\')">'
+      +'<div class="pc-c1"><b>'+E(p.nom)+'</b><span>'
+        +(p.ref?(E(p.ref)+(p.formalite?(' · '+E(p.formalite)):''))
+               :(p.formalite?E(p.formalite):'dossier non ouvert'))+'</span></div>'
+      +'<div class="pc-c2">'+ph+'</div>'
+      +'<div class="pc-c3">'+eta+'</div>'
+      +'<div class="pc-c4"><span class="pc-av"><i style="width:'+p.avance+'%"></i></span><b>'+p.avance+'%</b></div>'
+      +'<div class="pc-c5">'+E(p.fini
+          ?(p.passes.length?('passé outre : '+p.passes.join(', ')):'')
+          :(cur&&cur.bloque?cur.bloque:(cur?cur.action:'')))+'</div>'
+      +'</div>'; }
+
+  window.pageSuivi=function(){
+    var L=window.parcoursTous(), B=window.parcoursBilan();
+    var q=(M.nz?M.nz(VS.filtre):S(VS.filtre).toLowerCase());
+    var vue=L.filter(function(p){
+      if(VS.phase&&(p.fini||p.phase!==VS.phase)) return false;
+      if(!q) return true;
+      var h=(M.nz?M.nz(p.nom+' '+p.ref+' '+p.formalite):(p.nom+' '+p.ref+' '+p.formalite).toLowerCase());
+      return h.indexOf(q)>=0; });
+    var kpi='<div class="pc-kpis">'
+      +'<div><b>'+B.total+'</b><span>en suivi</span></div>'
+      +'<div><b>'+B.encours+'</b><span>en cours</span></div>'
+      +'<div class="'+(B.retard?'pc-ko':'')+'"><b>'+B.retard+'</b><span>en retard</span></div>'
+      +'<div class="'+(B.bloques?'pc-warn':'')+'"><b>'+B.bloques+'</b><span>avec un point bloquant</span></div>'
+      +'<div><b>'+B.livraisons+'</b><span>remises au client</span></div>'
+      +'<div><b>'+B.livres+'</b><span>clos</span></div></div>';
+    var onglets='<div class="pc-tabs">'
+      +'<button class="btn btn-sm'+(VS.phase?'':' on')+'" onclick="suiviPhase(\'\')">Toutes les phases</button>'
+      +PHASES.map(function(ph){ return '<button class="btn btn-sm'+(VS.phase===ph?' on':'')+'" onclick="suiviPhase(\''+ph+'\')">'
+        +E(ph)+' <i>'+(B.parPhase[ph]||0)+'</i></button>'; }).join('')+'</div>';
+    var leg='<div class="pc-leg">'
+      +'<span><i class="pc-p pc-fait"></i>franchi</span>'
+      +'<span><i class="pc-p pc-encours"></i>en cours</span>'
+      +'<span><i class="pc-p pc-attente"></i>à venir</span>'
+      +'<span><i class="pc-p pc-depasse"></i>passé outre</span>'
+      +'<span><i class="pc-p pc-sansobjet"></i>sans objet</span>'
+      +'<span class="pc-leg-ph">'+PHASES.map(E).join(' · ')+'</span></div>';
+    var entete='<div class="pc-row pc-head">'
+      +'<div class="pc-c1">Société</div><div class="pc-c2">Parcours</div>'
+      +'<div class="pc-c3">Jalon courant</div><div class="pc-c4">Avancement</div>'
+      +'<div class="pc-c5">Ce qui retient</div></div>';
+    var corps=vue.length?vue.map(ligne).join(''):'<div class="pc-vide">Aucune demande ne correspond à ce filtre.</div>';
+    return '<div class="pc-wrap">'
+      +'<div class="card"><div class="card-h"><h2>Suivi de bout en bout</h2>'
+      +'<span class="sub" style="margin-left:auto">de la demande du client au service rendu</span></div><div class="card-b">'
+      +kpi+onglets
+      +'<div class="pc-tools"><input class="pc-q" placeholder="Rechercher une société, un numéro, une formalité…" '
+        +'value="'+E(VS.filtre)+'" oninput="suiviFiltre(this.value)">'
+      +'<button class="btn btn-sm" onclick="suiviCSV()">Exporter le suivi</button>'
+      +'<button class="btn btn-sm" onclick="suiviImprimer()">Imprimer</button></div>'
+      +leg
+      +'<div class="pc-table">'+entete+corps+'</div>'
+      +'<div class="pc-note">Chaque demande garde sa place dans la file jusqu’à la remise au client, puis jusqu’à l’encaissement et l’archivage. Un jalon qui ne concerne pas la prestation se marque « sans objet » dans le détail du parcours.</div>'
+      +'</div></div></div>'; };
+
+  /* ---------------- le détail d'un parcours ---------------- */
+  window.suiviOuvrir=function(id){
+    var p=window.parcours(id); if(!p){ T('Parcours introuvable.','warn'); return; }
+    var last='';
+    var corps=p.jalons.map(function(j){
+      var tete=''; if(j.ph!==last){ last=j.ph; tete='<div class="pd-ph">'+E(j.ph)+'</div>'; }
+      var etatLbl={fait:'franchi',encours:'en cours',attente:'à venir',
+        sansobjet:'sans objet',depasse:'passé outre'}[j.etat];
+      var hb=p.dosId?('<button class="pd-so" onclick="parcoursHors(\''+jq(p.dosId)+'\',\''+j.k+'\');suiviOuvrir(\''+jq(p.id)+'\')">'
+        +(j.sansobjet?'remettre au parcours':'sans objet')+'</button>'):'';
+      return tete+'<div class="pd-j pd-'+j.etat+'">'
+        +'<span class="pd-d"></span>'
+        +'<div class="pd-t"><b>'+E(j.lbl)+'</b>'
+          +'<span class="pd-e">'+etatLbl+(j.ts?(' · '+E(frD(new Date(j.ts).toISOString()))):'')+'</span>'
+          +(j.detail?('<span class="pd-x">'+E(j.detail)+'</span>'):'')
+          +(j.bloque&&j.etat!=='fait'?('<span class="pd-b">'+E(j.bloque)+'</span>'):'')
+          +(j.etat==='encours'&&j.action?('<span class="pd-a">Prochaine action : '+E(j.action)+'</span>'):'')
+        +'</div>'+hb+'</div>'; }).join('');
+    var tete='<div class="pd-top"><div><b>'+E(p.nom)+'</b>'
+      +'<span>'+E(p.ref||'sans numéro')+(p.formalite?(' · '+E(p.formalite)):'')+'</span></div>'
+      +'<div class="pd-av"><span><i style="width:'+p.avance+'%"></i></span><b>'+p.avance+'%</b></div></div>'
+      +'<div class="pd-res">'
+      +(p.fini?'Parcours terminé : le dossier est livré, facturé et clos.'
+        :('Jalon courant : <b>'+E(p.courant?p.courant.lbl:'')+'</b>'
+          +(p.immobile!=null?(' · sans mouvement depuis '+p.immobile+' jour'+(p.immobile>1?'s':'')):'')
+          +(p.retard?' · <b class="pd-late">en retard</b>':'')))
+      +(p.recueLe?('<br>Demande reçue le '+E(frD(new Date(p.recueLe).toISOString()))):'')
+      +(p.livreLe?(' · remise au client le '+E(frD(new Date(p.livreLe).toISOString()))):'')
+      +'</div>';
+    var pied='<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'
+      +(p.dosId?('<button class="btn" onclick="closeModal();suiviAllerDossier(\''+jq(p.dosId)+'\')">Ouvrir le dossier</button>'):'')
+      +(p.dosId&&window.filOuvrir?('<button class="btn" onclick="closeModal();filOuvrir(\''+jq(p.dosId)+'\')">Fil du dossier</button>'):'');
+    try{ openModal('Parcours · '+E(p.nom),'<div class="pd">'+tete+corps+'</div>',pied); }catch(e){ T('Affichage impossible.','warn'); } };
+
+  window.suiviAllerDossier=function(id){ try{ state.page='espace'; state.espaceDossier=id; render();
+      window.scrollTo(0,0); }catch(e){} };
+
+  window.suiviCSV=function(){
+    var L=window.parcoursTous();
+    var ent=['Société','Numéro','Formalité','Phase','Jalon courant','Avancement %','Jours sans mouvement','En retard','Ce qui retient','Reçue le','Remise le'];
+    var lig=L.map(function(p){ return [p.nom,p.ref,p.formalite,p.fini?'Clos':p.phase,
+      p.courant?p.courant.lbl:'—',p.avance,(p.immobile==null?'':p.immobile),p.retard?'oui':'non',
+      (p.courant&&p.courant.bloque)||'',p.recueLe?frD(new Date(p.recueLe).toISOString()):'',
+      p.livreLe?frD(new Date(p.livreLe).toISOString()):'']; });
+    if(M.csv) M.csv(ent,lig,'marq-suivi-'+(M.auj?M.auj():'')+'.csv');
+    T('Suivi exporté.','ok'); };
+
+  window.suiviImprimer=function(){
+    var L=window.parcoursTous();
+    var h='<h1>Suivi de bout en bout</h1><p class="m">'+L.length+' demande(s) · '
+      +E(frD(M.auj?M.auj():''))+'</p><table><tr><th>Société</th><th>Numéro</th><th>Formalité</th>'
+      +'<th>Jalon courant</th><th>Avancement</th><th>Jours</th><th>Ce qui retient</th></tr>'
+      +L.map(function(p){ return '<tr><td>'+E(p.nom)+'</td><td>'+E(p.ref)+'</td><td>'+E(p.formalite)+'</td>'
+        +'<td>'+E(p.fini?'Clos':(p.courant?p.courant.lbl:''))+'</td><td>'+p.avance+' %</td>'
+        +'<td>'+(p.immobile==null?'':p.immobile)+'</td><td>'+E((p.courant&&p.courant.bloque)||'')+'</td></tr>'; }).join('')
+      +'</table>';
+    var w=null; try{ w=window.open('','_blank'); }catch(e){}
+    if(!w){ T('Autorisez les fenêtres pour imprimer.','warn'); return; }
+    w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Suivi</title>'
+      +'<style>@page{size:A4 landscape;margin:12mm}body{font-family:Georgia,serif;color:#111;font-size:12px}'
+      +'h1{font-size:19px;margin:0 0 3px}.m{color:#555;font-size:11px;margin:0 0 12px}'
+      +'table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ccc;padding:4px 6px;text-align:left}'
+      +'</style></head><body>'+h+'<'+'script>setTimeout(function(){window.print();},220);<'+'/script></body></html>');
+    w.document.close(); };
+
+  /* ---------------- enregistrement de la page ---------------- */
+  try{ if(typeof PAGES!=='undefined'&&!PAGES.some(function(p){ return p.id==='suivi'; })){
+    var iD=PAGES.findIndex(function(p){ return p.id==='demandes'; });
+    var entry={id:'suivi',lbl:'Suivi',ic:'trend',sub:'De la demande du client au service rendu'};
+    if(iD>=0) PAGES.splice(iD+1,0,entry); else PAGES.push(entry);
+  } }catch(e){}
+
+  function injectBtn(){ try{
+    var nav=document.getElementById('nav'); if(!nav||nav.querySelector('[data-suivibtn]')) return;
+    var dem=nav.querySelector('button.nav-btn[onclick*="demandes"]');
+    var on=((typeof state!=='undefined'&&state.page==='suivi')?' on':'');
+    var ico=(typeof svg==='function'&&typeof IC!=='undefined'&&IC.trend)?svg(IC.trend):'';
+    var B=window.parcoursBilan();
+    var bg=B.retard?('<span class="nav-badge nav-badge-late" title="'+B.retard+' demande(s) en retard">'+B.retard+'</span>'):'';
+    var b=document.createElement('button');
+    b.className='nav-btn'+on; b.setAttribute('data-suivibtn','1'); b.setAttribute('onclick',"go('suivi')");
+    b.innerHTML=ico+'<span class="nav-btn-lbl">Suivi</span>'+bg;
+    if(dem&&dem.parentNode) dem.parentNode.insertBefore(b,dem.nextSibling); else nav.appendChild(b);
+  }catch(e){} }
+  try{ var _bn=window.buildNav; if(typeof _bn==='function'&&!_bn.__pc){
+    window.buildNav=function(){ var r=_bn.apply(this,arguments); try{ injectBtn(); }catch(e){} return r; };
+    window.buildNav.__pc=1; } }catch(e){}
+
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__pc){
+    window.render=function(){
+      if(typeof state!=='undefined'&&state.page==='suivi'){
+        try{ buildNav(); }catch(e){}
+        try{ document.body.dataset.page='suivi'; }catch(e){}
+        var p=(typeof PAGES!=='undefined')?PAGES.filter(function(x){ return x.id==='suivi'; })[0]:null;
+        try{ document.getElementById('ptitle').firstChild.textContent=(p&&p.lbl)||'Suivi'; }catch(e){}
+        try{ document.getElementById('psub').textContent=(p&&p.sub)||''; }catch(e){}
+        var V=document.getElementById('view');
+        if(V){ var bb=''; try{ if(typeof backupBannerHTML==='function') bb=backupBannerHTML()||''; }catch(e){}
+          V.innerHTML=bb+window.pageSuivi(); }
+        try{ if(typeof wireCards==='function') wireCards(); }catch(e){}
+        return; }
+      return _rd.apply(this,arguments); };
+    window.render.__pc=1; } }catch(e){}
+  try{ setTimeout(function(){ try{ var n=document.getElementById('nav');
+    if(n&&!n.querySelector('[data-suivibtn]')) injectBtn(); }catch(e){} },80); }catch(e){}
+
+  var CSS='.pc-kpis{display:flex;gap:20px;flex-wrap:wrap;padding:11px 13px;border-radius:10px;'
+    +'border:1px solid rgba(255,255,255,.1);margin:0 0 12px}'
+    +'.pc-kpis>div{min-width:86px}.pc-kpis b{display:block;font-size:19px;line-height:1.15}'
+    +'.pc-kpis span{font-size:11px;opacity:.65}'
+    +'.pc-kpis .pc-ko b{color:#e8907a}.pc-kpis .pc-warn b{color:#e8c37a}'
+    +'.pc-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px}'
+    +'.pc-tabs .btn i{font-style:normal;opacity:.6;margin-left:4px}'
+    +'.pc-tabs .btn.on{background:rgba(255,255,255,.13)}'
+    +'.pc-tools{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}'
+    +'.pc-q{flex:1;min-width:210px}'
+    +'.pc-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;opacity:.65;margin:0 0 8px;align-items:center}'
+    +'.pc-leg span{display:flex;align-items:center;gap:5px}.pc-leg-ph{margin-left:auto;opacity:.75}'
+    +'.pc-table{display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.1);'
+      +'border-radius:10px;overflow:hidden}'
+    +'.pc-row{display:grid;grid-template-columns:1.5fr 1.35fr .8fr .7fr 1.5fr;gap:12px;align-items:center;'
+      +'padding:9px 12px;border-top:1px solid rgba(255,255,255,.07);font-size:12px;cursor:pointer;'
+      +'transition:background .16s ease}'
+    +'.pc-row:first-child{border-top:0}'
+    +'.pc-row:hover{background:rgba(255,255,255,.045)}'
+    +'.pc-head{cursor:default;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;opacity:.55;'
+      +'background:rgba(255,255,255,.03)}'
+    +'.pc-head:hover{background:rgba(255,255,255,.03)}'
+    +'.pc-c1 b{display:block;font-size:12.5px}.pc-c1 span{font-size:11px;opacity:.6}'
+    +'.pc-c2{display:flex;align-items:center;gap:3px;flex-wrap:nowrap}'
+    +'.pc-p{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto;'
+      +'background:rgba(255,255,255,.14);transition:transform .16s ease}'
+    +'.pc-fait{background:#6fbf94}.pc-encours{background:#7fb4e8;box-shadow:0 0 0 3px rgba(127,180,232,.22)}'
+    +'.pc-attente{background:rgba(255,255,255,.16)}'
+    +'.pc-sansobjet{background:transparent;border:1px dashed rgba(255,255,255,.28)}'
+    +'.pc-depasse{background:transparent;border:1px solid rgba(230,190,90,.55)}'
+    +'.pc-sep{width:7px;flex:0 0 auto}'
+    +'.pc-cur{display:block;font-size:11.5px}'
+    +'.pc-j{font-size:11px;opacity:.6}.pc-late{opacity:1;color:#e8907a;font-weight:600}'
+    +'.pc-fin{font-size:11.5px;color:#6fbf94}'
+    +'.pc-c4{display:flex;align-items:center;gap:7px}'
+    +'.pc-av{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;display:block}'
+    +'.pc-av i{display:block;height:100%;background:#6fbf94;transition:width .35s ease}'
+    +'.pc-c4 b{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}'
+    +'.pc-c5{font-size:11px;opacity:.62;line-height:1.45;overflow:hidden;'
+      +'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}'
+    +'.pc-c1 span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}'
+    +'.pc-row.is-late .pc-c5{opacity:.8}'
+    +'.pc-row.is-fin{opacity:.6}'
+    +'.pc-vide{padding:22px 14px;font-size:12px;opacity:.6}'
+    +'.pc-note{margin-top:11px;font-size:11.5px;opacity:.68;line-height:1.55}'
+    +'.pd-top{display:flex;align-items:center;gap:14px;margin:0 0 4px}'
+    +'.pd-top b{font-size:14px}.pd-top span{display:block;font-size:11.5px;opacity:.62}'
+    +'.pd-av{display:flex;align-items:center;gap:8px;margin-left:auto;min-width:130px}'
+    +'.pd-av span{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}'
+    +'.pd-av i{display:block;height:100%;background:#6fbf94}'
+    +'.pd-res{font-size:12px;opacity:.78;line-height:1.6;padding:8px 11px;border-radius:8px;'
+      +'background:rgba(255,255,255,.04);margin:0 0 14px}'
+    +'.pd-late{color:#e8907a}'
+    +'.pd-ph{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;opacity:.5;margin:14px 0 5px}'
+    +'.pd-j{display:flex;gap:10px;align-items:flex-start;padding:6px 0;position:relative}'
+    +'.pd-d{width:9px;height:9px;border-radius:50%;margin-top:4px;flex:0 0 auto;background:rgba(255,255,255,.16)}'
+    +'.pd-fait .pd-d{background:#6fbf94}'
+    +'.pd-encours .pd-d{background:#7fb4e8;box-shadow:0 0 0 3px rgba(127,180,232,.22)}'
+    +'.pd-sansobjet .pd-d{background:transparent;border:1px dashed rgba(255,255,255,.3)}'
+    +'.pd-depasse .pd-d{background:transparent;border:1px solid rgba(230,190,90,.55)}'
+    +'.pd-depasse{opacity:.75}'
+    +'.pd-sansobjet{opacity:.55}'
+    +'.pd-t{flex:1}.pd-t b{font-size:12.5px}'
+    +'.pd-e{display:block;font-size:11px;opacity:.6}'
+    +'.pd-x{display:block;font-size:11.5px;opacity:.78;margin-top:2px}'
+    +'.pd-b{display:block;font-size:11.5px;color:#e8b07a;margin-top:2px;line-height:1.45}'
+    +'.pd-a{display:block;font-size:11.5px;color:#8fc0ea;margin-top:3px}'
+    +'.pd-so{font-size:10.5px;background:transparent;border:1px solid rgba(255,255,255,.16);'
+      +'border-radius:6px;padding:2px 7px;opacity:.6;cursor:pointer;color:inherit}'
+    +'.pd-so:hover{opacity:1}'
+    +'@media(max-width:1100px){.pc-row{grid-template-columns:1.4fr 1fr .8fr}'
+      +'.pc-c4,.pc-c5{display:none}}';
+  try{ if(M.style) M.style('pc-715-css',CSS); }catch(e){}
+})();
+</script>
+<script id="mq-controle-715">
+/* ============================================================
+   Mar'q — Contrôle de mise en marche (v715)
+   Un seul contrôle passe tout le logiciel en revue avant
+   l'exploitation : l'identité du cabinet, la numérotation,
+   l'étanchéité des répertoires, le remplissage réel des documents,
+   les dossiers et les demandes incomplets, l'affichage de chaque
+   écran, les automatismes en pause, le serveur local, la sauvegarde
+   et le chiffrement. Chaque constat dit sa gravité et mène à sa
+   réparation. 100 % additif.
+   ============================================================ */
+(function(){
+  if(window.__mqMep) return; window.__mqMep=1;
+  var M=window.MQ||{};
+  function E(s){ return M.E?M.E(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function S(v){ return (''+(v==null?'':v)).trim(); }
+  function db(){ return (typeof DB!=='undefined'&&DB)||window.DB||{}; }
+  function P(){ var b=db(); b.parametres=b.parametres||{}; return b.parametres; }
+  function T(m,t){ try{ if(M.dire) M.dire(m,t); else if(typeof toast==='function') toast(m); }catch(e){} }
+  function frD(v){ return M.jour?M.jour(v):S(v); }
+  function sur(fn,dft){ try{ return fn(); }catch(e){ return dft; } }
+  function dossiers(){ return db().dossiers||[]; }
+  function clients(){ return db().clients||[]; }
+  function cliDe(id){ return clients().filter(function(x){ return x.id===id; })[0]||null; }
+  function nomCli(c){ if(!c) return ''; return S(c.denomination)||S((c.prenom||'')+' '+(c.nom||'')); }
+
+  /* ---------------- 1. les contrôles ----------------
+     Chaque contrôle renvoie une liste de constats. */
+  var CONTROLES=[];
+  function ctrl(k,titre,fn){ CONTROLES.push({k:k,titre:titre,fn:fn}); }
+  function c(niv,quoi,detail,o){ var x={niv:niv,quoi:quoi,detail:S(detail)}; if(o) for(var p in o) x[p]=o[p]; return x; }
+
+  /* -- identité du cabinet : sans elle, aucun document n'est valable -- */
+  ctrl('cabinet','Identité du cabinet',function(){
+    var L=[], cab=P().cabinet||{};
+    var champs=[['nom','la dénomination'],['email','l’adresse e-mail'],['adresse','l’adresse postale'],
+      ['tel','le téléphone'],['siret','le SIRET']];
+    var mq=champs.filter(function(f){ return !S(cab[f[0]]); });
+    if(mq.length) L.push(c(mq.length>2?'grave':'vigilance','Fiche du cabinet incomplète',
+      'Il manque '+mq.map(function(f){ return f[1]; }).join(', ')+'. Ces mentions figurent sur chaque document remis au client.',
+      {page:'params',action:'Compléter la fiche du cabinet'}));
+    return L; });
+
+  /* -- numérotation : un numéro par dossier, jamais réemployé -- */
+  ctrl('numeros','Numérotation',function(){
+    var L=[], vus={}, sans=0;
+    dossiers().forEach(function(d){ var n=S(d.numeroDossier||d.ref);
+      if(!n){ sans++; return; }
+      (vus[n]=vus[n]||[]).push(d); });
+    if(sans) L.push(c('grave','Dossier sans numéro',sans+' dossier(s) n’ont ni numéro ni référence : ils ne peuvent être ni retrouvés ni adressés.',
+      {page:'espace',action:'Attribuer un numéro'}));
+    Object.keys(vus).forEach(function(n){ if(vus[n].length>1)
+      L.push(c('grave','Numéro attribué deux fois','Le numéro '+n+' désigne '+vus[n].length+' dossiers.',
+        {page:'espace',action:'Renuméroter'})); });
+    var reg=sur(function(){ return (P().numRegistre&&P().numRegistre.liste)||[]; },[]);
+    var dbl=sur(function(){ var v={},r=[]; reg.forEach(function(x){ var n=S(x&&(x.numero||x)); if(!n) return;
+        if(v[n]) r.push(n); v[n]=1; }); return r; },[]);
+    if(dbl.length) L.push(c('grave','Numéro réemployé au registre',
+      dbl.slice(0,5).join(', ')+(dbl.length>5?'…':'')+' apparaissent plusieurs fois au registre des numéros.',
+      {page:'params',action:'Ouvrir le registre'}));
+    return L; });
+
+  /* -- étanchéité des répertoires -- */
+  ctrl('etancheite','Étanchéité des répertoires',function(){
+    if(typeof window.repEtancheite!=='function') return [];
+    var R=window.repEtancheite();
+    return R.alertes.map(function(a){ return c(a.niv,a.quoi,a.detail,{page:'espace',action:'Contrôler l’étanchéité',js:'repEtancheiteVoir()'}); }); });
+
+  /* -- dossiers incomplets -- */
+  ctrl('dossiers','Dossiers',function(){
+    var L=[], sansCli=[], sansForm=[];
+    dossiers().forEach(function(d){
+      if(!cliDe((d.clientIds||[])[0])) sansCli.push(S(d.ref||d.id));
+      if(!S(d.formalite||d.formaliteType||d.serviceSouhaite)) sansForm.push(S(d.ref||d.id)); });
+    if(sansCli.length) L.push(c('grave','Dossier sans client',
+      sansCli.slice(0,6).join(', ')+(sansCli.length>6?'…':'')+' : aucune fiche cliente rattachée, donc personne à qui livrer.',
+      {page:'espace',action:'Rattacher le client'}));
+    if(sansForm.length) L.push(c('vigilance','Dossier sans formalité',
+      sansForm.slice(0,6).join(', ')+(sansForm.length>6?'…':'')+' : la prestation n’est pas nommée, le parcours ne peut pas être suivi.',
+      {page:'espace',action:'Nommer la formalité'}));
+    return L; });
+
+  /* -- demandes : rien ne doit rester sans suite -- */
+  ctrl('demandes','Demandes',function(){
+    var L=[];
+    if(typeof window.parcoursTous!=='function') return L;
+    var A=window.parcoursTous();
+    var retard=A.filter(function(p){ return p.retard&&!p.fini; });
+    var sansSuite=A.filter(function(p){ return !p.fini&&p.pos<=1&&(p.immobile||0)>7; });
+    if(retard.length) L.push(c('vigilance','Demandes en retard',
+      retard.length+' demande(s) sont immobiles au-delà du délai de leur jalon : '
+      +retard.slice(0,4).map(function(p){ return S(p.nom)+' ('+(p.courant?p.courant.lbl:'')+', '+p.immobile+' j)'; }).join(' · ')
+      +(retard.length>4?'…':''),{page:'suivi',action:'Ouvrir le suivi'}));
+    if(sansSuite.length) L.push(c('grave','Demandes sans suite',
+      sansSuite.length+' demande(s) reçues depuis plus d’une semaine ne sont ni qualifiées ni engagées : '
+      +sansSuite.slice(0,4).map(function(p){ return S(p.nom); }).join(', '),{page:'suivi',action:'Ouvrir le suivi'}));
+    return L; });
+
+  /* -- facturation : rien d'orphelin -- */
+  ctrl('factures','Facturation',function(){
+    var L=[], F=P().facturier||[], orph=[], devisMorts=[];
+    F.forEach(function(f){ if(S(f.type)==='avoir') return;
+      var d=f.dossierId&&dossiers().filter(function(x){ return x.id===f.dossierId; })[0];
+      var cli=f.clientId&&cliDe(f.clientId);
+      if(!d&&!cli&&S(f.statut)==='emise') orph.push(S(f.numero||f.id));
+      if(S(f.type)==='devis'&&S(f.statut)==='emise'&&!f.accepte){
+        var j=M.joursDepuis?M.joursDepuis(f.dateEmise||f.date):null;
+        if(j!=null&&j>30) devisMorts.push(S(f.numero||'')+' ('+j+' j)'); } });
+    if(orph.length) L.push(c('vigilance','Pièce de facturation orpheline',
+      orph.slice(0,6).join(', ')+(orph.length>6?'…':'')+' : émise sans dossier ni client rattaché.',
+      {page:'facturier',action:'Ouvrir la facturation'}));
+    if(devisMorts.length) L.push(c('vigilance','Devis sans réponse',
+      devisMorts.slice(0,5).join(', ')+' : émis depuis plus d’un mois sans accord du client.',
+      {page:'facturier',action:'Relancer'}));
+    return L; });
+
+  /* -- automatismes : ce qui est en pause ne travaille pas -- */
+  ctrl('modules','Automatismes',function(){
+    var L=[], p=P(), pause=[];
+    sur(function(){ var m=p.modulesPause||p.automatisations||{};
+      Object.keys(m).forEach(function(k){ var v=m[k];
+        if(v===false||(v&&v.actif===false)||(v&&v.pause===true)) pause.push(k); }); },null);
+    if(pause.length) L.push(c('vigilance','Automatisme en pause',
+      pause.length+' automatisme(s) en pause : '+pause.slice(0,6).join(', ')+'. Le travail correspondant reste à faire à la main.',
+      {page:'params',action:'Réactiver'}));
+    return L; });
+
+  /* -- sauvegarde : une base sans copie récente est une base en danger -- */
+  ctrl('sauvegarde','Sauvegarde',function(){
+    var L=[], p=P();
+    var last=sur(function(){ var b=p.backup||p.sauvegarde||{};
+      return M.ts(b.dernier||b.last||b.ts||0); },0);
+    var j=last?Math.floor((Date.now()-last)/86400000):null;
+    if(!last) L.push(c('grave','Aucune sauvegarde enregistrée',
+      'La base n’a jamais été sauvegardée hors de la machine. Une panne du poste perdrait tous les dossiers.',
+      {page:'params',action:'Sauvegarder maintenant'}));
+    else if(j>7) L.push(c('vigilance','Sauvegarde ancienne',
+      'La dernière sauvegarde date de '+j+' jours ('+frD(new Date(last).toISOString())+').',
+      {page:'params',action:'Sauvegarder maintenant'}));
+    return L; });
+
+  /* -- chiffrement au repos -- */
+  ctrl('chiffrement','Chiffrement au repos',function(){
+    var L=[], actif=sur(function(){ return !!(window.mqSec&&window.mqSec.actif()); },false);
+    if(!actif) L.push(c('vigilance','Données en clair sur la machine',
+      'Pièces d’identité, numéros de sécurité sociale et coordonnées bancaires sont lisibles par quiconque accède au poste. Le chiffrement au repos se règle dans les Paramètres.',
+      {page:'params',action:'Activer le chiffrement'}));
+    return L; });
+
+  /* -- santé de la base -- */
+  ctrl('base','Santé de la base',function(){
+    var L=[]; if(typeof window.santeBilan!=='function') return L;
+    var R=sur(function(){ return window.santeBilan(); },null); if(!R) return L;
+    var pb=(R.points||R.alertes||[]).filter(function(x){ return x&&(x.niv==='grave'||x.niveau==='grave'); });
+    if(pb.length) L.push(c('grave','Anomalies dans la base',
+      pb.length+' anomalie(s) relevées par le bilan de santé.',{page:'params',action:'Ouvrir le bilan de santé'}));
+    return L; });
+
+  window.mepControle=function(){
+    var R={sections:[],graves:0,vigilance:0,total:0,ts:Date.now()};
+    CONTROLES.forEach(function(x){
+      var L=sur(function(){ return x.fn()||[]; },[]);
+      R.sections.push({k:x.k,titre:x.titre,constats:L,
+        graves:L.filter(function(a){ return a.niv==='grave'; }).length});
+      L.forEach(function(a){ R.total++; if(a.niv==='grave') R.graves++; else R.vigilance++; }); });
+    R.pret=(R.graves===0);
+    return R; };
+
+  /* ---------------- 2. le remplissage réel des documents ----------------
+     On génère chaque document requis et on cherche dans le résultat les
+     traces d'un remplissage raté : trou laissé ouvert, valeur absente
+     rendue telle quelle, objet mal converti. */
+  var TROUS=[
+    {rx:/\bundefined\b/,       quoi:'valeur absente rendue telle quelle (« undefined »)'},
+    {rx:/\bNaN\b/,             quoi:'calcul impossible (« NaN »)'},
+    {rx:/\[object Object\]/,   quoi:'donnée mal convertie (« [object Object] »)'},
+    {rx:/\{\{[^}]*\}\}/,       quoi:'champ de modèle non remplacé'},
+    {rx:/«…»/,  quoi:'champ laissé en attente'},
+    {rx:/\bnull\b/,            quoi:'valeur nulle affichée'}
+  ];
+  window.mepDocsDefauts=function(max){
+    max=max||14; var out=[], n=0, scanned=0;
+    dossiers().slice(0,max).forEach(function(d){
+      var req=sur(function(){ return (typeof espDocsRequis==='function')?(espDocsRequis(d)||[]):[]; },[]);
+      req.forEach(function(dc){
+        var g=(d.docs||{})[dc.k]; if(!(g&&g.genere)) return;  /* on ne juge que ce qui a été généré */
+        var html=sur(function(){ return S(espDocHTML(d,dc)); },null);
+        scanned++;
+        if(html==null){ out.push({dos:S(d.ref||d.id),doc:S(dc.l||dc.k),quoi:'le document ne se génère pas'}); n++; return; }
+        var txt=html.replace(/<[^>]*>/g,' ');
+        TROUS.forEach(function(t){ if(t.rx.test(txt)){
+          out.push({dos:S(d.ref||d.id),doc:S(dc.l||dc.k),quoi:t.quoi}); n++; } }); }); });
+    return {defauts:out,examines:scanned}; };
+
+  /* ---------------- 3. l'affichage de chaque écran ----------------
+     On rend chaque page et on mesure : débordement horizontal,
+     élément qui sort du cadre, texte sous le seuil de lisibilité. */
+  window.mepAffichage=function(){
+    var out=[], V=document.getElementById('view'); if(!V) return {anomalies:out,ecrans:0};
+    var pages=sur(function(){ return (typeof PAGES!=='undefined')?PAGES.map(function(p){ return p.id; }):[]; },[]);
+    var avant=sur(function(){ return state.page; },'demandes');
+    var n=0;
+    pages.forEach(function(id){
+      try{ state.page=id; render(); }catch(e){ out.push({page:id,quoi:'la page ne se rend pas',detail:S(e&&e.message)}); return; }
+      n++;
+      var vr=V.getBoundingClientRect();
+      if(V.scrollWidth>V.clientWidth+2)
+        out.push({page:id,quoi:'débordement horizontal',detail:'le contenu dépasse de '+(V.scrollWidth-V.clientWidth)+' px'});
+      var els=V.querySelectorAll('.card,table,.pc-table,.rp-list');
+      for(var i=0;i<els.length&&i<160;i++){ var el=els[i], r=el.getBoundingClientRect();
+        if(!r.width) continue;
+        if(r.right>vr.right+3) out.push({page:id,quoi:'élément hors du cadre',
+          detail:S(el.className).split(' ')[0]+' dépasse de '+Math.round(r.right-vr.right)+' px'});
+        if(el.scrollWidth>el.clientWidth+3&&getComputedStyle(el).overflowX==='visible')
+          out.push({page:id,quoi:'contenu tronqué',detail:S(el.className).split(' ')[0]+' déborde sans défilement'}); }
+      /* la lisibilité se juge sur l'interface ; un fac-similé de document
+         (facture, acte, bulletin) reproduit une page imprimée, où la petite
+         mention légale est à sa place et à sa taille. */
+      var FAC='.inv-paper,.doc-page,.st-page,.st-doc,.dg-page,.pb-a4,.sy-doc,.edoc,.ed2-page-in,.doc-gen,.inv-page';
+      var txt=V.querySelectorAll('span,small,i,td,th,label,div');
+      for(var j=0;j<txt.length&&j<400;j++){ var t=txt[j];
+        if(!t.textContent||!S(t.textContent)) continue;
+        if(t.closest&&t.closest(FAC)) continue;
+        var fs=parseFloat(getComputedStyle(t).fontSize||'12');
+        if(fs&&fs<10.4){ out.push({page:id,quoi:'texte sous le seuil de lisibilité',
+          detail:Math.round(fs*10)/10+' px sur « '+S(t.textContent).slice(0,26)+' »'}); break; } } });
+    try{ state.page=avant; render(); }catch(e){}
+    /* un seul constat par nature et par page */
+    var vus={}, uniq=[];
+    out.forEach(function(x){ var k=x.page+'|'+x.quoi; if(vus[k]) return; vus[k]=1; uniq.push(x); });
+    return {anomalies:uniq,ecrans:n}; };
+
+  /* ---------------- 4. le serveur local ---------------- */
+  window.mepServeur=function(cb){
+    var url=sur(function(){ return S((JSON.parse(localStorage.getItem('last-portal-srv')||'{}')||{}).url); },'');
+    if(!url){ cb({etat:'absent',url:'',detail:'Aucune adresse de serveur portail n’est réglée. Le portail fonctionne alors sur ce seul poste, sans accès distant.'}); return; }
+    var fini=false;
+    var t=setTimeout(function(){ if(fini) return; fini=true;
+      cb({etat:'muet',url:url,detail:'Le serveur ne répond pas sous 4 secondes. S’il est local, lancez-le : npm start dans server/portal.'}); },4000);
+    try{
+      fetch(url.replace(/\/+$/,'')+'/health',{method:'GET'})
+        .then(function(r){ return r.ok?r.json().catch(function(){ return {}; }):Promise.reject(r.status); })
+        .then(function(j){ if(fini) return; fini=true; clearTimeout(t);
+          cb({etat:'joignable',url:url,detail:'Le serveur répond'+(j&&j.version?(' (version '+S(j.version)+')'):'')+'.'}); })
+        .catch(function(e){ if(fini) return; fini=true; clearTimeout(t);
+          cb({etat:'injoignable',url:url,detail:'Le serveur ne répond pas ('+S(e)+'). S’il est local, lancez-le : npm start dans server/portal.'}); });
+    }catch(e){ if(!fini){ fini=true; clearTimeout(t);
+      cb({etat:'injoignable',url:url,detail:'Appel impossible.'}); } } };
+
+  /* ---------------- 5. la fenêtre du contrôle ---------------- */
+  function bloc(niv,quoi,detail,act){
+    return '<div class="mp-i mp-'+niv+'"><b>'+E(quoi)+'</b><span>'+E(detail)+'</span>'
+      +(act||'')+'</div>'; }
+  function boutonVers(a){
+    if(!a) return '';
+    if(a.js) return '<button class="mp-go" onclick="closeModal();'+E(a.js)+'">'+E(a.action||'Ouvrir')+'</button>';
+    if(a.page) return '<button class="mp-go" onclick="mepAller(\''+E(a.page)+'\')">'+E(a.action||'Ouvrir')+'</button>';
+    return ''; }
+  window.mepAller=function(p){ try{ closeModal(); }catch(e){}
+    try{ state.page=p; render(); window.scrollTo(0,0); }catch(e){} };
+
+  function corpsHTML(R){
+    var verdict=R.pret
+      ? '<div class="mp-verd mp-ok"><b>Prêt à l’exploitation</b><span>Aucun défaut bloquant. '
+        +(R.vigilance?(R.vigilance+' point(s) de vigilance à regarder quand vous voulez.'):'Rien à signaler.')+'</span></div>'
+      : '<div class="mp-verd mp-ko"><b>'+R.graves+' défaut'+(R.graves>1?'s':'')+' à régler avant l’exploitation</b>'
+        +'<span>'+(R.vigilance?(R.vigilance+' point(s) de vigilance en plus.'):'')+'</span></div>';
+    var secs=R.sections.map(function(s){
+      if(!s.constats.length) return '<div class="mp-s mp-s-ok"><span class="mp-t">'+E(s.titre)+'</span><i>rien à signaler</i></div>';
+      return '<div class="mp-s"><span class="mp-t">'+E(s.titre)+'</span>'
+        +s.constats.map(function(a){ return bloc(a.niv,a.quoi,a.detail,boutonVers(a)); }).join('')+'</div>'; }).join('');
+    return verdict
+      +'<div class="mp-live" id="mp-live">'
+        +'<div class="mp-s"><span class="mp-t">Remplissage des documents</span><div class="mp-att" id="mp-docs">examen en cours…</div></div>'
+        +'<div class="mp-s"><span class="mp-t">Affichage des écrans</span><div class="mp-att" id="mp-aff">à lancer</div>'
+          +'<button class="mp-go" onclick="mepLancerAffichage()">Contrôler l’affichage des '+
+            E(sur(function(){ return (typeof PAGES!=='undefined')?PAGES.length:0; },0))+' écrans</button></div>'
+        +'<div class="mp-s"><span class="mp-t">Serveur local</span><div class="mp-att" id="mp-srv">interrogation…</div></div>'
+      +'</div>'
+      +secs
+      +'<div class="mp-note">Le contrôle lit l’état réel : il ne déclare rien conforme sans la trace qui le prouve. Les documents sont réellement générés puis relus, les écrans réellement rendus puis mesurés.</div>'; }
+
+  window.mepLancerAffichage=function(){
+    var el=document.getElementById('mp-aff'); if(el) el.textContent='mesure en cours…';
+    setTimeout(function(){
+      var R=window.mepAffichage();
+      var box=document.getElementById('mp-aff');
+      /* le rendu des pages a refermé la fenêtre : on la rouvre sur le résultat */
+      if(!box){ window.__mepAff=R; window.mepOuvrir(); return; }
+      box.outerHTML=R.anomalies.length
+        ? ('<div class="mp-att">'+R.ecrans+' écran(s) mesurés</div>'
+           +R.anomalies.map(function(a){ return bloc('vigilance',S(a.page)+' · '+S(a.quoi),S(a.detail),''); }).join(''))
+        : '<div class="mp-att mp-vert">'+R.ecrans+' écran(s) mesurés : aucun débordement, aucun élément hors cadre, aucun texte illisible.</div>';
+    },40); };
+
+  window.mepOuvrir=function(){
+    var R=window.mepControle();
+    try{ openModal('Contrôle de mise en marche','<div class="mp">'+corpsHTML(R)+'</div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'
+      +'<button class="btn" onclick="mepCSV()">Exporter le contrôle</button>'
+      +'<button class="btn btn-pri" onclick="mepOuvrir()">Refaire le contrôle</button>'); }
+    catch(e){ T('Contrôle : '+R.graves+' défaut(s), '+R.vigilance+' vigilance.','info'); return R; }
+    /* les deux examens lents, une fois la fenêtre à l'écran */
+    setTimeout(function(){ var D=window.mepDocsDefauts(); var el=document.getElementById('mp-docs'); if(!el) return;
+      el.outerHTML=D.defauts.length
+        ? ('<div class="mp-att">'+D.examines+' document(s) relus</div>'
+           +D.defauts.slice(0,14).map(function(x){ return bloc('grave',S(x.dos)+' · '+S(x.doc),S(x.quoi),''); }).join('')
+           +(D.defauts.length>14?('<div class="mp-att">et '+(D.defauts.length-14)+' autre(s)…</div>'):''))
+        : (D.examines
+            ? ('<div class="mp-att mp-vert">'+D.examines+' document(s) relus : aucun champ resté ouvert, aucune valeur manquante.</div>')
+            : '<div class="mp-att">Aucun document généré à relire pour le moment.</div>');
+    },30);
+    window.mepServeur(function(s){ var el=document.getElementById('mp-srv'); if(!el) return;
+      var niv=(s.etat==='joignable')?'ok':((s.etat==='absent')?'vigilance':'grave');
+      el.outerHTML=(niv==='ok')
+        ? ('<div class="mp-att mp-vert">'+E(s.detail)+' — '+E(s.url)+'</div>')
+        : bloc(niv==='ok'?'vigilance':niv,(s.etat==='absent'?'Aucun serveur réglé':'Serveur '+s.etat),s.detail,
+            '<button class="mp-go" onclick="mepAller(\'services\')">Ouvrir le portail</button>'); });
+    if(window.__mepAff){ var A=window.__mepAff; window.__mepAff=null;
+      setTimeout(function(){ var box=document.getElementById('mp-aff'); if(!box) return;
+        box.outerHTML=A.anomalies.length
+          ? ('<div class="mp-att">'+A.ecrans+' écran(s) mesurés</div>'
+             +A.anomalies.map(function(a){ return bloc('vigilance',S(a.page)+' · '+S(a.quoi),S(a.detail),''); }).join(''))
+          : '<div class="mp-att mp-vert">'+A.ecrans+' écran(s) mesurés : aucun débordement, aucun élément hors cadre, aucun texte illisible.</div>'; },60); }
+    return R; };
+
+  window.mepCSV=function(){
+    var R=window.mepControle(), lig=[];
+    R.sections.forEach(function(s){ s.constats.forEach(function(a){
+      lig.push([s.titre,a.niv==='grave'?'bloquant':'vigilance',a.quoi,a.detail]); }); });
+    if(!lig.length) lig.push(['—','ok','Aucun défaut','Le logiciel est prêt à l’exploitation.']);
+    if(M.csv) M.csv(['Contrôle','Gravité','Constat','Détail'],lig,'marq-controle-'+(M.auj?M.auj():'')+'.csv');
+    T('Contrôle exporté.','ok'); };
+
+  /* ---------------- 6. la carte, sur le tableau de bord et les Paramètres ---------------- */
+  window.mepCarte=function(){
+    var R=window.mepControle();
+    var cls=R.pret?'mp-c-ok':'mp-c-ko';
+    return '<div class="card mp-card"><div class="card-h"><h2>Mise en marche</h2>'
+      +'<span class="sub" style="margin-left:auto">contrôle complet du logiciel</span></div><div class="card-b">'
+      +'<div class="mp-sum '+cls+'">'
+        +'<span><b>'+(R.pret?'Prêt':R.graves)+'</b><i>'+(R.pret?'à l’exploitation':'défaut(s) bloquant(s)')+'</i></span>'
+        +'<span><b>'+R.vigilance+'</b><i>point(s) de vigilance</i></span>'
+        +'<span><b>'+R.sections.length+'</b><i>contrôles passés</i></span>'
+      +'</div>'
+      +'<div class="mp-acts"><button class="btn btn-pri" onclick="mepOuvrir()">Ouvrir le contrôle</button>'
+      +'<button class="btn" onclick="mepCSV()">Exporter</button></div>'
+      +'<div class="mp-note">Identité du cabinet, numérotation, étanchéité des répertoires, remplissage des documents, dossiers et demandes, facturation, automatismes, sauvegarde, chiffrement, affichage des écrans et serveur local.</div>'
+      +'</div></div>'; };
+
+  function greffe(){ try{
+    var st=(typeof state!=='undefined'&&state)||{};
+    if(st.page!=='params'&&st.page!=='pilotage') return;
+    var v=document.getElementById('view'); if(!v||v.querySelector('.mp-card')) return;
+    var h=window.mepCarte(); if(!h) return;
+    var t=document.createElement('div'); t.innerHTML=h;
+    var first=v.querySelector('.card');
+    if(first&&first.parentNode) first.parentNode.insertBefore(t.firstElementChild,first);
+    else v.appendChild(t.firstElementChild);
+  }catch(e){} }
+  try{ if(M.apresRendu) M.apresRendu(greffe,'mep715',70); }catch(e){}
+
+  var CSS='.mp-sum{display:flex;gap:22px;flex-wrap:wrap;padding:11px 13px;border-radius:10px;'
+    +'border:1px solid rgba(255,255,255,.1);margin:0 0 11px}'
+    +'.mp-sum b{display:block;font-size:19px}.mp-sum i{font-style:normal;font-size:11px;opacity:.65}'
+    +'.mp-c-ok{background:rgba(90,200,140,.07);border-color:rgba(90,200,140,.3)}'
+    +'.mp-c-ok b{color:#7fd0a0}'
+    +'.mp-c-ko{background:rgba(230,120,100,.07);border-color:rgba(230,120,100,.32)}'
+    +'.mp-c-ko b{color:#e8907a}'
+    +'.mp-acts{display:flex;gap:10px;flex-wrap:wrap}'
+    +'.mp-note{margin-top:10px;font-size:11.5px;opacity:.68;line-height:1.55}'
+    +'.mp-verd{padding:11px 13px;border-radius:10px;margin:0 0 14px;border:1px solid rgba(255,255,255,.1)}'
+    +'.mp-verd b{display:block;font-size:14px}.mp-verd span{font-size:11.5px;opacity:.72}'
+    +'.mp-verd.mp-ok{background:rgba(90,200,140,.08);border-color:rgba(90,200,140,.3)}'
+    +'.mp-verd.mp-ok b{color:#7fd0a0}'
+    +'.mp-verd.mp-ko{background:rgba(230,120,100,.08);border-color:rgba(230,120,100,.34)}'
+    +'.mp-verd.mp-ko b{color:#e8907a}'
+    +'.mp-s{margin:0 0 13px}'
+    +'.mp-t{display:block;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;opacity:.5;margin:0 0 5px}'
+    +'.mp-s-ok{display:flex;align-items:baseline;gap:9px}'
+    +'.mp-s-ok .mp-t{margin:0}.mp-s-ok i{font-style:normal;font-size:11.5px;opacity:.5}'
+    +'.mp-i{font-size:12px;padding:8px 11px;border-radius:8px;margin:0 0 6px;'
+      +'border:1px solid rgba(255,255,255,.1)}'
+    +'.mp-i b{display:block;margin-bottom:2px}.mp-i span{display:block;opacity:.74;line-height:1.5}'
+    +'.mp-grave{background:rgba(230,120,100,.09);border-color:rgba(230,120,100,.34)}'
+    +'.mp-vigilance{background:rgba(230,190,90,.07);border-color:rgba(230,190,90,.28)}'
+    +'.mp-go{margin-top:7px;font-size:11px;background:transparent;color:inherit;cursor:pointer;'
+      +'border:1px solid rgba(255,255,255,.2);border-radius:7px;padding:3px 9px}'
+    +'.mp-go:hover{background:rgba(255,255,255,.07)}'
+    +'.mp-att{font-size:11.5px;opacity:.65;padding:2px 0}'
+    +'.mp-vert{color:#7fd0a0;opacity:.9}'
+    +'.mp-live{margin:0 0 6px}';
+  try{ if(M.style) M.style('mp-715-css',CSS); }catch(e){}
+})();
+</script>
+<script id="mq-fluide-715">
+/* ============================================================
+   Mar'q — Fluidité, rapidité, douceur (v715)
+   Le logiciel se rend d'un bloc : les cartes greffées après coup
+   apparaissaient d'un coup sec. Elles se posent désormais en
+   douceur, les cartes hors de l'écran ne sont plus peintes tant
+   qu'on ne les atteint pas, et les changements d'état glissent au
+   lieu de sauter. Qui demande moins d'animation n'en a aucune.
+   100 % additif, aucune logique touchée.
+   ============================================================ */
+(function(){
+  if(window.__mqFluide) return; window.__mqFluide=1;
+  var M=window.MQ||{};
+
+  var CSS=
+  /* --- 1. la page se pose au lieu d'apparaître --- */
+   '@keyframes mqPose{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}'
+  +'#view>.card,#view>.pc-wrap,#view>.mod-wrap,#view>.dash-wrap{animation:mqPose .26s cubic-bezier(.22,.7,.3,1) both}'
+  +'#view>.card:nth-child(2){animation-delay:.03s}#view>.card:nth-child(3){animation-delay:.06s}'
+  +'#view>.card:nth-child(4){animation-delay:.09s}#view>.card:nth-child(n+5){animation-delay:.12s}'
+  /* --- 3. la douceur des états : rien ne saute --- */
+  +'#view .card,#view .btn,#view .kpi,#view .nav-btn,.pc-row,.rp-l,.mp-i,.pd-j{'
+    +'transition:background-color .17s ease,border-color .17s ease,color .17s ease,'
+    +'opacity .17s ease,transform .17s cubic-bezier(.22,.7,.3,1),box-shadow .17s ease}'
+  +'#view .btn:active{transform:translateY(1px)}'
+  +'#side .nav-btn{transition:background-color .16s ease,color .16s ease}'
+  /* --- 4. le défilement suit le doigt, et s'arrête proprement --- */
+  +'#view{scroll-behavior:smooth;overscroll-behavior-y:contain}'
+  /* --- 5. les fenêtres s'ouvrent au lieu de surgir --- */
+  +'@keyframes mqOv{from{opacity:0}to{opacity:1}}'
+  +'@keyframes mqOvC{from{opacity:0;transform:translateY(8px) scale(.994)}to{opacity:1;transform:none}}'
+  +'#ov.show{animation:mqOv .16s ease both}'
+  +'#ov.show .modal{animation:mqOvC .22s cubic-bezier(.22,.7,.3,1) both}'
+  /* --- 6. qui demande moins d'animation n'en a aucune --- */
+  +'@media(prefers-reduced-motion:reduce){'
+    +'#view>.card,#view>.pc-wrap,#view>.mod-wrap,#view>.dash-wrap,'
+    +'#ov.show,#ov.show .modal{animation:none!important}'
+    +'#view .card,#view .btn,#view .kpi,.pc-row,.rp-l,.mp-i,.pd-j{transition:none!important}'
+    +'#view{scroll-behavior:auto}}';
+  try{ if(M.style) M.style('mq-fluide-css',CSS);
+       else { var s=document.createElement('style'); s.id='mq-fluide-css'; s.textContent=CSS; document.head.appendChild(s); } }catch(e){}
+
+  /* --- 7. une mesure honnête du temps de rendu, consultable --- */
+  window.mqRendu=function(n){ n=n||3; var pages=[], out={};
+    try{ pages=(typeof PAGES!=='undefined')?PAGES.map(function(p){ return p.id; }):[]; }catch(e){}
+    var avant=null; try{ avant=state.page; }catch(e){}
+    pages.forEach(function(id){ var t=[];
+      for(var i=0;i<n;i++){ var a=performance.now();
+        try{ state.page=id; render(); }catch(e){ out[id]='erreur'; return; }
+        t.push(performance.now()-a); }
+      t.sort(function(x,y){ return x-y; });
+      out[id]=Math.round(t[Math.floor(t.length/2)]); });
+    try{ if(avant){ state.page=avant; render(); } }catch(e){}
+    return out; };
+})();
+</script>
 </body>
 </html>
