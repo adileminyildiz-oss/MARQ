@@ -49746,7 +49746,7 @@ function testLienSignature() {
           :(cur&&cur.bloque?cur.bloque:(cur?cur.action:'')))+'</div>'
       +'</div>'; }
 
-  window.pageSuivi=function(){
+  window.pageParcours=function(){
     var L=window.parcoursTous(), B=window.parcoursBilan();
     var q=(M.nz?M.nz(VS.filtre):S(VS.filtre).toLowerCase());
     var vue=L.filter(function(p){
@@ -49855,22 +49855,26 @@ function testLienSignature() {
       +'</style></head><body>'+h+'<'+'script>setTimeout(function(){window.print();},220);<'+'/script></body></html>');
     w.document.close(); };
 
-  /* ---------------- enregistrement de la page ---------------- */
-  try{ if(typeof PAGES!=='undefined'&&!PAGES.some(function(p){ return p.id==='suivi'; })){
+  /* ---------------- enregistrement de la page ----------------
+     L'identifiant est « parcours » et non « suivi » : ce dernier désignait le
+     « Suivi des collaborateurs » (v207), retiré quand le logiciel est devenu
+     mono-poste. Le filet de non-régression veille à ce qu'il ne revienne pas ;
+     lui reprendre son nom aurait désarmé cette garde. */
+  try{ if(typeof PAGES!=='undefined'&&!PAGES.some(function(p){ return p.id==='parcours'; })){
     var iD=PAGES.findIndex(function(p){ return p.id==='demandes'; });
-    var entry={id:'suivi',lbl:'Suivi',ic:'trend',sub:'De la demande du client au service rendu'};
+    var entry={id:'parcours',lbl:'Suivi',ic:'trend',sub:'De la demande du client au service rendu'};
     if(iD>=0) PAGES.splice(iD+1,0,entry); else PAGES.push(entry);
   } }catch(e){}
 
   function injectBtn(){ try{
     var nav=document.getElementById('nav'); if(!nav||nav.querySelector('[data-suivibtn]')) return;
     var dem=nav.querySelector('button.nav-btn[onclick*="demandes"]');
-    var on=((typeof state!=='undefined'&&state.page==='suivi')?' on':'');
+    var on=((typeof state!=='undefined'&&state.page==='parcours')?' on':'');
     var ico=(typeof svg==='function'&&typeof IC!=='undefined'&&IC.trend)?svg(IC.trend):'';
     var B=window.parcoursBilan();
     var bg=B.retard?('<span class="nav-badge nav-badge-late" title="'+B.retard+' demande(s) en retard">'+B.retard+'</span>'):'';
     var b=document.createElement('button');
-    b.className='nav-btn'+on; b.setAttribute('data-suivibtn','1'); b.setAttribute('onclick',"go('suivi')");
+    b.className='nav-btn'+on; b.setAttribute('data-suivibtn','1'); b.setAttribute('onclick',"go('parcours')");
     b.innerHTML=ico+'<span class="nav-btn-lbl">Suivi</span>'+bg;
     if(dem&&dem.parentNode) dem.parentNode.insertBefore(b,dem.nextSibling); else nav.appendChild(b);
   }catch(e){} }
@@ -49880,15 +49884,15 @@ function testLienSignature() {
 
   try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__pc){
     window.render=function(){
-      if(typeof state!=='undefined'&&state.page==='suivi'){
+      if(typeof state!=='undefined'&&state.page==='parcours'){
         try{ buildNav(); }catch(e){}
-        try{ document.body.dataset.page='suivi'; }catch(e){}
-        var p=(typeof PAGES!=='undefined')?PAGES.filter(function(x){ return x.id==='suivi'; })[0]:null;
+        try{ document.body.dataset.page='parcours'; }catch(e){}
+        var p=(typeof PAGES!=='undefined')?PAGES.filter(function(x){ return x.id==='parcours'; })[0]:null;
         try{ document.getElementById('ptitle').firstChild.textContent=(p&&p.lbl)||'Suivi'; }catch(e){}
         try{ document.getElementById('psub').textContent=(p&&p.sub)||''; }catch(e){}
         var V=document.getElementById('view');
         if(V){ var bb=''; try{ if(typeof backupBannerHTML==='function') bb=backupBannerHTML()||''; }catch(e){}
-          V.innerHTML=bb+window.pageSuivi(); }
+          V.innerHTML=bb+window.pageParcours(); }
         try{ if(typeof wireCards==='function') wireCards(); }catch(e){}
         return; }
       return _rd.apply(this,arguments); };
@@ -50063,10 +50067,10 @@ function testLienSignature() {
     if(retard.length) L.push(c('vigilance','Demandes en retard',
       retard.length+' demande(s) sont immobiles au-delà du délai de leur jalon : '
       +retard.slice(0,4).map(function(p){ return S(p.nom)+' ('+(p.courant?p.courant.lbl:'')+', '+p.immobile+' j)'; }).join(' · ')
-      +(retard.length>4?'…':''),{page:'suivi',action:'Ouvrir le suivi'}));
+      +(retard.length>4?'…':''),{page:'parcours',action:'Ouvrir le suivi'}));
     if(sansSuite.length) L.push(c('grave','Demandes sans suite',
       sansSuite.length+' demande(s) reçues depuis plus d’une semaine ne sont ni qualifiées ni engagées : '
-      +sansSuite.slice(0,4).map(function(p){ return S(p.nom); }).join(', '),{page:'suivi',action:'Ouvrir le suivi'}));
+      +sansSuite.slice(0,4).map(function(p){ return S(p.nom); }).join(', '),{page:'parcours',action:'Ouvrir le suivi'}));
     return L; });
 
   /* -- facturation : rien d'orphelin -- */

@@ -162,7 +162,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
     'une prestation sans formalité au greffe n’attend ni annonce ni dépôt',JSON.stringify(r.so));
 
   // la page de suivi
-  r=await ev(()=>{ state.page='suivi'; render();
+  r=await ev(()=>{ state.page='parcours'; render();
     const v=document.getElementById('view');
     return {h:v.innerHTML.length,lignes:v.querySelectorAll('.pc-row').length-1,
       pastilles:v.querySelectorAll('.pc-row:not(.pc-head) .pc-p').length,
