@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=727;
+var LAST_VER=728;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -53685,6 +53685,344 @@ function testLienSignature() {
   document.head.appendChild(css);
 })();
 
+</script>
+<script id="mq-onboarding-728">
+/* ============================================================================
+   v728 — Module post-création : l'entreprise après le K-bis
+
+   Dès que le K-bis est reçu, Mar'q prépare la proposition des services qui
+   suivent une création, chacun chiffré sur le barème du cabinet et retenu
+   selon le dossier (salariés, TVA, activité réglementée…) :
+     compte bancaire, contrat comptable, TVA, RC Pro, mutuelle, registre des
+     bénéficiaires effectifs, facturation, logiciel comptable, contrat de
+     travail.
+   Pour chaque service : à proposer → proposé → accepté → en place (ou
+   refusé, sans objet). Le gestionnaire relit et envoie la proposition ; rien
+   ne part seul. Les services acceptés font l'objet d'un devis (facturier) ;
+   le contrat comptable ouvre le suivi du module Fiscal.
+
+   Où on le voit :
+   - Traitement, onglets Immatriculation et Clôture : « Après la création » ;
+   - Pilotage : « Services après création » (chiffre d'affaires récurrent
+     signé et potentiel, entreprises à qui proposer) et le réglage des tarifs ;
+   - Prévoyance et centre d'exécution : propositions à faire, à relancer.
+   ============================================================================ */
+(function(){
+  if(window.__mqONB) return; window.__mqONB=1;
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function num(v){ var n=parseFloat(S(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  function dire(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function hist(d,t){ (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:t}); }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function client(d){ try{ return (typeof clientById==='function'&&d&&clientById((d.clientIds||[])[0]))||{}; }catch(e){ return {}; } }
+  function ref(d){ return S(d.numeroDossier||d.ref||d.id); }
+  function nom(d){ var i=d.intake||{}, c=client(d); return S((i.societe||{}).denomination||c.denomination||c.raison||c.nom||ref(d)); }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function eur(n){ return (Math.round(n*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+  var JOUR=86400000, RELANCE_J=7;
+
+  /* ---------------- les tarifs ---------------- */
+  /* catalogue des prestations (Services › Catalogue) : on y lit les prix quand ils existent */
+  function catalogue(nomRx){ try{ var o=JSON.parse(localStorage.getItem('last-svc')||'{}')||{}; var G=(o.cat&&o.cat.groups)||[];
+      for(var i=0;i<G.length;i++) for(var j=0;j<(G[i].items||[]).length;j++){ var it=G[i].items[j]; if(nomRx.test(S(it.n))) return num(it.p); } }catch(e){}
+    return null; }
+  var DEF={ /* mode : mois | an | acte | commission | inclus */
+    banque:{mode:'commission',montant:0},
+    comptable:{mode:'an',montant:null,cat:[/bilan \+ liasse/i,900],cat2:[/secr[ée]tariat juridique/i,250]},
+    tva:{mode:'declaration',montant:null,cat:[/d[ée]claration de tva/i,40]},
+    rcpro:{mode:'commission',montant:0},
+    mutuelle:{mode:'commission',montant:0},
+    rbe:{mode:'acte',montant:0},
+    facturation:{mode:'mois',montant:null,cat:[/espace client/i,29]},
+    logiciel:{mode:'mois',montant:0},
+    travail:{mode:'acte',montant:null,cat:[/contrat de travail/i,90],paie:[/bulletin de paie/i,20],dsn:[/dsn/i,15]}
+  };
+  function tarifs(){ var o=P(); o.onboarding=o.onboarding||{}; var T=o.onboarding.tarifs||{}, R={};
+    Object.keys(DEF).forEach(function(k){ var d=DEF[k], t=T[k]||{}, x={mode:t.mode||d.mode};
+      function c(a){ if(!a) return 0; var v=catalogue(a[0]); return v==null?a[1]:v; }
+      x.montant=t.montant!=null?num(t.montant):(d.cat?c(d.cat)+(d.cat2?c(d.cat2):0):num(d.montant));
+      if(k==='travail'){ x.paie=t.paie!=null?num(t.paie):c(d.paie); x.dsn=t.dsn!=null?num(t.dsn):c(d.dsn); }
+      R[k]=x; });
+    return R; }
+  window.onbTarifs=tarifs;
+
+  /* ---------------- les services ---------------- */
+  function ctx(d){ try{ return window.connaissancesContexte?window.connaissancesContexte(d):{}; }catch(e){ return {}; } }
+  function nbSal(d,c){ var n=c.effectif||0; try{ if(!n&&d.intake&&d.intake.prediagId){ var p=(P().prediags||[]).filter(function(x){ return x.id===d.intake.prediagId; })[0]; if(p&&p.R&&p.R.embauche&&p.R.embauche!=='non') n=+p.R.embauche||1; } }catch(e){} return n; }
+  function beneficiaires(d){ var i=d.intake||{}; return (i.beneficiaires||[]).filter(function(b){ return S(b.nom||b.prenom).trim(); }).length; }
+  var SERVICES=[
+    {k:'banque',titre:'Compte bancaire professionnel',
+      pourquoi:function(){ return 'Le capital déposé est débloqué sur présentation du K-bis ; un compte dédié à la société est obligatoire.'; },
+      pertinent:function(c){ return c.societe!==false; }},
+    {k:'comptable',titre:'Contrat comptable (lettre de mission)',
+      pourquoi:function(c){ return 'Tenue, bilan et liasse fiscale'+(c.regime==='IS'?' à l’IS':'')+', assemblée annuelle d’approbation des comptes.'; },
+      pertinent:function(){ return true; }},
+    {k:'tva',titre:'Déclarations de TVA',
+      pourquoi:function(c){ return c.tva==='rn'?'Réel normal : une déclaration CA3 chaque mois.':(c.tva==='rs'?'Réel simplifié : déclaration annuelle CA12 et deux acomptes.':'Régime à choisir, puis déclarations selon ce régime.'); },
+      pertinent:function(c){ return c.tva!=='franchise'&&c.forme!=='SCI'; },
+      pasPertinent:function(c){ return c.forme==='SCI'?'SCI de location nue : pas de TVA.':'Franchise en base : pas de déclaration de TVA.'; }},
+    {k:'rcpro',titre:'Assurance responsabilité civile professionnelle',
+      pourquoi:function(c){ var o=(c.activites||[]).filter(function(a){ return /btp|immobilier|finance|sante|ordre|securite|voyages|autoecole/.test(a); });
+        var lb=o.map(function(k){ var f=(window.ACTIVITES_REGLEMENTEES||[]).filter(function(x){ return x.k===k; })[0]; return f?f.lbl:k; });
+        return lb.length?'Obligatoire pour l’activité : '+lb.join(', ')+' ; exigée aussi par de nombreux clients.':'Couvre les dommages causés aux clients ; souvent exigée dans les contrats.'; },
+      pertinent:function(c){ return c.forme!=='SCI'; }, pasPertinent:function(){ return 'SCI : pas d’activité professionnelle à assurer.'; }},
+    {k:'mutuelle',titre:'Mutuelle',
+      pourquoi:function(c,n){ return n>0?'Mutuelle collective obligatoire pour les salariés, financée à 50 % au moins par l’employeur.':'Complémentaire santé et prévoyance du dirigeant'+(c.social==='tns'?' (contrat Madelin, déductible).':'.'); },
+      pertinent:function(c){ return c.forme!=='SCI'; }, pasPertinent:function(){ return 'SCI : pas de dirigeant rémunéré ni de salarié.'; }},
+    {k:'rbe',titre:'Registre des bénéficiaires effectifs',
+      pourquoi:function(c,n,d){ return beneficiaires(d)?'Déclaré avec l’immatriculation ; à mettre à jour dans les 30 jours de tout changement.':'À déclarer au greffe, puis à tenir à jour.'; },
+      pertinent:function(c){ return c.societe!==false; }, fait:function(d){ return beneficiaires(d)>0; }},
+    {k:'facturation',titre:'Facturation',
+      pourquoi:function(){ return 'Devis, factures et encaissements ; la réception des factures électroniques est obligatoire depuis septembre 2026, l’émission le sera pour les PME en septembre 2027.'; },
+      pertinent:function(c){ return c.forme!=='SCI'; }, pasPertinent:function(){ return 'SCI : quittances plutôt que factures.'; }},
+    {k:'logiciel',titre:'Logiciel comptable',
+      pourquoi:function(){ return 'Pré-comptabilité en ligne : relevés bancaires, justificatifs et export au cabinet.'; },
+      pertinent:function(){ return true; }},
+    {k:'travail',titre:'Contrat de travail et paie',
+      pourquoi:function(c,n){ return n>0?(n+' salarié'+(n>1?'s':'')+' prévu'+(n>1?'s':'')+' : contrat, déclaration préalable à l’embauche, bulletins et DSN chaque mois.'):'Au premier recrutement : contrat, déclaration préalable à l’embauche, bulletins et DSN.'; },
+      pertinent:function(c,n){ return n>0; }, pasPertinent:function(){ return 'Pas de salarié prévu pour l’instant.'; }}
+  ];
+  var PAR={}; SERVICES.forEach(function(s){ PAR[s.k]=s; });
+  var ETATS={a_proposer:'À proposer',propose:'Proposé',accepte:'Accepté',en_place:'En place',refuse:'Refusé',na:'Sans objet'};
+
+  function prix(k,T,c,n){ var t=T[k]||{mode:'inclus',montant:0};
+    if(t.mode==='commission') return {lbl:'Commission de partenaire',annuel:0,unique:0,commission:true};
+    if(k==='rbe') return t.montant?{lbl:eur(t.montant)+' HT',annuel:0,unique:t.montant}:{lbl:'Inclus',annuel:0,unique:0};
+    if(k==='tva'){ var nb=c.tva==='rn'?12:1; return {lbl:eur(t.montant)+' HT par déclaration · '+nb+' par an',annuel:t.montant*nb,unique:0}; }
+    if(k==='travail'){ var s=Math.max(1,n||1), an=s*12*t.paie+12*t.dsn; return {lbl:eur(t.montant)+' HT le contrat, puis '+eur(t.paie)+' par bulletin et '+eur(t.dsn)+' de DSN par mois',annuel:an,unique:t.montant*s}; }
+    if(!t.montant) return {lbl:'Tarif à fixer',annuel:0,unique:0,afixer:true};
+    if(t.mode==='mois') return {lbl:eur(t.montant)+' HT par mois',annuel:t.montant*12,unique:0};
+    if(t.mode==='an') return {lbl:eur(t.montant)+' HT par an',annuel:t.montant,unique:0};
+    return {lbl:eur(t.montant)+' HT',annuel:0,unique:t.montant}; }
+
+  function kbis(d){ try{ var R=window.dossierStatuts&&window.dossierStatuts(d); var l=R&&(R.lignes||[]).filter(function(x){ return x.k==='kbis'; })[0]; if(l) return l.etat==='oui'; }catch(e){} return !!(d.immat&&d.immat.kbis); }
+  function st(d){ d.onb728=d.onb728||{items:{},propositions:[]}; d.onb728.items=d.onb728.items||{}; d.onb728.propositions=d.onb728.propositions||[]; return d.onb728; }
+
+  window.onbBilan=function(id){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    var c=ctx(d); if(!c.creation) return {applicable:false,items:[]};
+    var n=nbSal(d,c), T=tarifs(), o=d.onb728||{items:{}}, ok=kbis(d);
+    var items=SERVICES.map(function(s){ var per=s.pertinent(c,n,d), x=(o.items||{})[s.k]||{};
+      var etat=x.etat||(!per?'na':(s.fait&&s.fait(d)?'en_place':'a_proposer'));
+      return {k:s.k,titre:s.titre,pourquoi:s.pourquoi(c,n,d),pertinent:per,raison:!per&&s.pasPertinent?s.pasPertinent(c,n):'',etat:etat,le:x.ts||0,prix:prix(s.k,T,c,n),auto:!x.etat}; });
+    function som(f,filtre){ return items.filter(filtre).reduce(function(a,i){ return a+(i.prix[f]||0); },0); }
+    var signe=function(i){ return i.etat==='accepte'||i.etat==='en_place'; }, ouvert=function(i){ return i.etat==='a_proposer'||i.etat==='propose'; };
+    var props=(o.propositions||[]), der=props[0]||null;
+    return {applicable:true,kbis:ok,depuis:o.depuis||0,items:items,salaries:n,
+      recurrentSigne:som('annuel',signe),uniqueSigne:som('unique',signe),recurrentPotentiel:som('annuel',ouvert),
+      aProposer:items.filter(function(i){ return i.etat==='a_proposer'; }).length,
+      proposes:items.filter(function(i){ return i.etat==='propose'; }).length,
+      derniere:der,aRelancer:!!(der&&items.some(function(i){ return i.etat==='propose'; })&&Date.now()-der.ts>RELANCE_J*JOUR)};
+  };
+
+  /* la réception du K-bis ouvre le suivi (une fois) */
+  function detecter(d){ try{ if(!d||(d.onb728&&d.onb728.depuis)) return false; var B=window.onbBilan(d); if(!B.applicable||!B.kbis) return false;
+    var o=st(d); o.depuis=Date.now(); hist(d,'K-bis reçu : services après création prêts à proposer');
+    trace('Après la création','Services à proposer — '+nom(d)); return true; }catch(e){ return false; } }
+  function detecterTout(){ var ch=false; ((typeof DB!=='undefined'&&DB.dossiers)||[]).forEach(function(d){ if(!d.archived&&detecter(d)) ch=true; }); if(ch) sauver(); }
+  window.onbDetecter=detecterTout;
+
+  window.onbMarquer=function(id,k,etat){
+    var d=dossier(id); if(!d||!PAR[k]||!ETATS[etat]) return false;
+    var o=st(d), av=(o.items[k]||{}).etat; o.items[k]={etat:etat,ts:Date.now()};
+    hist(d,PAR[k].titre+' : '+ETATS[etat].toLowerCase()); trace('Après la création',PAR[k].titre+' → '+ETATS[etat]+' — '+nom(d)+(av?(' (était : '+ETATS[av]+')'):''));
+    sauver(); rendre(); return true; };
+
+  /* ---------------- la proposition au client ---------------- */
+  function destinataire(d){ var c=client(d), i=d.intake||{}; return S(c.email||(i.contact||{}).email||'').trim(); }
+  function message(d,B,ks){
+    var i=d.intake||{}, dir=i.direction||{}, cab=S((DB.params||{}).cabinet)||'AEM CONSEIL';
+    var L=B.items.filter(function(x){ return ks.indexOf(x.k)>=0; });
+    return (S(dir.nom).trim()?('Bonjour '+(S(dir.civilite)?(S(dir.civilite)+' '):'')+S(dir.nom).trim()+','):'Bonjour,')
+      +'\n\nFélicitations : '+nom(d)+' est immatriculée. Pour que la société démarre dans de bonnes conditions, voici ce que nous pouvons prendre en charge avec vous :\n\n'
+      +L.map(function(x){ return '- '+x.titre+' : '+x.pourquoi+(x.prix.commission||x.prix.afixer?'':(' ('+x.prix.lbl+')')); }).join('\n')
+      +'\n\nIndiquez-nous simplement ce qui vous intéresse : nous vous adressons le devis correspondant et nous occupons de la mise en place.\n\nBien cordialement,\n'+cab;
+  }
+  window.onbProposer=function(id){
+    var d=dossier(id); if(!d) return; var B=window.onbBilan(d); if(!B||!B.applicable) return;
+    var ks=B.items.filter(function(x){ return x.etat==='a_proposer'||x.etat==='propose'; }).map(function(x){ return x.k; });
+    if(!ks.length){ dire('Aucun service à proposer.'); return; }
+    var coche=B.items.filter(function(x){ return ks.indexOf(x.k)>=0; }).map(function(x){ return '<label class="mq-onb-ck"><input type="checkbox" value="'+x.k+'" checked onchange="onbProposerMaj(\''+jq(id)+'\')"> '+E(x.titre)+'</label>'; }).join('');
+    var b='<div class="mq-onb-mail"><p>Cochez les services à proposer, relisez, puis envoyez.</p><div class="mq-onb-cks">'+coche+'</div>'
+      +'<label>Destinataire<input id="onb-to" value="'+E(destinataire(d))+'"></label>'
+      +'<label>Objet<input id="onb-sujet" value="'+E(nom(d)+' est immatriculée : la suite')+'"></label>'
+      +'<label>Message<textarea id="onb-corps" rows="15">'+E(message(d,B,ks))+'</textarea></label></div>';
+    var f='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="onbProposerGo(\''+jq(id)+'\')">Envoyer la proposition</button>';
+    if(typeof openModal==='function') openModal('Services après création — proposition au client',b,f);
+  };
+  function coches(){ return Array.prototype.map.call(document.querySelectorAll('.mq-onb-cks input:checked'),function(x){ return x.value; }); }
+  window.onbProposerMaj=function(id){ var d=dossier(id); if(!d) return; var t=document.getElementById('onb-corps'); if(t) t.value=message(d,window.onbBilan(d),coches()); };
+  window.onbProposerGo=function(id){
+    var d=dossier(id); if(!d) return false;
+    function v(x){ var e=document.getElementById(x); return e?S(e.value).trim():''; }
+    var to=v('onb-to'), ks=coches();
+    if(!ks.length){ dire('Cochez au moins un service.'); return false; }
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){ dire('Indiquez une adresse e-mail valide pour le client.'); return false; }
+    var direct=false; try{ direct=(typeof demEnvoiSilencieux==='function'&&demEnvoiSilencieux(to,v('onb-sujet'),v('onb-corps')))||(typeof demEnvoiDirect==='function'&&demEnvoiDirect(to,v('onb-sujet'),v('onb-corps'))); }catch(e){}
+    var o=st(d); o.propositions.unshift({ts:Date.now(),to:to,direct:!!direct,items:ks}); if(o.propositions.length>20) o.propositions.length=20;
+    ks.forEach(function(k){ var x=o.items[k]; if(!x||x.etat==='a_proposer'||!x.etat) o.items[k]={etat:'propose',ts:Date.now()}; });
+    hist(d,'Services après création proposés au client ('+ks.length+')'+(direct?'':' — préparés dans la messagerie'));
+    trace('Après la création','Proposition envoyée à '+to+' — '+nom(d)+' : '+ks.map(function(k){ return PAR[k].titre; }).join(', ')); sauver();
+    try{ if(typeof closeModal==='function') closeModal(); }catch(e){}
+    dire(direct?'Proposition envoyée au client.':'Proposition préparée dans votre messagerie : vérifiez puis envoyez.'); rendre(); return true;
+  };
+
+  /* ---------------- devis des services acceptés ---------------- */
+  window.onbLignes=function(id){
+    var d=dossier(id); if(!d) return []; var B=window.onbBilan(d), T=tarifs(), L=[];
+    B.items.filter(function(x){ return x.etat==='accepte'&&!x.prix.commission; }).forEach(function(x){ var t=T[x.k];
+      if(x.k==='tva'){ var nb=/12 par an/.test(x.prix.lbl)?12:1; if(t.montant) L.push({des:'Déclarations de TVA',qte:nb,pu:t.montant,u:'déclaration',av:0}); }
+      else if(x.k==='travail'){ var s=Math.max(1,B.salaries||1); if(t.montant) L.push({des:'Contrat de travail',qte:s,pu:t.montant,u:'forfait',av:0}); if(t.paie) L.push({des:'Bulletins de paie (12 mois)',qte:12*s,pu:t.paie,u:'bulletin',av:0}); if(t.dsn) L.push({des:'DSN mensuelle (12 mois)',qte:12,pu:t.dsn,u:'mois',av:0}); }
+      else if(t.montant){ if(t.mode==='mois') L.push({des:x.titre+' (12 mois)',qte:12,pu:t.montant,u:'mois',av:0}); else L.push({des:x.titre+(t.mode==='an'?' (annuel)':''),qte:1,pu:t.montant,u:t.mode==='an'?'an':'forfait',av:0}); }
+    });
+    return L; };
+  window.onbDevis=function(id){
+    var d=dossier(id); if(!d) return false; var L=window.onbLignes(id);
+    if(!L.length){ dire('Aucun service accepté à facturer (les commissions de partenaires ne se facturent pas au client).'); return false; }
+    if(typeof window.dosDevis!=='function'){ dire('Le facturier n’est pas disponible.'); return false; }
+    var t0=window.toast; window.toast=function(){}; try{ window.dosDevis(id); }finally{ window.toast=t0; }
+    var dr=window.__invDraft; if(dr){ dr.lignes=L; dr.note='Services après création — '+nom(d)+'. Tarifs annuels, révisables à la date anniversaire.'; }
+    st(d).devis=Date.now(); hist(d,'Devis des services après création préparé'); trace('Après la création','Devis préparé — '+nom(d)+' ('+L.length+' ligne(s))'); sauver();
+    rendre(); dire('Devis des services acceptés préparé dans le facturier : vérifiez puis émettez.'); return true; };
+
+  /* le contrat comptable ouvre le suivi du module Fiscal (sans le créer) */
+  window.onbSuiviFiscal=function(id){
+    if(typeof window.connaissancesSuiviFiscal!=='function'){ dire('Le module Fiscal n’est pas disponible.'); return; }
+    window.connaissancesSuiviFiscal(id);
+    try{ var t=tarifs().comptable; var f=document.getElementById('cf-formule'), m=document.getElementById('cf-mens');
+      if(f&&!f.value) f.value='Mission comptable'; if(f&&/S[ée]r[ée]nit[ée] mensuel/.test(f.value)) f.value='Mission comptable';
+      if(m&&!num(m.value)&&t&&t.montant) m.value=String(Math.round(t.montant/12*100)/100); }catch(e){}
+  };
+
+  /* ---------------- la carte du dossier ---------------- */
+  var ACTIONS={a_proposer:[['propose','Proposé'],['na','Sans objet']],propose:[['accepte','Accepté'],['refuse','Refusé']],accepte:[['en_place','En place'],['refuse','Refusé']],
+    en_place:[['accepte','Rouvrir']],refuse:[['a_proposer','Rouvrir']],na:[['a_proposer','Rouvrir']]};
+  function carte(d){
+    var B=window.onbBilan(d); if(!B||!B.applicable) return '';
+    var id=jq(d.id);
+    if(!B.kbis) return '<div class="card mq-onb-card"><div class="card-h"><h2>Après la création</h2></div><div class="card-b"><p class="mq-onb-att">À la réception du K-bis, Mar’q préparera la proposition des services qui suivent une création : compte bancaire, contrat comptable, TVA, RC Pro, mutuelle, bénéficiaires effectifs, facturation, logiciel comptable, contrat de travail.</p></div></div>';
+    var rows=B.items.map(function(x){ var acts=(ACTIONS[x.etat]||[]).map(function(a){ return '<button class="btn btn-sm'+(a[0]==='accepte'||a[0]==='en_place'?' btn-pri':'')+'" onclick="onbMarquer(\''+id+'\',\''+x.k+'\',\''+a[0]+'\')">'+a[1]+'</button>'; }).join('');
+      if(x.k==='comptable'&&(x.etat==='accepte'||x.etat==='en_place')) acts+='<button class="btn btn-sm" onclick="onbSuiviFiscal(\''+id+'\')">Suivi fiscal</button>';
+      return '<li class="mq-onb-it e-'+x.etat+'"><div class="mq-onb-t"><b>'+E(x.titre)+'</b><span>'+E(x.pertinent?x.pourquoi:x.raison)+'</span><i>'+E(x.prix.lbl)+'</i></div>'
+        +'<span class="mq-onb-et e-'+x.etat+'">'+ETATS[x.etat]+'</span><div class="mq-onb-a">'+acts+'</div></li>'; }).join('');
+    var der=B.derniere;
+    var h='<div class="card mq-onb-card"><div class="card-h"><h2>Après la création</h2><span class="mq-onb-sub">'+B.aProposer+' à proposer · '+B.proposes+' proposé'+(B.proposes>1?'s':'')+'</span></div><div class="card-b">'
+      +'<div class="mq-onb-kpi"><div><span>Récurrent signé</span><b>'+eur(B.recurrentSigne)+' / an</b></div><div><span>Ponctuel signé</span><b>'+eur(B.uniqueSigne)+'</b></div><div><span>Potentiel restant</span><b>'+eur(B.recurrentPotentiel)+' / an</b></div></div>'
+      +(der?('<div class="mq-onb-note'+(B.aRelancer?' warn':'')+'">Proposition envoyée le '+E(new Date(der.ts).toLocaleDateString('fr-FR'))+' à '+E(der.to)+(B.aRelancer?' : sans réponse depuis plus de '+RELANCE_J+' jours, à relancer.':'.')+'</div>'):'')
+      +'<ul class="mq-onb-list">'+rows+'</ul>'
+      +'<div class="mq-onb-acts">'+(window.onbLignes(d.id).length?'<button class="btn" onclick="onbDevis(\''+id+'\')">Devis des services acceptés</button>':'')
+      +'<button class="btn btn-pri" onclick="onbProposer(\''+id+'\')"'+(B.aProposer+B.proposes?'':' disabled')+'>'+(der?'Relancer la proposition':'Proposer au client')+'</button></div>'
+      +'</div></div>';
+    return h;
+  }
+  window.onbCarte=function(id){ var d=dossier(id); return d?carte(d):''; };
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace') return;
+    var d=dossier(state.espaceDossier); if(!d) return; var tab=state.espTab||'demande';
+    if(tab!=='cloture'&&tab!=='immatriculation') return;
+    var B=window.onbBilan(d); if(!B||!B.applicable) return; if(tab==='immatriculation'&&!B.kbis) return;
+    if(detecter(d)) sauver();
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="'+tab+'"]'); if(!panel||panel.querySelector('.mq-onb-card')) return;
+    var t=document.createElement('div'); t.innerHTML=carte(d); var el=t.firstElementChild; if(!el) return;
+    var ref=panel.querySelector(':scope > .mq-kn-card')||panel.querySelector(':scope > .mq-st-card')||panel.querySelector(':scope > .trw-foot');
+    if(ref) panel.insertBefore(el,ref); else panel.appendChild(el);
+  }catch(e){} }
+
+  /* ---------------- vue d'ensemble : Pilotage ---------------- */
+  window.onbGlobal=function(){
+    detecterTout();
+    var L=((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(d){ return !d.archived; }).map(function(d){ var B=window.onbBilan(d); return B&&B.applicable&&B.kbis?{d:d,B:B}:null; }).filter(Boolean);
+    function s(f){ return L.reduce(function(a,x){ return a+x.B[f]; },0); }
+    return {entreprises:L.length,signe:s('recurrentSigne'),unique:s('uniqueSigne'),potentiel:s('recurrentPotentiel'),
+      aProposer:L.filter(function(x){ return !x.B.derniere&&x.B.aProposer>0; }),aRelancer:L.filter(function(x){ return x.B.aRelancer; }),liste:L};
+  };
+  function carteGlobale(){
+    var G=window.onbGlobal(), T=tarifs();
+    function ligne(x,txt){ return '<li><div><b>'+E(nom(x.d))+'</b><span>'+E(txt)+'</span></div><button class="btn btn-sm" onclick="state.page=\'espace\';state.espaceDossier=\''+jq(x.d.id)+'\';state.espTab=\'cloture\';render()">Ouvrir</button></li>'; }
+    var ap=G.aProposer.map(function(x){ return ligne(x,x.B.aProposer+' service(s) à proposer · potentiel '+eur(x.B.recurrentPotentiel)+' / an'); }).join('');
+    var ar=G.aRelancer.map(function(x){ return ligne(x,'proposition du '+new Date(x.B.derniere.ts).toLocaleDateString('fr-FR')+' sans réponse'); }).join('');
+    return '<div class="card mq-onb-glob"><div class="card-h"><h2>Services après création</h2><span class="mq-onb-sub">'+G.entreprises+' entreprise'+(G.entreprises>1?'s':'')+' immatriculée'+(G.entreprises>1?'s':'')+'</span></div><div class="card-b">'
+      +'<div class="mq-onb-kpi"><div><span>Récurrent signé</span><b>'+eur(G.signe)+' / an</b></div><div><span>Ponctuel signé</span><b>'+eur(G.unique)+'</b></div><div><span>Potentiel restant</span><b>'+eur(G.potentiel)+' / an</b></div></div>'
+      +(ap?('<div class="mq-onb-st">À proposer</div><ul class="mq-onb-glist">'+ap+'</ul>'):'')
+      +(ar?('<div class="mq-onb-st">À relancer</div><ul class="mq-onb-glist">'+ar+'</ul>'):'')
+      +(!ap&&!ar?'<p class="mq-onb-vide">Aucune proposition en attente.</p>':'')
+      +'<div class="mq-onb-acts"><button class="btn btn-sm" onclick="onbTarifsOuvrir()">Tarifs des services</button></div></div></div>';
+  }
+  window.onbCarteGlobale=carteGlobale;
+
+  var MODES=[['mois','par mois'],['an','par an'],['acte','à l’acte'],['commission','commission de partenaire']];
+  window.onbTarifsOuvrir=function(){
+    var T=tarifs();
+    var rows=SERVICES.map(function(s){ var t=T[s.k];
+      if(s.k==='tva') return '<tr><td>'+E(s.titre)+'</td><td>par déclaration</td><td><input type="number" min="0" value="'+t.montant+'" onchange="onbTarifSet(\'tva\',\'montant\',this.value)"></td></tr>';
+      if(s.k==='travail') return '<tr><td>'+E(s.titre)+'</td><td>contrat · bulletin · DSN / mois</td><td class="mq-onb-3"><input type="number" min="0" value="'+t.montant+'" onchange="onbTarifSet(\'travail\',\'montant\',this.value)"><input type="number" min="0" value="'+t.paie+'" onchange="onbTarifSet(\'travail\',\'paie\',this.value)"><input type="number" min="0" value="'+t.dsn+'" onchange="onbTarifSet(\'travail\',\'dsn\',this.value)"></td></tr>';
+      return '<tr><td>'+E(s.titre)+'</td><td><select onchange="onbTarifSet(\''+s.k+'\',\'mode\',this.value)">'+MODES.map(function(m){ return '<option value="'+m[0]+'"'+(t.mode===m[0]?' selected':'')+'>'+m[1]+'</option>'; }).join('')+'</select></td>'
+        +'<td><input type="number" min="0" value="'+t.montant+'" onchange="onbTarifSet(\''+s.k+'\',\'montant\',this.value)"'+(t.mode==='commission'?' disabled':'')+'></td></tr>'; }).join('');
+    var b='<div class="mq-onb-tar"><p>Tarifs HT proposés au client. Par défaut, ceux du catalogue des prestations (Services).</p><table><thead><tr><th>Service</th><th>Facturation</th><th>Montant (€ HT)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    if(typeof openModal==='function') openModal('Tarifs des services après création',b,'<button class="btn btn-pri" onclick="closeModal();render()">Fermer</button>');
+  };
+  window.onbTarifSet=function(k,f,v){ if(!DEF[k]) return false; var o=P(); o.onboarding=o.onboarding||{}; o.onboarding.tarifs=o.onboarding.tarifs||{};
+    var t=o.onboarding.tarifs[k]=o.onboarding.tarifs[k]||{};
+    if(f==='mode'){ if(!MODES.some(function(m){ return m[0]===v; })) return false; t.mode=v; } else if(['montant','paie','dsn'].indexOf(f)>=0){ var n=num(v); if(n<0||n>100000) return false; t[f]=n; } else return false;
+    trace('Après la création','Tarif modifié — '+PAR[k].titre+' ('+f+' : '+v+')'); sauver();
+    if(f==='mode'){ try{ window.onbTarifsOuvrir(); }catch(e){} } return true; };
+
+  function greffer(nom,fn){ var o=window[nom]; if(typeof o!=='function'||o.__onb) return; var w=fn(o);
+    Object.keys(o).forEach(function(k){ w[k]=o[k]; }); w.__onb=1; window[nom]=w; }
+  try{ greffer('pagePilotage',function(_pp){ return function(){ var h=_pp.apply(this,arguments); try{ return S(h)+carteGlobale(); }catch(e){ return h; } }; }); }catch(e){}
+
+  /* ---------------- centre d'exécution et Prévoyance ---------------- */
+  try{ var _cx=window.cxChaineLignes; if(typeof _cx==='function'&&!_cx.__onb){
+    window.cxChaineLignes=function(){ var L=_cx.apply(this,arguments)||[]; try{ var G=window.onbGlobal();
+      L.push({key:'onb',lbl:'Services après création',page:'pilotage',attente:G.aProposer.length,humain:G.aRelancer.length,
+        detail:G.aProposer.length+' entreprise(s) à qui proposer · '+G.aRelancer.length+' proposition(s) à relancer · '+eur(G.signe)+' / an signés',
+        exec:null,execLbl:'',last:null}); }catch(e){} return L; }; window.cxChaineLignes.__onb=1; } }catch(e){}
+  try{ var _pi=window.prevItems; if(typeof _pi==='function'&&!_pi.__onb){
+    window.prevItems=function(){ var res=_pi.apply(this,arguments)||[]; try{
+      var pc=(P().prevoyance)||{}, srcs=pc.sources||{}; if(srcs.trw===false) return res;
+      var G=window.onbGlobal(), jo=(typeof today==='function')?today():new Date().toISOString().slice(0,10), add=[];
+      function ouvrir(d){ return function(){ state.page='espace'; state.espaceDossier=d.id; state.espTab='cloture'; render(); }; }
+      G.aProposer.forEach(function(x){ add.push({key:'onb:'+x.d.id,src:'trw',niveau:'info',cat:'aujourdhui',quand:jo,titre:nom(x.d)+' · services après création',
+        detail:'K-bis reçu : '+x.B.aProposer+' service(s) à proposer au client',page:'espace',open:ouvrir(x.d)}); });
+      G.aRelancer.forEach(function(x){ add.push({key:'onbr:'+x.d.id+':'+x.B.derniere.ts,src:'trw',niveau:'warn',cat:'aujourdhui',quand:jo,titre:nom(x.d)+' · relancer la proposition',
+        detail:'Proposition du '+new Date(x.B.derniere.ts).toLocaleDateString('fr-FR')+' sans réponse',page:'espace',open:ouvrir(x.d)}); });
+      var seen={}; res.forEach(function(o){ seen[o.key]=1; });
+      add.forEach(function(o){ if(seen[o.key]) return; var sn=(pc.snooze||{})[o.key]; if(sn&&sn>Date.now()) return; o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); });
+    }catch(e){} return res; }; window.prevItems.__onb=1; } }catch(e){}
+
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__onb){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); return x; }; Object.keys(_rd).forEach(function(k){ window.render[k]=_rd[k]; }); window.render.__onb=1; } }catch(e){}
+  setTimeout(detecterTout,1500);
+
+  var css=document.createElement('style'); css.id='mq-onb-css';
+  css.textContent=[
+    '.mq-onb-sub{margin-left:auto;font-size:12px;color:var(--ink3,#8a8a93)}',
+    '.mq-onb-att{margin:0;font-size:12.5px;color:var(--ink3,#8a8a93)}',
+    '.mq-onb-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}',
+    '.mq-onb-kpi div{border:1px solid var(--line,#2a2a2e);border-radius:9px;padding:7px 10px}.mq-onb-kpi span{display:block;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3,#8a8a93);font-weight:600}.mq-onb-kpi b{font-size:14px}',
+    '.mq-onb-note{font-size:12px;color:var(--ink3,#8a8a93);margin:0 0 8px}.mq-onb-note.warn{color:#d9a55a}',
+    '.mq-onb-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}',
+    '.mq-onb-it{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line,#2a2a2e)}',
+    '.mq-onb-it:first-child{border-top:none}.mq-onb-t b{display:block;font-size:13px}.mq-onb-t span{display:block;font-size:12px;color:var(--ink3,#8a8a93)}.mq-onb-t i{display:block;font-style:normal;font-size:11.5px;margin-top:2px}',
+    '.mq-onb-it.e-na .mq-onb-t,.mq-onb-it.e-refuse .mq-onb-t{opacity:.55}',
+    '.mq-onb-et{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--line,#3a3a40);white-space:nowrap}',
+    '.mq-onb-et.e-propose{border-color:#b98029;color:#d9a55a}.mq-onb-et.e-accepte,.mq-onb-et.e-en_place{border-color:#3d7a52;color:#7cc79a}.mq-onb-et.e-refuse{border-color:#7a3d3d;color:#d98a8a}',
+    '.mq-onb-a{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}',
+    '.mq-onb-acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}',
+    '.mq-onb-cks{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:6px 0 8px}.mq-onb-ck{font-size:12.5px;display:flex;gap:6px;align-items:center}',
+    '.mq-onb-mail label{display:block;margin-top:8px}.mq-onb-mail input:not([type=checkbox]),.mq-onb-mail textarea{width:100%}',
+    '.mq-onb-st{font-weight:600;font-size:12.5px;margin:10px 0 4px}.mq-onb-glist{list-style:none;margin:0;padding:0}.mq-onb-glist li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line,#2a2a2e)}',
+    '.mq-onb-glist b{display:block;font-size:13px}.mq-onb-glist span{font-size:12px;color:var(--ink3,#8a8a93)}.mq-onb-vide{font-size:12.5px;margin:0}',
+    '.mq-onb-tar table{width:100%;font-size:12.5px}.mq-onb-tar input{width:100px}.mq-onb-3{display:flex;gap:6px}.mq-onb-3 input{width:80px}',
+    '@media(max-width:760px){.mq-onb-it{grid-template-columns:1fr}.mq-onb-a{justify-content:flex-start}.mq-onb-kpi{grid-template-columns:1fr}}'
+  ].join('');
+  document.head.appendChild(css);
+})();
 </script>
 </body>
 </html>
