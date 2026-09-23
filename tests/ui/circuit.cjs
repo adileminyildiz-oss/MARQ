@@ -141,22 +141,36 @@ await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; windo
   A(r.marque.inpi==='na'&&r.marque.depot==='na'&&r.marque.kbis==='na','un dépôt de marque n’a ni dépôt au greffe ni Kbis',JSON.stringify(r.marque));
 
   // ---------- 4. l'écran ----------
-  r=await ev(()=>{ const out={};
-    state.page='espace'; state.espaceDossier=window.__tid;
-    state.espTab='actes'; render(); out.actes=!!document.querySelector('#view .mq-ch-card');
-    { const d=DB.dossiers.find(x=>x.id===window.__tid); chRevoir(d.id); chPoint(d.id,'juridique',false); render();
-      const bt=[...document.querySelectorAll('#view .mq-ch-acts .btn')].find(x=>/Conforme/.test(x.textContent));
-      out.attente=bt?parseFloat(getComputedStyle(bt).opacity):null; }
-    state.espTab='demande'; render(); out.dem=!!document.querySelector('#view .mq-st-card');
-    out.lignes=document.querySelectorAll('#view .mq-st-row').length;
-    state.espTab='cloture'; render(); out.clo=!!document.querySelector('#view .mq-st-card');
-    state.espTab='pieces'; render(); out.piecesSans=!document.querySelector('#view .mq-st-card')&&!document.querySelector('#view .mq-ch-card');
+  /* Le Traitement range les cartes dans un panneau par étape. On vérifie que
+     chaque carte est dans le panneau de SON étape, visible quand l'étape est
+     ouverte, et nulle part ailleurs. */
+  r=await ev(()=>{ const m=window.__mk('sas'); const d=DB.dossiers.find(x=>x.id===m.id); const id=d.id;
+    trwValider(id,'demande');
+    d.attachments=[{name:'cni-lambert.jpg',msgId:'x'},{name:'edf-domicile.pdf',msgId:'x'},{name:'rib.pdf',msgId:'x'}];
+    enregPieces(d).forEach(pc=>{ if(pc.origine==='client') enregPieceToggle(id,pc.k,true); });
+    [...new Set(e2Pieces(d).map(a=>demAttCat(a).key))].forEach(k=>e3Certifier(id,k)); trwValider(id,'pieces');
+    window.__uid=id;
+    const vue=(tab)=>{ state.page='espace'; state.espaceDossier=id; state.espTab=tab; render();
+      const v=document.getElementById('view'); const P=v.querySelector('.esp-tabpanel[data-tab="'+tab+'"]');
+      const vis=el=>!!el&&el.getBoundingClientRect().height>0;
+      return {etape:state.espTab,ch:P&&P.querySelector('.mq-ch-card'),st:P&&P.querySelector('.mq-st-card'),v,vis}; };
+    const out={};
+    let x=vue('actes'); out.actes=x.etape==='actes'&&x.vis(x.ch);
+    out.chAvantPied=!!(x.ch&&x.ch.nextElementSibling&&x.ch.nextElementSibling.classList.contains('trw-foot'));
+    { const bt=[...x.ch.querySelectorAll('.mq-ch-acts .btn')].find(b=>/Conforme/.test(b.textContent)); out.attente=bt?parseFloat(getComputedStyle(bt).opacity):null; }
+    x=vue('demande'); out.dem=x.etape==='demande'&&x.vis(x.st); out.lignes=x.st?x.st.querySelectorAll('.mq-st-row').length:0;
+    x=vue('pieces'); out.piecesSans=!x.v.querySelector('.esp-tabpanel[data-tab="pieces"] .mq-st-card')&&!x.v.querySelector('.esp-tabpanel[data-tab="pieces"] .mq-ch-card');
+    out.checklistAilleurs=[...x.v.querySelectorAll('.mq-ch-card')].filter(e=>!e.closest('.esp-tabpanel[data-tab="actes"]')).length;
+    /* la clôture n'est atteignable qu'une fois les étapes validées : on les pose */
+    d.wf=Object.assign(d.wf||{},{actes:Date.now(),attestations:Date.now(),immatriculation:Date.now()});
+    x=vue('cloture'); out.clo=x.etape==='cloture'&&x.vis(x.st);
     return out; });
-  A(r.actes,'l’onglet Actes porte le contrôle humain',JSON.stringify(r));
+  A(r.actes,'l’onglet Actes porte le contrôle humain, visible',JSON.stringify(r));
+  A(r.chAvantPied,'il se place juste au-dessus de « Valider l’étape »',JSON.stringify(r));
   A(r.attente!==null&&r.attente<0.6,'« Conforme » se voit en attente tant que la relecture n’est pas complète',JSON.stringify(r.attente));
   A(r.dem&&r.lignes===10,'l’onglet Demande porte le tableau des dix statuts',JSON.stringify(r));
   A(r.clo,'l’onglet Clôture le reprend, pour vérifier la complétude',JSON.stringify(r));
-  A(r.piecesSans,'les autres onglets restent tels quels',JSON.stringify(r));
+  A(r.piecesSans&&r.checklistAilleurs===0,'les autres onglets restent tels quels',JSON.stringify(r));
 
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

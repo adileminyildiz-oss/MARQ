@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=721;
+var LAST_VER=722;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -50641,7 +50641,8 @@ function testLienSignature() {
         long : en flux, le chevron se retrouvait sur une deuxième ligne. Il
         est donc ancré au coin haut-droit, où on le cherche, et l'en-tête
         lui réserve sa place pour que rien ne passe dessous. */
-     +'.card-h.mq-pli-h{position:relative;padding-right:34px}'
+     +'.card-h.mq-pli-h{position:relative;padding-right:40px!important}'
+     +'html body .esp-main .card-h.mq-pli-h.mq-pli-h{padding-right:40px!important}'
      +'.mq-pli{position:absolute;top:7px;right:8px;display:inline-flex;align-items:center;'
        +'justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;'
        +'background:transparent;color:var(--ink-3,#8a8a93);cursor:pointer;opacity:.55;'
@@ -51053,11 +51054,17 @@ function testLienSignature() {
   function capitalEnJeu(d){ return /^(creation_(sas|sarl|sci)|capital|cession)$/.test(typeFormalite(d)); }
   function pointsApplicables(d){ return POINTS.filter(function(p){ return p[0]!=='capital'||capitalEnJeu(d); }); }
 
+  /* JSON à clés triées : retirer puis remettre la même valeur ne doit pas
+     changer l'empreinte (JSON.stringify suit l'ordre d'insertion). */
+  function canon(v){ if(v===null||typeof v!=='object') return JSON.stringify(v);
+    if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
+    return '{'+Object.keys(v).sort().map(function(k){ return JSON.stringify(k)+':'+canon(v[k]); }).join(',')+'}'; }
+  window.mqCanon=canon;
   /* L'empreinte des actes : le contrôle ne vaut que pour ce qui a été relu. */
   function empreinte(d){
     var src=''; try{ var f=d.docFolder||{}, g={};
       Object.keys(f).forEach(function(k){ if(k!=='approved') g[k]=f[k]; });
-      src=JSON.stringify(d.docs||{})+'|'+JSON.stringify(g); }catch(e){}
+      src=canon(d.docs||{})+'|'+canon(g); }catch(e){}
     var h=0; for(var i=0;i<src.length;i++){ h=((h<<5)-h+src.charCodeAt(i))|0; } return String(h);
   }
   function ch(d){ var c=d.controleHumain; if(!c||typeof c!=='object') c=d.controleHumain={points:{}}; if(!c.points) c.points={}; return c; }
@@ -51226,16 +51233,26 @@ function testLienSignature() {
       +'<div class="mq-st-list">'+rows+'</div></div></div>';
   }
 
-  try{ var _pe=window.pageEspace; if(typeof _pe==='function'&&!_pe.__circuit){
-    window.pageEspace=function(){ var h=_pe.apply(this,arguments);
-      try{ if(typeof h!=='string'||typeof state==='undefined') return h;
-        var d=dossier(state.espaceDossier); if(!d) return h;
-        var tab=state.espTab||'demande';
-        if(tab==='actes'&&h.indexOf('mq-ch-card')<0) h+=carteControle(d);
-        if((tab==='demande'||tab==='cloture')&&h.indexOf('mq-st-card')<0) h+=carteStatuts(d);
-      }catch(e){}
-      return h; };
-    window.pageEspace.__circuit=1; } }catch(e){}
+  /* Le Traitement range ses cartes dans un panneau par étape (esp-tabpanel),
+     d'après leur classe ; une carte inconnue part dans « Outils », masquée.
+     On peint donc dans le panneau de l'étape ouverte, juste au-dessus du
+     bouton « Valider l'étape », comme les autres modules de l'écran. */
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace') return;
+    var d=dossier(state.espaceDossier); if(!d) return;
+    var tab=state.espTab||'demande', cls='', html='';
+    if(tab==='actes'){ cls='mq-ch-card'; html=carteControle(d); }
+    else if(tab==='demande'||tab==='cloture'){ cls='mq-st-card'; html=carteStatuts(d); }
+    else return;
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="'+tab+'"]')||document.querySelector('#view .esp-main');
+    if(!panel||panel.querySelector('.'+cls)) return;
+    var t=document.createElement('div'); t.innerHTML=html; var el=t.firstElementChild; if(!el) return;
+    var foot=panel.querySelector(':scope > .trw-foot'); if(foot) panel.insertBefore(el,foot); else panel.appendChild(el);
+  }catch(e){} }
+  window.circuitPeindre=peindre;
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__circuit){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); return x; };
+    window.render.__circuit=1; } }catch(e){}
 
   /* ======================= style ======================= */
   try{ var st=document.createElement('style'); st.id='mq-circuit-css'; st.textContent=[
@@ -51273,6 +51290,292 @@ function testLienSignature() {
     '.mq-st-na .mq-st-v{border-style:dashed}',
     '.mq-st-d{color:#9a9aa3;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '@media(max-width:700px){.mq-st-row{grid-template-columns:1fr 80px}.mq-st-d{grid-column:1/-1}}'
+  ].join(''); document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script id="mq-zerodefaut-722">
+/* ============================================================================
+   Mar'q — Contrôle zéro défaut et double validation avant dépôt (v722)
+   ----------------------------------------------------------------------------
+   Jusqu'ici, le dépôt au Guichet unique pouvait être constaté même quand des
+   pièces manquaient : une simple confirmation « Constater le dépôt malgré
+   tout ? » suffisait. Désormais, un dossier ne part au dépôt que s'il passe le
+   CONTRÔLE ZÉRO DÉFAUT, et s'il a reçu DEUX validations :
+
+   - niveau 1 : le contrôle humain en cinq points (v721), signé par le
+     gestionnaire qui a relu les actes ;
+   - niveau 2 : la validation du RESPONSABLE CONFORMITÉ, qui ne s'obtient
+     qu'avec son code personnel.
+
+   Pourquoi un code, et pas un nom d'utilisateur : Mar'q n'a pas d'identité par
+   utilisateur (un poste, une personne ; le journal signe tout « Admin »). Une
+   double validation fondée sur le nom ne prouverait rien. Le code, lui, ne se
+   devine pas : l'assistant ne peut pas valider le niveau 2 à la place du
+   responsable. Il n'est jamais conservé en clair — seule son empreinte
+   (SHA-256 salée) l'est.
+
+   Les deux validations deviennent caduques dès que le dossier change sous
+   elles (acte régénéré, signature, attestation retirée) : on ne dépose que ce
+   qui a été validé.
+
+   Les quatre chemins par lesquels un dépôt peut être déclaré sont verrouillés :
+   le constat de dépôt de l'étape Immatriculation, le statut manuel du suivi
+   INPI, l'envoi par le proxy du Guichet unique et sa fenêtre de dépôt.
+   ============================================================================ */
+(function(){
+  if(window.__mqZD) return; window.__mqZD=1;
+
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function dateFr(ts){ try{ return new Date(ts).toLocaleDateString('fr-FR'); }catch(e){ return ''; } }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  function dire(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function hist(d,t){ (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:t}); }
+  function hash(src){ var h=0; for(var i=0;i<src.length;i++){ h=((h<<5)-h+src.charCodeAt(i))|0; } return String(h); }
+
+  /* ---------------- le responsable conformité ---------------- */
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function responsable(){ var c=P().conformite; return (c&&c.empreinte&&c.sel)?c:null; }
+  function empreinteCode(sel,code){
+    if(typeof _sha256!=='function') return Promise.resolve('');
+    return Promise.resolve(_sha256('marq-conformite|'+sel+'|'+code)).then(function(h){ return S(h); });
+  }
+  function nouveauSel(){ var a=new Uint8Array(12); try{ crypto.getRandomValues(a); }catch(e){ for(var i=0;i<a.length;i++) a[i]=Math.floor(Math.random()*256); }
+    return Array.prototype.map.call(a,function(x){ return ('0'+x.toString(16)).slice(-2); }).join(''); }
+  function codeValide(c){ return /^\d{6}$/.test(S(c)); }
+
+  /* Désigner (ou changer) le responsable. Changer exige l'ancien code : sinon,
+     n'importe qui prendrait la place du responsable. */
+  window.conformiteDesigner=function(nom,code,confirmation,ancien){
+    nom=S(nom).trim(); code=S(code); confirmation=S(confirmation);
+    if(!nom) return Promise.resolve({ok:false,err:'Indiquez le nom du responsable conformité.'});
+    if(!codeValide(code)) return Promise.resolve({ok:false,err:'Le code doit compter exactement six chiffres.'});
+    if(code!==confirmation) return Promise.resolve({ok:false,err:'Les deux saisies du code diffèrent.'});
+    var r=responsable();
+    var verif=r?empreinteCode(r.sel,S(ancien)).then(function(h){ return h&&h===r.empreinte; }):Promise.resolve(true);
+    return verif.then(function(ok){
+      if(!ok){ trace('Conformité','Changement de responsable refusé : ancien code incorrect'); return {ok:false,err:'L’ancien code est incorrect.'}; }
+      var sel=nouveauSel();
+      return empreinteCode(sel,code).then(function(h){
+        if(!h) return {ok:false,err:'Ce navigateur ne sait pas chiffrer le code : désignation impossible.'};
+        P().conformite={nom:nom,sel:sel,empreinte:h,ts:Date.now()};
+        trace('Conformité',(r?'Responsable changé : ':'Responsable désigné : ')+nom);
+        sauver(); return {ok:true}; }); });
+  };
+
+  /* ---------------- l'empreinte de ce qui est validé ---------------- */
+  function empreinteDossier(d){
+    var att={}; try{ Object.keys(d.attest||{}).forEach(function(k){ var a=d.attest[k]||{}; att[k]={f:!!a.fichier,v:a.verifie||0}; }); }catch(e){}
+    var ch=d.controleHumain||{};
+    var C=window.mqCanon||JSON.stringify;
+    return hash(C({docs:d.docs||{},sign:d.sign||{},att:att,verif:(d.verif&&d.verif.cert)||{},
+      n1:[ch.verdict||'',ch.verdictTs||0,ch.empreinte||'']}));
+  }
+
+  /* ---------------- le contrôle zéro défaut ---------------- */
+  var _ds=window.dossierStatuts;
+
+  function piecesDepot(d){ try{ return (typeof window.im5Pieces==='function')?(window.im5Pieces(d)||[]):[]; }catch(e){ return []; } }
+
+  window.zeroDefaut=function(id){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    var R=(typeof _ds==='function')?_ds(d):null, L={};
+    (R&&R.lignes||[]).forEach(function(x){ L[x.k]=x; });
+    var A=[];
+    function manque(k,lbl,detail){ A.push({k:k,lbl:lbl,detail:S(detail)}); }
+    function exige(k,lbl){ var x=L[k]; if(x&&x.etat!=='oui'&&x.etat!=='na') manque(k,lbl,x.detail); }
+    exige('formulaire','Informations du client incomplètes');
+    exige('pieces','Pièces du client manquantes');
+    exige('actes','Actes non générés');
+    exige('signature','Signatures manquantes');
+    exige('capital','Dépôt de capital non justifié');
+    /* les pièces du dépôt, telles que l'étape Immatriculation les exige pour
+       CETTE formalité (création, modification…) */
+    piecesDepot(d).forEach(function(p){ if(p&&!p.ok) manque('piece:'+S(p.l),'Pièce de dépôt manquante : '+S(p.l),S(p.src)); });
+    /* bénéficiaires effectifs */
+    var req=[]; try{ req=(typeof espDocsRequis==='function')?(espDocsRequis(d)||[]):[]; }catch(e){}
+    if(req.some(function(x){ return x.k==='rbe'; })&&!(d.docs&&d.docs.rbe&&d.docs.rbe.genere))
+      manque('rbe','Déclaration des bénéficiaires effectifs absente','');
+    /* niveau 1 */
+    var n1=(typeof window.controleHumainEtat==='function')?window.controleHumainEtat(d):{etat:'afaire'};
+    if(n1.etat!=='conforme') manque('niveau1','Validation de niveau 1 (contrôle humain) absente',
+      n1.etat==='caduc'?'les actes ont changé depuis le contrôle':(n1.etat==='a_corriger'?('à corriger : '+S(n1.note)):'à faire dans l’onglet Actes'));
+    /* niveau 2 */
+    var v=d.conformite2||null, n2={ok:false,nom:'',ts:0,caduc:false};
+    if(v){ n2.nom=S(v.nom); n2.ts=v.ts||0; if(v.empreinte===empreinteDossier(d)) n2.ok=true; else n2.caduc=true; }
+    var pretN2=A.length===0;
+    if(!n2.ok) manque('niveau2','Validation de niveau 2 (responsable conformité) absente',
+      n2.caduc?'le dossier a changé depuis la validation':(pretN2?'à donner par le responsable conformité':'possible une fois les anomalies levées'));
+    return {ok:A.length===0,anomalies:A,pretN2:pretN2,n1:n1,n2:n2,responsable:responsable()?responsable().nom:''};
+  };
+
+  window.conformiteValider=function(id,code){
+    var d=dossier(id); if(!d) return Promise.resolve({ok:false,err:'Dossier introuvable.'});
+    var Z=window.zeroDefaut(d);
+    if(!Z.pretN2){ var m='Validation impossible : '+Z.anomalies.filter(function(a){ return a.k!=='niveau2'; }).map(function(a){ return a.lbl; }).join(' ; ')+'.';
+      return Promise.resolve({ok:false,err:m}); }
+    var r=responsable(); if(!r) return Promise.resolve({ok:false,err:'Aucun responsable conformité n’est désigné.'});
+    return empreinteCode(r.sel,S(code)).then(function(h){
+      if(!h||h!==r.empreinte){ trace('Conformité','Validation de niveau 2 refusée (code incorrect) — '+(d.ref||d.numeroDossier||'')); return {ok:false,err:'Code incorrect.'}; }
+      d.conformite2={nom:r.nom,ts:Date.now(),empreinte:empreinteDossier(d)};
+      hist(d,'Validation de niveau 2 (conformité) : '+r.nom);
+      trace('Conformité','Niveau 2 validé par '+r.nom+' — '+(d.ref||d.numeroDossier||''));
+      sauver(); return {ok:true}; });
+  };
+  window.conformiteRetirer=function(id){ var d=dossier(id); if(!d||!d.conformite2) return;
+    delete d.conformite2; hist(d,'Validation de niveau 2 retirée'); trace('Conformité','Niveau 2 retiré — '+(d.ref||'')); sauver(); rendre(); };
+
+  /* ---------------- les fenêtres ---------------- */
+  function listeAnomalies(Z){
+    return '<ul class="mq-zd-an">'+Z.anomalies.map(function(a){
+      return '<li><b>'+E(a.lbl)+'</b>'+(a.detail?('<span>'+E(a.detail)+'</span>'):'')+'</li>'; }).join('')+'</ul>'; }
+  function refuserDepot(d){
+    var Z=window.zeroDefaut(d);
+    trace('Dépôt refusé','Contrôle zéro défaut : '+Z.anomalies.length+' anomalie(s) — '+(d.ref||d.numeroDossier||''));
+    if(typeof openModal==='function')
+      openModal('Dépôt impossible',
+        '<div class="mq-zd-stop">Le contrôle zéro défaut relève '+Z.anomalies.length+' anomalie(s). Le dossier ne peut pas partir au dépôt.</div>'+listeAnomalies(Z),
+        '<button class="btn btn-pri" onclick="closeModal()">Compris</button>');
+    else dire('Dépôt impossible : '+Z.anomalies.length+' anomalie(s).');
+  }
+  window.conformiteOuvrirDesignation=function(){
+    var r=responsable();
+    var body='<div class="mq-zd-form">'
+      +'<p class="mq-zd-p">Le responsable conformité donne la validation de niveau 2, sans laquelle aucun dossier ne part au dépôt. Son code à six chiffres n’est connu que de lui : Mar’q n’en garde qu’une empreinte chiffrée.</p>'
+      +'<label>Nom du responsable conformité</label><input id="zd-nom" value="'+E(r?r.nom:'')+'">'
+      +(r?'<label>Code actuel</label><input id="zd-ancien" type="password" inputmode="numeric" maxlength="6" autocomplete="off">':'')
+      +'<label>Nouveau code (6 chiffres)</label><input id="zd-code" type="password" inputmode="numeric" maxlength="6" autocomplete="off">'
+      +'<label>Confirmez le code</label><input id="zd-code2" type="password" inputmode="numeric" maxlength="6" autocomplete="off">'
+      +'<div id="zd-err" class="mq-zd-err"></div></div>';
+    openModal(r?'Changer de responsable conformité':'Désigner le responsable conformité',body,
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="conformiteDesignerGo()">Enregistrer</button>');
+  };
+  window.conformiteDesignerGo=function(){
+    var v=function(i){ var e=document.getElementById(i); return e?e.value:''; };
+    window.conformiteDesigner(v('zd-nom'),v('zd-code'),v('zd-code2'),v('zd-ancien')).then(function(res){
+      if(!res.ok){ var e=document.getElementById('zd-err'); if(e) e.textContent=res.err; return; }
+      try{ closeModal(); }catch(x){} dire('Responsable conformité enregistré.'); rendre(); });
+  };
+  window.conformiteOuvrirValidation=function(id){
+    var d=dossier(id); if(!d) return; var Z=window.zeroDefaut(d);
+    if(!responsable()){ window.conformiteOuvrirDesignation(); return; }
+    if(!Z.pretN2){ refuserDepot(d); return; }
+    openModal('Validation de niveau 2',
+      '<div class="mq-zd-form"><p class="mq-zd-p">Vous validez, en qualité de responsable conformité (<b>'+E(Z.responsable)+'</b>), que ce dossier peut partir au dépôt. Tout changement ultérieur des actes, des signatures ou des attestations annulera cette validation.</p>'
+      +'<label>Votre code personnel</label><input id="zd-v" type="password" inputmode="numeric" maxlength="6" autocomplete="off">'
+      +'<div id="zd-err" class="mq-zd-err"></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="conformiteValiderGo(\''+jq(id)+'\')">Valider</button>');
+    setTimeout(function(){ var e=document.getElementById('zd-v'); if(e) e.focus(); },30);
+  };
+  window.conformiteValiderGo=function(id){
+    var e=document.getElementById('zd-v');
+    window.conformiteValider(id,e?e.value:'').then(function(res){
+      if(!res.ok){ var x=document.getElementById('zd-err'); if(x) x.textContent=res.err; if(e){ e.value=''; e.focus(); } return; }
+      try{ closeModal(); }catch(x){} dire('Niveau 2 validé : le dossier peut partir au dépôt.'); rendre(); });
+  };
+
+  /* ---------------- les verrous du dépôt ---------------- */
+  function verrou(nom,idArg,quand){
+    var f=window[nom]; if(typeof f!=='function'||f.__zd) return;
+    window[nom]=function(){ var a=arguments, id=a[idArg];
+      try{ var d=dossier(id)||((typeof piecesEntity==='function')?piecesEntity(id):null);
+        if(d&&(!quand||quand.apply(null,[d].concat([].slice.call(a))))){
+          var Z=window.zeroDefaut(d); if(Z&&!Z.ok){ refuserDepot(d); try{ rendre(); }catch(x){} return; } } }catch(e){}
+      return f.apply(this,a); };
+    window[nom].__zd=1;
+  }
+  verrou('im5Depose',0,function(d){ return !(d.immat&&d.immat.depose); });
+  verrou('espDepotInpi',0);
+  verrou('inpiDeposer',0);
+  verrou('inpiSetStatut',0,function(d,id,v){ var cur=S(d.inpiSuivi&&d.inpiSuivi.statut||'afaire'); return cur==='afaire'&&S(v)!=='afaire'; });
+
+  /* ---------------- le tableau des statuts suit le zéro défaut ---------------- */
+  if(typeof _ds==='function'&&!_ds.__zd){
+    window.dossierStatuts=function(id){ var R=_ds.apply(this,arguments); if(!R) return R;
+      try{ var d=(typeof id==='object')?id:dossier(id);
+        var depose=!!(d&&d.immat&&d.immat.depose);
+        R.lignes.forEach(function(x){
+          if(x.k==='depot'&&x.etat==='non'&&depose){ x.etat='oui'; x.detail='constaté le '+dateFr(d.immat.depose); }
+          if(x.k==='inpi'&&x.etat!=='na'&&!depose){ var Z=window.zeroDefaut(d);
+            if(Z.ok){ x.etat='oui'; x.detail='zéro défaut · double validation'; }
+            else { x.etat='non'; x.detail=Z.anomalies.length+' anomalie(s) : '+Z.anomalies.slice(0,3).map(function(a){ return a.lbl.toLowerCase(); }).join(', ')+(Z.anomalies.length>3?'…':''); } }
+          if(x.k==='inpi'&&depose&&x.etat==='non'){ x.etat='oui'; x.detail='déposé'; } });
+        var u=R.lignes.filter(function(x){ return x.etat!=='na'; });
+        R.faits=u.filter(function(x){ return x.etat==='oui'; }).length; R.total=u.length;
+      }catch(e){}
+      return R; };
+    window.dossierStatuts.__zd=1;
+  }
+
+  /* ---------------- la carte, dans l'onglet Immatriculation ---------------- */
+  function carte(d){
+    var Z=window.zeroDefaut(d), id=d.id, depose=!!(d.immat&&d.immat.depose);
+    var etat=depose?['ok','Dépôt constaté']:(Z.ok?['ok','Dépôt autorisé']:['ko','Dépôt impossible']);
+    var n1=Z.n1, n2=Z.n2;
+    var l1='<div class="mq-zd-niv"><span class="mq-zd-pt '+(n1.etat==='conforme'?'ok':'ko')+'"></span><div><b>Niveau 1 — contrôle humain</b><span>'
+      +(n1.etat==='conforme'?('conforme le '+E(dateFr(n1.ts))+(n1.par?(' · '+E(n1.par)):'')):(n1.etat==='caduc'?'caduc : les actes ont changé':(n1.etat==='a_corriger'?'à corriger':'à faire dans l’onglet Actes')))
+      +'</span></div></div>';
+    var act2='';
+    if(!depose){
+      if(!Z.responsable) act2='<button class="btn btn-sm" onclick="conformiteOuvrirDesignation()">Désigner le responsable</button>';
+      else if(n2.ok) act2='<button class="btn btn-sm btn-ghost" onclick="conformiteRetirer(\''+jq(id)+'\')">Retirer</button>';
+      else act2='<button class="btn btn-sm btn-pri'+(Z.pretN2?'':' is-disabled')+'" onclick="conformiteOuvrirValidation(\''+jq(id)+'\')">Valider (niveau 2)</button>';
+    }
+    var l2='<div class="mq-zd-niv"><span class="mq-zd-pt '+(n2.ok?'ok':'ko')+'"></span><div><b>Niveau 2 — responsable conformité</b><span>'
+      +(n2.ok?('validé le '+E(dateFr(n2.ts))+' par '+E(n2.nom)):(n2.caduc?'caduc : le dossier a changé depuis la validation':(Z.responsable?('attendu de '+E(Z.responsable)):'aucun responsable désigné')))
+      +'</span></div>'+act2+'</div>';
+    var reste=Z.anomalies.filter(function(a){ return a.k!=='niveau1'&&a.k!=='niveau2'; });
+    var corps=depose?('<div class="mq-zd-ok">Dépôt constaté le '+E(dateFr(d.immat.depose))+'.</div>')
+      :(reste.length?listeAnomalies({anomalies:reste}):'<div class="mq-zd-ok">Aucune anomalie dans le dossier.</div>');
+    return '<div class="card mq-zd-card"><div class="card-h"><h2>Contrôle zéro défaut</h2>'
+      +'<span class="mq-zd-badge '+etat[0]+'">'+etat[1]+'</span></div><div class="card-b">'
+      +corps+'<div class="mq-zd-nivs">'+l1+l2+'</div>'
+      +(Z.responsable&&!depose?'<div class="mq-zd-foot"><button class="btn btn-sm btn-ghost" onclick="conformiteOuvrirDesignation()">Changer de responsable</button></div>':'')
+      +'</div></div>';
+  }
+  /* En tête du panneau de l'étape Immatriculation : on lit le verdict avant
+     de chercher le bouton de dépôt. */
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace'||state.espTab!=='immatriculation') return;
+    var d=dossier(state.espaceDossier); if(!d) return;
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="immatriculation"]')||document.querySelector('#view .esp-main');
+    if(!panel||panel.querySelector('.mq-zd-card')) return;
+    var t=document.createElement('div'); t.innerHTML=carte(d); var el=t.firstElementChild; if(!el) return;
+    panel.insertBefore(el,panel.firstChild);
+  }catch(e){} }
+  window.zdPeindre=peindre;
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__zd){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); return x; };
+    window.render.__zd=1; } }catch(e){}
+
+  try{ var st=document.createElement('style'); st.id='mq-zd-css'; st.textContent=[
+    '.mq-zd-badge{margin-left:auto;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid #3a3a40}',
+    '.mq-zd-badge.ok{border-color:rgba(84,150,104,.6);color:#a9dcbc}',
+    '.mq-zd-badge.ko{border-color:rgba(200,90,80,.7);color:#f4b3aa;background:rgba(160,50,40,.14)}',
+    '.mq-zd-an{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}',
+    '.mq-zd-an li{padding:8px 11px;border:1px solid rgba(200,90,80,.45);border-radius:9px;font-size:12.5px}',
+    '.mq-zd-an li b{display:block}',
+    '.mq-zd-an li span{display:block;font-size:11.5px;color:#a9a9b2;margin-top:2px}',
+    '.mq-zd-ok{font-size:12.5px;color:#a9dcbc;margin-bottom:12px}',
+    '.mq-zd-stop{font-size:13px;margin-bottom:12px;color:#f4b3aa}',
+    '.mq-zd-nivs{display:flex;flex-direction:column;gap:8px}',
+    '.mq-zd-niv{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #232326;border-radius:10px}',
+    '.mq-zd-niv>div{flex:1;min-width:0}',
+    '.mq-zd-niv b{display:block;font-size:12.5px}',
+    '.mq-zd-niv span{display:block;font-size:11.5px;color:#9a9aa3;margin-top:2px}',
+    '.mq-zd-pt{width:9px;height:9px;border-radius:50%;flex:none;background:#c0564b}',
+    '.mq-zd-pt.ok{background:#5bb07a}',
+    '.mq-zd-niv .btn.is-disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}',
+    '.mq-zd-foot{display:flex;justify-content:center;margin-top:10px}',
+    '.mq-zd-form label{display:block;font-size:12px;margin:10px 0 5px;color:#c9c9d2}',
+    '.mq-zd-form input{width:100%;box-sizing:border-box}',
+    '.mq-zd-p{font-size:12.5px;line-height:1.55;color:#a9a9b2;margin:0 0 4px}',
+    '.mq-zd-err{min-height:16px;margin-top:8px;font-size:12px;color:#f4b3aa}'
   ].join(''); document.head.appendChild(st); }catch(e){}
 })();
 </script>
