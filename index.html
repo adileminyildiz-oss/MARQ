@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=720;
+var LAST_VER=721;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -50886,5 +50886,396 @@ function testLienSignature() {
        else document.addEventListener('DOMContentLoaded',function(){ setTimeout(poser,0); }); }catch(e){}
 })();
 </script>
+<script id="mq-circuit-721">
+/* ============================================================================
+   Mar'q — Circuit de la formalité : les trois pièces qui manquaient (v721)
+   ----------------------------------------------------------------------------
+   Le cabinet a décrit son circuit en douze phases. Mar'q en tenait déjà
+   l'essentiel : classement en onze formalités, contrôle des pièces
+   (lisibilité, recto-verso, expiration), génération des actes, verrous
+   humains sur chaque étape du Traitement, signature, attestations, dépôt au
+   Guichet unique, clôture. Trois pièces manquaient :
+
+   1. LA QUALIFICATION (phase 2). Un cas simple reçoit le formulaire ; un cas
+      complexe — plusieurs associés, holding, activité réglementée, apports en
+      nature — se traite en rendez-vous. Mar'q recommande et dit pourquoi ; le
+      gestionnaire envoie. Rien ne part vers un client sans un clic humain.
+
+   2. LE CONTRÔLE HUMAIN EN CINQ POINTS (phase 6) : juridique, orthographe,
+      fiscal, activité, capital. Signé par le gestionnaire, verdict « Conforme »
+      ou « À corriger ». Il devient caduc dès que les actes changent : un
+      contrôle ne couvre que ce qui a été relu.
+
+   3. LE TABLEAU DES DIX STATUTS du dossier, dans l'ordre du circuit. Chaque
+      ligne est lue dans l'état réel du dossier : aucune ne passe à « Oui »
+      sans la trace qui le prouve. « — » signale une ligne sans objet pour la
+      formalité (pas de capital à déposer pour une micro-entreprise, pas de
+      dépôt au greffe pour un dépôt de marque).
+
+   100 % additif : aucun verrou existant n'est modifié.
+   ============================================================================ */
+(function(){
+  if(window.__mqCircuit) return; window.__mqCircuit=1;
+
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function plat(t){ return S(t).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function demande(id){ return ((typeof DB!=='undefined'&&DB.demandes)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function qui(){ try{ return (typeof auditUser==='function')?S(auditUser()):''; }catch(e){ return ''; } }
+  function dateFr(ts){ try{ return new Date(ts).toLocaleDateString('fr-FR'); }catch(e){ return ''; } }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(action,detail){ try{ if(typeof logAudit==='function') logAudit(action,detail); }catch(e){} }
+
+  /* ======================= 1. Qualification ======================= */
+
+  /* Activités dont l'exercice suppose un diplôme, une carte, un agrément ou une
+     assurance obligatoire. Liste indicative : le gestionnaire tranche. */
+  var REGLEMENTEES=[
+    [/\bavocats?\b/,'avocat'],
+    [/expert[- ]?comptable|expertise[- ]comptable|commissaire aux comptes/,'expertise comptable'],
+    [/\bnotaires?\b|commissaire de justice|huissier/,'officier public ou ministériel'],
+    [/\bmedecins?\b|\bmedical|infirmi|kinesi|dentist|sage[- ]femme|pharmac|veterinaire|laboratoire d.analyses?/,'profession de santé'],
+    [/\barchitectes?\b|geometre/,'architecte / géomètre'],
+    [/agence immobiliere|agents? immobiliers?|transactions? immobilieres?|gestion locative|syndic de copropriete|marchand de biens/,'immobilier (carte professionnelle)'],
+    [/\bvtc\b|\btaxis?\b|transport de (personnes|marchandises|voyageurs)|demenagement/,'transport'],
+    [/licence (iii|iv|3|4)\b|debit de boissons|\bbars?\b|discotheque|vente d.alcool/,'débit de boissons'],
+    [/securite privee|gardiennage|surveillance humaine|agents? de securite/,'sécurité privée'],
+    [/auto[- ]?ecole|enseignement de la conduite/,'auto-école'],
+    [/agence de voyages?|tour[- ]?operateur/,'agence de voyages'],
+    [/courti(er|age) en (assurance|credit|pret)|intermediaire en (assurance|operations de banque)|\borias\b|conseil en investissements? financiers?|\bcif\b|\biobsp\b|crypto|\bpsan\b|etablissement de paiement/,'finance ou assurance'],
+    [/micro[- ]?creche|\bcreches?\b|petite enfance|\behpad\b|aide a domicile|services a la personne/,'accueil ou aide à la personne'],
+    [/coiff|esthetique|institut de beaute/,'coiffure / esthétique (qualification)'],
+    [/\bbtp\b|maconn|plomb|electricien|electricite generale|chauffagiste|couvreur|charpent|menuiserie/,'bâtiment (qualification et décennale)']
+  ];
+  var CHAMPS_TEXTE=['objet','subject','sujet','body','bodyText','texte','text','message','snippet',
+    'serviceSouhaite','service','activite','description','notes'];
+
+  function texteDe(dem){
+    var t=[]; if(!dem) return '';
+    CHAMPS_TEXTE.forEach(function(k){ if(dem[k]) t.push(S(dem[k])); });
+    try{ if(typeof IA!=='undefined'&&IA.objet) t.push(S(IA.objet(dem))); }catch(e){}
+    try{ if(dem.intake) t.push(JSON.stringify(dem.intake)); }catch(e){}
+    return plat(t.join(' \n '));
+  }
+  function nbAssocies(dem){
+    var n=0;
+    try{ var it=dem&&dem.intake; if(it){
+      n=Math.max(n,((it.direction&&it.direction.associes)||[]).length,(it.associes||[]).length); } }catch(e){}
+    try{ var cid=dem&&(dem.clientId||((dem.clientIds||[])[0])); if(cid){
+      var c=(DB.clients||[]).filter(function(x){ return x.id===cid; })[0];
+      if(c) n=Math.max(n,(c.associes||[]).filter(function(a){ return a&&S(a.nom).trim(); }).length); } }catch(e){}
+    return n;
+  }
+
+  window.qualifDemande=function(dem){
+    if(typeof dem==='string') dem=demande(dem);
+    var raisons=[]; if(!dem) return {niveau:'simple',raisons:raisons};
+    var t=texteDe(dem);
+    var n=nbAssocies(dem);
+    var enTexte=!/associe unique|actionnaire unique/.test(t)&&(
+      /\b(2|3|4|5|6|7|8|9|10|deux|trois|quatre|cinq|six|plusieurs)\s+(associes?|associees?|fondateurs?|actionnaires?|co-?fondateurs?)\b/.test(t)||
+      /\bnous sommes (2|3|4|5|deux|trois|quatre|cinq)\b/.test(t)||
+      /\b(mon|ma|notre|un|une) (associe|associee|co-?fondateur|co-?fondatrice)\b/.test(t)||
+      /\bentre associes\b|\bpacte d.(associes|actionnaires)\b/.test(t));
+    if(n>=2) raisons.push('Plusieurs associés ('+n+')');
+    else if(enTexte) raisons.push('Plusieurs associés');
+    if(/\bholdings?\b|societe mere|prise de participations?|apport de titres/.test(t)) raisons.push('Holding');
+    for(var i=0;i<REGLEMENTEES.length;i++){ if(REGLEMENTEES[i][0].test(t)){ raisons.push('Activité réglementée : '+REGLEMENTEES[i][1]); break; } }
+    if(/apports? en nature|apports? (d.un |de |du |des )?(fonds de commerce|titres|parts|actions|materiels?|vehicules?|immeubles?|biens?|brevets?|marques?|clientele)|commissaire aux apports|apport partiel d.actif/.test(t))
+      raisons.push('Apports en nature');
+    return {niveau:raisons.length?'complexe':'simple',raisons:raisons};
+  };
+
+  function retenir(id,action){
+    var dem=demande(id); if(!dem) return; var q=window.qualifDemande(dem);
+    dem.qualif={niveau:q.niveau,raisons:q.raisons,action:action,suivi:(action==='rdv')===(q.niveau==='complexe'),ts:Date.now(),par:qui()};
+    sauver(); trace('Qualification de la demande',(q.niveau==='complexe'?'Cas complexe':'Cas simple')+' → '+(action==='rdv'?'rendez-vous proposé':'formulaire envoyé'));
+  }
+  window.qualifFormulaire=function(id){
+    retenir(id,'formulaire');
+    if(typeof window.demQuestionnaire==='function') window.demQuestionnaire(id);
+  };
+  window.qualifRdv=function(id){
+    var dem=demande(id); if(!dem) return; retenir(id,'rdv');
+    if(typeof window.agwEnvoyerLien!=='function'){ if(typeof toast==='function') toast('Le module Agenda n’est pas disponible.'); return; }
+    window.agwEnvoyerLien();
+    var nom=''; try{ nom=(typeof demBestName==='function')?S(demBestName(dem)):''; }catch(e){}
+    var mail=''; try{ mail=(typeof demReplyTo==='function')?S(demReplyTo(dem)):''; }catch(e){}
+    if(!mail) mail=S(dem.clientEmail||dem.email||'');
+    var code=''; try{ code=(typeof demCode==='function')?S(demCode(dem)):''; }catch(e){}
+    var f=function(i,v){ var el=document.getElementById(i); if(el&&v) el.value=v; };
+    f('agw-nom',nom||S(dem.clientNom)); f('agw-mail',mail);
+    f('agw-obj','Rendez-vous de qualification'+(dem.serviceSouhaite?(' — '+S(dem.serviceSouhaite)):''));
+    f('agw-dos',code);
+  };
+
+  function carteQualif(dem){
+    var q=window.qualifDemande(dem), id=dem.id, cx=q.niveau==='complexe';
+    var deja=dem.qualif?('<div class="mq-q-deja">'+(dem.qualif.action==='rdv'?'Rendez-vous proposé':'Formulaire envoyé')
+      +' le '+E(dateFr(dem.qualif.ts))+(dem.qualif.par?(' par '+E(dem.qualif.par)):'')+'.</div>'):'';
+    var why=cx?('<ul class="mq-q-why">'+q.raisons.map(function(r){ return '<li>'+E(r)+'</li>'; }).join('')+'</ul>')
+             :'<div class="mq-q-why1">Un seul dirigeant, aucune activité réglementée, aucun apport en nature détecté : le formulaire suffit.</div>';
+    var pri=cx?'<button class="btn btn-pri" onclick="qualifRdv(\''+jq(id)+'\')">Proposer un rendez-vous</button>'
+              :'<button class="btn btn-pri" onclick="qualifFormulaire(\''+jq(id)+'\')">Envoyer le formulaire</button>';
+    var sec=cx?'<button class="btn btn-ghost" onclick="qualifFormulaire(\''+jq(id)+'\')">Envoyer plutôt le formulaire</button>'
+              :'<button class="btn btn-ghost" onclick="qualifRdv(\''+jq(id)+'\')">Proposer plutôt un rendez-vous</button>';
+    return '<div class="card mq-q-card"><div class="card-h"><h2>Qualification</h2>'
+      +'<span class="mq-q-badge '+(cx?'cx':'sp')+'">'+(cx?'Cas complexe':'Cas simple')+'</span></div><div class="card-b">'
+      +why+'<div class="mq-q-acts">'+pri+sec+'</div>'+deja
+      +'<div class="mq-q-note">Recommandation de Mar’q, lue dans la demande. Vous décidez.</div></div></div>';
+  }
+
+  try{ var _dv=window.demVueDetail; if(typeof _dv==='function'&&!_dv.__qualif){
+    window.demVueDetail=function(id){ var h=_dv.apply(this,arguments);
+      try{ var dem=demande(id); if(dem&&typeof h==='string'&&h.indexOf('mq-q-card')<0){
+        /* La vue a été réorganisée par un module ultérieur : la barre de décision
+           (Créer le dossier / Accepter / Refuser) vient en dernier. La qualification
+           se lit juste avant de décider. */
+        var a='<div class="dem-bottom-acts">';
+        if(h.indexOf(a)>=0) h=h.replace(a,carteQualif(dem)+a); else h+=carteQualif(dem); } }catch(e){}
+      return h; };
+    window.demVueDetail.__qualif=1; } }catch(e){}
+
+  /* ======================= 2. Contrôle humain ======================= */
+
+  var POINTS=[
+    ['juridique','Vérification juridique','Forme, mentions obligatoires, pouvoirs, cohérence entre les actes.'],
+    ['orthographe','Vérification orthographique','Noms, adresses, dates et montants relus sur chaque acte.'],
+    ['fiscal','Vérification fiscale','Régime d’imposition, TVA, option éventuelle et sa durée.'],
+    ['activite','Vérification de l’activité','Objet social et code APE cohérents ; activité réglementée signalée.'],
+    ['capital','Vérification du capital','Montant, libération, répartition des titres et des apports.']
+  ];
+  function typeFormalite(d){ try{ return (typeof window.formaliteType==='function')?S(window.formaliteType(d)):''; }catch(e){ return ''; } }
+  function gabarit(d){ var k=typeFormalite(d); return (window.FORMALITE_TEMPLATES||[]).filter(function(t){ return t.key===k; })[0]||null; }
+  function capitalEnJeu(d){ return /^(creation_(sas|sarl|sci)|capital|cession)$/.test(typeFormalite(d)); }
+  function pointsApplicables(d){ return POINTS.filter(function(p){ return p[0]!=='capital'||capitalEnJeu(d); }); }
+
+  /* L'empreinte des actes : le contrôle ne vaut que pour ce qui a été relu. */
+  function empreinte(d){
+    var src=''; try{ var f=d.docFolder||{}, g={};
+      Object.keys(f).forEach(function(k){ if(k!=='approved') g[k]=f[k]; });
+      src=JSON.stringify(d.docs||{})+'|'+JSON.stringify(g); }catch(e){}
+    var h=0; for(var i=0;i<src.length;i++){ h=((h<<5)-h+src.charCodeAt(i))|0; } return String(h);
+  }
+  function ch(d){ var c=d.controleHumain; if(!c||typeof c!=='object') c=d.controleHumain={points:{}}; if(!c.points) c.points={}; return c; }
+
+  window.controleHumainEtat=function(d){
+    if(typeof d==='string') d=dossier(d); if(!d) return {etat:'afaire'};
+    var c=d.controleHumain||{points:{}}, pts=pointsApplicables(d);
+    var coches=pts.filter(function(p){ return c.points&&c.points[p[0]]&&c.points[p[0]].ok; }).length;
+    var base={coches:coches,total:pts.length,par:S(c.par),ts:c.verdictTs||0,note:S(c.note)};
+    if(c.verdict==='conforme'){
+      if(c.empreinte&&c.empreinte!==empreinte(d)){ base.etat='caduc'; return base; }
+      base.etat='conforme'; return base; }
+    if(c.verdict==='a_corriger'){ base.etat='a_corriger'; return base; }
+    base.etat='afaire'; return base;
+  };
+  window.chPoint=function(id,k,on){ var d=dossier(id); if(!d) return; var c=ch(d);
+    c.points[k]=on?{ok:true,ts:Date.now(),par:qui()}:{ok:false};
+    if(c.verdict==='conforme'&&!on){ c.verdict=null; c.verdictTs=0; }
+    sauver(); rendre(); };
+  window.chNote=function(id,v){ var d=dossier(id); if(!d) return; ch(d).note=S(v); sauver(); };
+  window.chVerdict=function(id,v){ var d=dossier(id); if(!d) return; var c=ch(d);
+    var el=document.getElementById('mq-ch-note-'+id); if(el) c.note=S(el.value);
+    if(v==='conforme'){
+      var pts=pointsApplicables(d), manque=pts.filter(function(p){ return !(c.points[p[0]]&&c.points[p[0]].ok); });
+      if(manque.length){ if(typeof toast==='function') toast('Cochez d’abord : '+manque.map(function(p){ return p[1]; }).join(', ')+'.'); return; }
+    }
+    if(v==='a_corriger'&&!S(c.note).trim()){ if(typeof toast==='function') toast('Indiquez ce qui doit être corrigé.'); if(el) el.focus(); return; }
+    c.verdict=v; c.verdictTs=Date.now(); c.par=qui(); c.empreinte=(v==='conforme')?empreinte(d):'';
+    (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),
+      t:'Contrôle humain : '+(v==='conforme'?'conforme':'à corriger')+(c.par?(' ('+c.par+')'):'')});
+    trace('Contrôle humain',(d.ref||d.numeroDossier||'')+' → '+(v==='conforme'?'Conforme':'À corriger'));
+    sauver(); rendre(); };
+  window.chRevoir=function(id){ var d=dossier(id); if(!d) return; var c=ch(d); c.verdict=null; c.verdictTs=0; c.empreinte=''; sauver(); rendre(); };
+
+  function carteControle(d){
+    var st=window.controleHumainEtat(d), c=d.controleHumain||{points:{}}, id=d.id;
+    var badge={conforme:['ok','Conforme'],a_corriger:['ko','À corriger'],caduc:['warn','À revoir'],afaire:['','À faire']}[st.etat];
+    var auto='';
+    try{ if(typeof window.controleQualite==='function'){ var r=window.controleQualite(d);
+      auto='<div class="mq-ch-auto">Contrôle automatique : <b>'+E(r.verdict)+'</b> · '+r.score+' / 100'
+        +(typeof window.ouvrirControleQualite==='function'?(' <button class="btn btn-sm btn-ghost" onclick="ouvrirControleQualite(\''+jq(id)+'\')">Voir le détail</button>'):'')
+        +'</div>'; } }catch(e){}
+    var fige=st.etat==='conforme';
+    var lignes=POINTS.map(function(p){
+      if(p[0]==='capital'&&!capitalEnJeu(d))
+        return '<div class="mq-ch-row na"><span class="mq-ch-box">—</span><div><b>'+E(p[1])+'</b><span>Sans objet pour cette formalité.</span></div></div>';
+      var on=!!(c.points&&c.points[p[0]]&&c.points[p[0]].ok);
+      return '<label class="mq-ch-row'+(on?' on':'')+'"><input type="checkbox"'+(on?' checked':'')
+        +' onchange="chPoint(\''+jq(id)+'\',\''+p[0]+'\',this.checked)"><div><b>'+E(p[1])+'</b><span>'+E(p[2])+'</span></div></label>'; }).join('');
+    var pied='';
+    if(st.etat==='conforme') pied='Contrôlé conforme le '+E(dateFr(st.ts))+(st.par?(' par <b>'+E(st.par)+'</b>'):'')+'.';
+    else if(st.etat==='a_corriger') pied='Signalé à corriger le '+E(dateFr(st.ts))+(st.par?(' par <b>'+E(st.par)+'</b>'):'')+'.';
+    else if(st.etat==='caduc') pied='Les actes ont changé depuis le contrôle du '+E(dateFr(st.ts))+' : relisez-les avant signature.';
+    var acts=fige
+      ?'<button class="btn btn-ghost" onclick="chRevoir(\''+jq(id)+'\')">Rouvrir le contrôle</button>'
+      :('<button class="btn btn-ghost" onclick="chVerdict(\''+jq(id)+'\',\'a_corriger\')">À corriger</button>'
+       +'<button class="btn btn-pri'+(st.coches<st.total?' is-disabled':'')+'" onclick="chVerdict(\''+jq(id)+'\',\'conforme\')">Conforme</button>');
+    return '<div class="card mq-ch-card"><div class="card-h"><h2>Contrôle humain</h2>'
+      +'<span class="mq-ch-badge '+badge[0]+'">'+badge[1]+'</span><span class="sub mq-ch-cpt">'+st.coches+' / '+st.total+'</span></div><div class="card-b">'
+      +'<div class="mq-ch-intro">Avant la signature, un gestionnaire relit les actes générés. Cette relecture est signée et datée.</div>'
+      +auto+'<div class="mq-ch-list">'+lignes+'</div>'
+      +'<label class="mq-ch-lab" for="mq-ch-note-'+E(id)+'">Ce qui doit être corrigé</label>'
+      +'<textarea id="mq-ch-note-'+E(id)+'" rows="2" placeholder="Obligatoire pour « À corriger »" onchange="chNote(\''+jq(id)+'\',this.value)">'+E(c.note||'')+'</textarea>'
+      +'<div class="mq-ch-acts">'+acts+'</div>'+(pied?('<div class="mq-ch-pied">'+pied+'</div>'):'')
+      +'</div></div>';
+  }
+
+  /* ======================= 3. Les dix statuts ======================= */
+
+  function jalons(d){ var m={}; try{ var p=window.parcours&&window.parcours(d.id);
+    (p&&p.jalons||[]).forEach(function(j){ m[j.k]=j; }); }catch(e){} return m; }
+  function fait(j){ return !!(j&&j.etat==='fait'); }
+  function sansObjet(j){ return !!(j&&j.sansobjet); }
+  function exigeCapital(d){ var g=gabarit(d); return !!(g&&(g.pieces||[]).some(function(p){ return p&&p.k==='capital'; })); }
+
+  window.dossierStatuts=function(id){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    var w=d.wf||{}, J=jalons(d), L=[];
+    function ligne(k,lbl,etat,detail){ L.push({k:k,lbl:lbl,etat:etat,detail:S(detail)}); }
+    var dem=null; try{ dem=(typeof espDemandeDe==='function')?espDemandeDe(d):null; }catch(e){}
+    if(dem===d) dem=null;
+
+    /* Formulaire reçu */
+    var rep=(d.infosRecues||[]).length+((dem&&dem.infosRecues)||[]).length;
+    var mq=null; try{ mq=(typeof infosManquants==='function'&&typeof infosTypeDe==='function')?(infosManquants(d,infosTypeDe(d))||[]):null; }catch(e){ mq=null; }
+    if(rep) ligne('formulaire','Formulaire reçu','oui','questionnaire en ligne reçu ('+rep+' réponse'+(rep>1?'s':'')+')');
+    else if(d.intake) ligne('formulaire','Formulaire reçu','oui','saisi dans le module Formulaire');
+    else if(mq&&!mq.length) ligne('formulaire','Formulaire reçu','oui','informations complètes');
+    else ligne('formulaire','Formulaire reçu','non',mq?(mq.length+' information(s) manquante(s)'):'formulaire à envoyer au client');
+
+    /* Pièces reçues */
+    var jp=J.pieces; ligne('pieces','Pièces reçues',fait(jp)||!!w.pieces?'oui':'non',(jp&&(jp.detail||jp.bloque))||'');
+
+    /* Documents générés */
+    var req=[]; try{ req=(typeof espDocsRequis==='function')?(espDocsRequis(d)||[]):[]; }catch(e){}
+    var gen=req.filter(function(x){ return d.docs&&d.docs[x.k]&&d.docs[x.k].genere; }).length;
+    if(!req.length) ligne('actes','Documents générés','na','aucun acte requis');
+    else ligne('actes','Documents générés',gen===req.length?'oui':'non',gen+' / '+req.length+' acte(s)');
+
+    /* Contrôle humain */
+    var st=window.controleHumainEtat(d);
+    if(st.etat==='conforme') ligne('controle','Contrôle humain','oui','conforme le '+dateFr(st.ts)+(st.par?(' · '+st.par):''));
+    else if(st.etat==='a_corriger') ligne('controle','Contrôle humain','corriger',st.note||'à corriger');
+    else if(st.etat==='caduc') ligne('controle','Contrôle humain','non','les actes ont changé depuis le contrôle');
+    else ligne('controle','Contrôle humain','non',st.coches?(st.coches+' / '+st.total+' point(s) vérifié(s)'):'à faire');
+
+    /* Signature — sur les seuls actes qui se signent */
+    var aSig=[]; try{ aSig=(typeof window.a3ASigner==='function')?(window.a3ASigner(d)||[]):[]; }catch(e){}
+    var sg=d.sign||{}, nSig=aSig.filter(function(a){ return sg[a.k]&&sg[a.k].ok; }).length;
+    var env=d.signEnv||{};
+    var sigOk=(aSig.length>0&&nSig===aSig.length)||/sign[ée]/i.test(S(env.statut))||!!w.actes;
+    ligne('signature','Signature',sigOk?'oui':'non',aSig.length?(nSig+' / '+aSig.length+' acte(s) signé(s)'):(S(env.statut)||'aucun acte à signer pour l’instant'));
+
+    /* Dépôt du capital */
+    if(!exigeCapital(d)) ligne('capital','Dépôt capital','na','sans objet pour cette formalité');
+    else {
+      var at=(d.attest&&d.attest.capital)||{}, cr=(d.crea&&d.crea.capital)||{}, pc=(d.pieces||{}).capital||(d.pieces||{}).attestationCapital;
+      var capOk=!!at.verifie||cr.statut==='recu'||!!cr.justifData||!!(pc&&(pc.recu||pc.data))||!!w.attestations;
+      ligne('capital','Dépôt capital',capOk?'oui':'non',
+        capOk?(at.verifie?('attestation vérifiée le '+dateFr(at.verifie)):'attestation reçue')
+             :(at.fichier?'attestation reçue, à vérifier':(cr.statut==='effectue'?'dépôt effectué, attestation attendue':'attestation de dépôt des fonds attendue')));
+    }
+    var capLigne=L[L.length-1];
+
+    /* Dossier INPI constitué */
+    var jd=J.depot, horsGreffe=sansObjet(jd);
+    var an=(d.attest&&d.attest.annonce)||{}, ja=J.annonce;
+    var annonceOk=sansObjet(ja)||fait(ja)||!!an.verifie;
+    if(horsGreffe) ligne('inpi','Dossier INPI','na','pas de dépôt au greffe pour cette prestation');
+    else {
+      var manque=[];
+      L.forEach(function(x){ if(x.k!=='formulaire'&&x.etat!=='oui'&&x.etat!=='na') manque.push(x.lbl.toLowerCase()); });
+      if(!annonceOk) manque.push('annonce légale');
+      var pret=fait(jd)||!!w.immatriculation||!manque.length;
+      ligne('inpi','Dossier INPI',pret?'oui':'non',pret?'dossier complet, prêt au dépôt':('manque : '+manque.join(', ')));
+    }
+
+    /* Dépôt effectué */
+    if(horsGreffe) ligne('depot','Dépôt effectué','na','');
+    else { var depOk=fait(jd)||!!w.immatriculation;
+      ligne('depot','Dépôt effectué',depOk?'oui':'non',(jd&&(jd.detail||(depOk?'':jd.bloque)))||''); }
+
+    /* Kbis reçu */
+    if(horsGreffe) ligne('kbis','Kbis reçu','na','');
+    else { var kb=(d.immat&&d.immat.kbis)||null, jo=J.obtention;
+      var kbOk=!!kb||fait(jo)||!!w.immatriculation;
+      ligne('kbis','Kbis reçu',kbOk?'oui':'non',kb?('reçu'+(kb.name?(' · '+kb.name):'')):((jo&&jo.bloque)||'')); }
+
+    /* Dossier clôturé */
+    var jc=J.archive, clo=fait(jc)||!!w.cloture||!!d.archived||S(d.statut)==='Clôturé';
+    ligne('cloture','Dossier clôturé',clo?'oui':'non',clo?'clôturé et archivé':'');
+
+    void capLigne;
+    var utiles=L.filter(function(x){ return x.etat!=='na'; });
+    return {lignes:L,faits:utiles.filter(function(x){ return x.etat==='oui'; }).length,total:utiles.length};
+  };
+
+  function carteStatuts(d){
+    var R=window.dossierStatuts(d); if(!R) return '';
+    var lbl={oui:'Oui',non:'Non',na:'—',corriger:'À corriger'};
+    var rows=R.lignes.map(function(x){
+      return '<div class="mq-st-row mq-st-'+x.etat+'"><span class="mq-st-l">'+E(x.lbl)+'</span>'
+        +'<span class="mq-st-v">'+lbl[x.etat]+'</span><span class="mq-st-d">'+E(x.detail)+'</span></div>'; }).join('');
+    return '<div class="card mq-st-card"><div class="card-h"><h2>Statut du dossier</h2>'
+      +'<span class="sub" style="margin-left:auto">'+R.faits+' / '+R.total+' étapes franchies</span></div><div class="card-b">'
+      +'<div class="mq-st-list">'+rows+'</div></div></div>';
+  }
+
+  try{ var _pe=window.pageEspace; if(typeof _pe==='function'&&!_pe.__circuit){
+    window.pageEspace=function(){ var h=_pe.apply(this,arguments);
+      try{ if(typeof h!=='string'||typeof state==='undefined') return h;
+        var d=dossier(state.espaceDossier); if(!d) return h;
+        var tab=state.espTab||'demande';
+        if(tab==='actes'&&h.indexOf('mq-ch-card')<0) h+=carteControle(d);
+        if((tab==='demande'||tab==='cloture')&&h.indexOf('mq-st-card')<0) h+=carteStatuts(d);
+      }catch(e){}
+      return h; };
+    window.pageEspace.__circuit=1; } }catch(e){}
+
+  /* ======================= style ======================= */
+  try{ var st=document.createElement('style'); st.id='mq-circuit-css'; st.textContent=[
+    '.mq-q-badge,.mq-ch-badge{margin-left:auto;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid #3a3a40;color:#d7d7de}',
+    '.mq-q-badge.cx,.mq-ch-badge.ko{border-color:rgba(200,110,100,.6);color:#f0b8b0}',
+    '.mq-q-badge.sp,.mq-ch-badge.ok{border-color:rgba(84,150,104,.6);color:#a9dcbc}',
+    '.mq-ch-badge.warn{border-color:rgba(200,160,80,.6);color:#e8cf95}',
+    '.mq-ch-cpt{margin-left:10px}',
+    '.mq-q-why{margin:0 0 12px;padding-left:18px;font-size:12.5px;line-height:1.6;color:#d7d7de}',
+    '.mq-q-why1,.mq-ch-intro{font-size:12.5px;line-height:1.55;color:#a9a9b2;margin-bottom:12px}',
+    '.mq-q-acts,.mq-ch-acts{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:12px}',
+    '.mq-q-deja,.mq-ch-pied{margin-top:10px;font-size:12px;color:#a9a9b2;text-align:center}',
+    /* reste cliquable : le clic dit ce qui manque */
+    '.mq-ch-acts .btn.is-disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}',
+    '.mq-q-note{margin-top:8px;font-size:11px;color:#8b8b95;text-align:center}',
+    '.mq-ch-auto{font-size:12px;color:#a9a9b2;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}',
+    '.mq-ch-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}',
+    '.mq-ch-row{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid #232326;border-radius:10px;cursor:pointer}',
+    '.mq-ch-row.on{border-color:rgba(84,150,104,.55)}',
+    '.mq-ch-row.na{opacity:.6;cursor:default}',
+    '.mq-ch-row input{margin-top:3px}',
+    '.mq-ch-row b{display:block;font-size:12.5px}',
+    '.mq-ch-row span{display:block;font-size:11.5px;color:#9a9aa3;margin-top:2px}',
+    '.mq-ch-box{width:16px;text-align:center;color:#6b6b73}',
+    '.mq-ch-lab{display:block;font-size:12px;margin-bottom:5px;color:#c9c9d2}',
+    '.mq-ch-card textarea{width:100%;box-sizing:border-box}',
+    '.mq-st-list{display:flex;flex-direction:column}',
+    '.mq-st-row{display:grid;grid-template-columns:170px 96px 1fr;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid #1c1c1f;font-size:12.5px}',
+    '.mq-st-row:last-child{border-bottom:0}',
+    '.mq-st-v{font-weight:700;text-align:center;border-radius:999px;padding:2px 0;border:1px solid #2a2a2e}',
+    '.mq-st-oui .mq-st-v{color:#a9dcbc;border-color:rgba(84,150,104,.55)}',
+    '.mq-st-non .mq-st-v{color:#c9c9d2}',
+    '.mq-st-corriger .mq-st-v{color:#f0b8b0;border-color:rgba(200,110,100,.6)}',
+    '.mq-st-na{opacity:.55}',
+    '.mq-st-na .mq-st-v{border-style:dashed}',
+    '.mq-st-d{color:#9a9aa3;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '@media(max-width:700px){.mq-st-row{grid-template-columns:1fr 80px}.mq-st-d{grid-column:1/-1}}'
+  ].join(''); document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
 </body>
 </html>
