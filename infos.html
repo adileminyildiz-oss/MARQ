@@ -85,6 +85,8 @@ textarea{min-height:96px;resize:vertical}
 .doc.bad{border-color:var(--err);box-shadow:0 0 0 3px rgba(179,38,30,.12)}
 .piece.done{border-color:var(--okline);background:var(--okbg)}
 .doc .dl,.piece-h b{font-size:14px;font-weight:600;color:var(--ink)}
+.actnote{display:none;margin-top:8px;font-size:12.5px;line-height:1.5;color:#6b4a12;background:#fbf5e8;border:1px solid #e6d2a8;border-radius:6px;padding:9px 12px}
+.doc.act{border-left:3px solid #d9b56a}
 .doc .dh,.piece .hint{font-size:12.5px;color:var(--ink3);margin:3px 0 10px}
 .piece-h{display:flex;align-items:center;gap:10px}
 .piece-h .st{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3)}
@@ -242,6 +244,87 @@ var DOCS=[
  {k:'rib',l:'RIB du compte de dépôt du capital',h:"Relevé d'identité bancaire de la banque où le capital sera déposé, si le compte est déjà ouvert. Facultatif à ce stade."}
 ];
 var FILES={};
+/* Pièces propres à l'activité (décennale, carte professionnelle…) : repérées dans
+   l'objet social saisi, ou transmises par Mar'q dans le lien (paramètre x, clés
+   « act_… » seulement). Facultatives ici : le cabinet les exige avant le dépôt. */
+/* MQDIAG-FAMILLES-START — copie des activités réglementées de Mar'q */
+  function pc(k,label,note){ return {k:'act_'+k,label:label,note:note||''}; }
+  var FAMILLES=[
+    {k:'btp',lbl:'Bâtiment (BTP)',
+     rx:/\bbtp\b|entreprise (generale )?du batiment|metiers? du batiment|travaux (de |du )?batiment|maconn|plomb|electricien|electricite generale|chauffagiste|couvreur|charpent|menuiserie|carrel|platrier|platrerie|peintre en batiment|peinture en batiment|terrassement|gros oeuvre|second oeuvre|travaux de (renovation|construction|peinture|isolation|terrassement)|isolation thermique/,
+     pieces:[pc('decennale','Attestation d’assurance décennale','Obligatoire avant le premier chantier : elle doit couvrir chacune des activités exercées.'),
+             pc('carte_btp','Carte d’identification professionnelle BTP','Demandée pour chaque salarié ou dirigeant intervenant sur un chantier.'),
+             pc('qualif_btp','Justificatif de qualification professionnelle','CAP, BEP ou diplôme du métier, ou 3 ans d’expérience dans le métier.')]},
+    {k:'restauration',lbl:'Restauration',
+     rx:/\brestaurants?\b|\brestauration\b(?! (de|des|du|d.) ?(meubles?|mobilier|tableaux|monuments?|batiments?|vehicules?|voitures?|oeuvres?|objets?|patrimoine))|brasserie|traiteur|\bsnack|pizzeria|fast[- ]?food|food[- ]?truck|creperie|salon de the|kebab|plats a emporter|vente de plats/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation », pour vendre de l’alcool (licence restaurant).'),
+             pc('hygiene','Attestation de formation à l’hygiène alimentaire (HACCP)','Au moins une personne de l’établissement doit l’avoir suivie.')]},
+    {k:'boissons',lbl:'Débit de boissons',
+     rx:/licence (iii|iv|3|4)\b|debit de boissons|\bbars?\b|discotheque|vente d.alcool|cave a vin|caviste/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation ».'),
+             pc('licence_boissons','Récépissé de déclaration de licence (mairie)','Déclaration d’ouverture ou de mutation de la licence III ou IV, auprès de la mairie.')]},
+    {k:'transport',lbl:'Transport',
+     rx:/transport (routier|de (personnes|marchandises|voyageurs))|transporteur|\bdemenagement|messagerie express|livraison de colis|\bfret\b/,
+     pieces:[pc('capacite_transp','Attestation de capacité professionnelle en transport','Délivrée après examen ou par équivalence de diplôme.'),
+             pc('registre_transp','Justificatif d’inscription au registre des transporteurs','Licence de transport (DREAL) : inscription au registre avant de commencer.')]},
+    {k:'vtc',lbl:'VTC / taxi',
+     rx:/\bvtc\b|\btaxis?\b|voiture de transport avec chauffeur/,
+     pieces:[pc('carte_vtc','Carte professionnelle de conducteur VTC ou taxi','Délivrée par la préfecture après examen.')]},
+    {k:'immobilier',lbl:'Immobilier (carte professionnelle)',
+     rx:/agence immobiliere|agents? immobiliers?|transactions? immobilieres?|gestion locative|syndic de copropriete|marchand de biens/,
+     pieces:[pc('carte_immo','Carte professionnelle immobilière (CCI)','Carte T (transaction) ou G (gestion), délivrée par la CCI.'),
+             pc('garantie','Attestation de garantie financière','Obligatoire dès que l’agence détient des fonds pour le compte de clients.'),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'coiffure',lbl:'Coiffure / esthétique',
+     rx:/coiff|esthetique|institut de beaute|onglerie|barbier/,
+     pieces:[pc('qualif_coiff','Diplôme ou justificatif de qualification (CAP, BP)','Le salon doit être placé sous le contrôle effectif d’une personne qualifiée.')]},
+    {k:'sante',lbl:'Profession de santé',
+     rx:/\bmedecins?\b|\bmedical|infirmi|kinesi|dentist|sage[- ]femme|pharmac|veterinaire|laboratoire d.analyses?/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'ordre',lbl:'Profession à ordre',
+     rx:/\bavocats?\b|expert[- ]?comptable|expertise[- ]comptable|commissaire aux comptes|\bnotaires?\b|commissaire de justice|huissier|\barchitectes?\b|geometre/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'autoecole',lbl:'Auto-école',
+     rx:/auto[- ]?ecole|enseignement de la conduite/,
+     pieces:[pc('agrement_ae','Agrément préfectoral de l’établissement d’enseignement de la conduite',''),
+             pc('autor_ens','Autorisation d’enseigner de l’exploitant','')]},
+    {k:'securite',lbl:'Sécurité privée',
+     rx:/securite privee|gardiennage|surveillance humaine|agents? de securite/,
+     pieces:[pc('cnaps','Autorisation d’exercice délivrée par le CNAPS','Pour la société et pour son dirigeant.')]},
+    {k:'voyages',lbl:'Agence de voyages',
+     rx:/agence de voyages?|tour[- ]?operateur/,
+     pieces:[pc('atout','Justificatif d’inscription au registre des opérateurs de voyages (Atout France)',''),
+             pc('garantie','Attestation de garantie financière','')]},
+    {k:'finance',lbl:'Finance ou assurance',
+     rx:/courti(er|age) en (assurance|credit|pret)|intermediaire en (assurance|operations de banque)|\borias\b|conseil en investissements? financiers?|\bcif\b|\biobsp\b|\bpsan\b|etablissement de paiement/,
+     pieces:[pc('orias','Justificatif d’inscription à l’ORIAS',''),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'enfance',lbl:'Accueil ou aide à la personne',
+     rx:/micro[- ]?creche|\bcreches?\b|petite enfance|\behpad\b|aide a domicile|services a la personne/,
+     pieces:[pc('agrement_pmi','Autorisation ou agrément (PMI, services à la personne)','Selon l’activité : avis de la PMI, déclaration ou agrément du département.')]}
+  ];
+/* MQDIAG-FAMILLES-END */
+window.__FAM=FAMILLES;
+function plat(t){ return (''+(t||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+var ACT_X=(function(){ try{ var x=(location.search.match(/[?&]x=([^&]*)/)||[])[1]; if(!x) return [];
+  var L=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(x))))); if(!Array.isArray(L)) return [];
+  return L.slice(0,8).filter(function(p){ return Array.isArray(p)&&/^act_[a-z0-9_]{2,30}$/.test(p[0]||''); })
+    .map(function(p){ return {k:p[0],l:String(p[1]||'').slice(0,120),h:String(p[2]||'Pièce demandée pour votre activité.').slice(0,240),act:1}; }); }catch(e){ return []; } })();
+function actFamilles(){ var t=plat(D.champs.objet||''); return t?FAMILLES.filter(function(f){ return f.rx.test(t); }):[]; }
+function actPieces(){ var out=ACT_X.slice(), vus={}; out.forEach(function(p){ vus[p.k]=1; });
+  actFamilles().forEach(function(f){ f.pieces.forEach(function(p){ if(vus[p.k]) return; vus[p.k]=1; out.push({k:p.k,l:p.label,h:p.note||('Pour l’activité : '+f.lbl+'.'),act:1}); }); });
+  return out; }
+function actNote(){ var box=document.getElementById('act-note'); var inp=document.getElementById('f-objet');
+  if(!inp){ if(box) box.remove(); return; }
+  if(!box){ box=document.createElement('div'); box.id='act-note'; box.className='actnote'; inp.insertAdjacentElement('afterend',box); }
+  var F=actFamilles(), P=actPieces();
+  if(!F.length&&!P.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML=(F.length?('<b>Activité réglementée : '+esc(F.map(function(f){ return f.lbl; }).join(', '))+'.</b> '):'<b>Pièces liées à votre activité.</b> ')
+    +'Nous vous demanderons aussi : '+esc(P.map(function(p){ return p.l; }).join(' ; '))+'.'; }
+function depotHref(){ var u=location.href.replace(/[^\/]*$/,'').split('?')[0]+'depot.html?d='+encodeURIComponent(dossier)+'&k='+depotToken(dossier);
+  var P=actPieces(); if(P.length) u+='&x='+encodeURIComponent(b64(JSON.stringify(P.map(function(p){ return [p.k,p.l,p.h]; }))));
+  return u; }
 var DEFAUT={sasu:CREATION,eurl:CREATION,sas:CREATION.concat(['associes']),sarl:CREATION.concat(['associes']),sci:CREATION.concat(['associes']),
  transfert:['denomination','siren','forme','ancienSiege','nouveauSiege','cp','ville','dateEffet','fonction','civilite','nom','prenom'],
  dirigeant:['denomination','siren','ancienDirigeant','fonction','civilite','nom','prenom','naissance','lieuNaissance','pays','nationalite','adressePerso','dateEffet'],
@@ -284,13 +367,13 @@ function init(){
   } else {
     dn.innerHTML='Dossier '+esc(dossier)+(societe?(' <small>'+esc(societe)+'</small>'):'');
     if(client) document.getElementById('lead').textContent='Bonjour '+client+', merci de compléter les éléments ci-dessous : ils nous sont nécessaires pour poursuivre vos formalités. Quelques minutes suffisent, vos réponses sont enregistrées au fur et à mesure sur cet appareil.';
-    if(keys.indexOf('documents')<0){ var pl=document.getElementById('pieces'); pl.style.display='block'; document.getElementById('depotlink').href=location.href.replace(/[^\/]*$/,'').split('?')[0]+'depot.html?d='+encodeURIComponent(dossier)+'&k='+depotToken(dossier); }
+    if(keys.indexOf('documents')<0){ var pl=document.getElementById('pieces'); pl.style.display='block'; document.getElementById('depotlink').href=depotHref(); }
   }
   if(msgCab){ var m=document.getElementById('msg'); m.textContent=msgCab; m.style.display='block'; }
   document.getElementById('p_next').value=location.href.split('#')[0]+'#ok';
   try{ var saved=JSON.parse(localStorage.getItem(STORE_KEY)||'null'); if(saved&&saved.champs){ D=saved; if(!D.associes||!D.associes.length)D.associes=[{},{}]; } }catch(e){}
   render();
-  document.getElementById('body').addEventListener('input',function(ev){ collect(); progress(); persist(); if(ev&&ev.target&&ev.target.getAttribute('data-k')==='heberge'){ renderDocs(); progress(); } });
+  document.getElementById('body').addEventListener('input',function(ev){ collect(); progress(); persist(); if(ev&&ev.target&&ev.target.getAttribute('data-k')==='objet'){ actNote(); renderDocs(); progress(); var dl=document.getElementById('depotlink'); if(dl&&dossier) dl.href=depotHref(); } if(ev&&ev.target&&ev.target.getAttribute('data-k')==='heberge'){ renderDocs(); progress(); } });
   document.getElementById('body').addEventListener('change',function(ev){ var t=ev.target; if(t&&t.getAttribute&&t.getAttribute('data-doc')){ var k=t.getAttribute('data-doc'); FILES[k]=FILES[k]||[]; Array.prototype.forEach.call(t.files||[],function(f){ if(!(f&&f.size>0)) return; var ph={name:f.name,size:f.size,pending:true}; FILES[k].push(ph); renderDocs(); (window.aemShrink?aemShrink(f):Promise.resolve(f)).then(function(f2){ var i=FILES[k].indexOf(ph); if(i>=0) FILES[k][i]=f2; else FILES[k].push(f2); if(f2!==f) f2.__orig=f.size; renderDocs(); progress(); }); }); t.value=''; renderDocs(); progress(); } if(t&&t.getAttribute&&t.getAttribute('data-k')==='heberge'){ collect(); renderDocs(); progress(); } });
   document.getElementById('message').addEventListener('input',persist);
   document.getElementById('email').addEventListener('input',persist);
@@ -319,16 +402,16 @@ function render(){
     if(short.length) out+='<div class="row">'+short.map(fieldHTML).join('')+'</div>';
     out+=long.map(fieldHTML).join('');
   });
-  body.innerHTML=out; renderAsso(); renderDocs(); progress();
+  body.innerHTML=out; renderAsso(); renderDocs(); actNote(); progress();
 }
 function docsVisibles(){
   if(keys.indexOf('documents')<0) return [];
-  return DOCS.filter(function(d){ if(d.cond==='heberge') return (D.champs.heberge||'')==='Oui'; if(d.cond==='associes') return keys.indexOf('associes')>=0; return true; });
+  return DOCS.concat(actPieces()).filter(function(d){ if(d.cond==='heberge') return (D.champs.heberge||'')==='Oui'; if(d.cond==='associes') return keys.indexOf('associes')>=0; return true; });
 }
 function renderDocs(){
   var el=document.getElementById('docList'); if(!el)return;
   el.innerHTML=docsVisibles().map(function(d){ var fl=FILES[d.k]||[];
-    return '<div class="doc" id="doc-'+d.k+'"><div class="dl">'+esc(d.l)+(d.req?' <span class="req">*</span>':'')+'</div><div class="dh">'+esc(d.h)+'</div>'
+    return '<div class="doc'+(d.act?' act':'')+'" id="doc-'+d.k+'"><div class="dl">'+esc(d.l)+(d.req?' <span class="req">*</span>':'')+'</div><div class="dh">'+esc(d.h)+'</div>'
       +'<label class="pick">Ajouter un fichier<input type="file" accept="image/*,.pdf" multiple data-doc="'+d.k+'"></label>'
       +'<div class="files">'+fl.map(function(f,i){ var sz=f.pending?'préparation en cours':((f.__orig?(aemKo(f.__orig)+' réduit à '):'')+aemKo(f.size||0)); return '<div class="file"><b>'+esc(f.name)+'</b><small>'+esc(sz)+'</small><span class="ok">'+(f.pending?'En cours':'Ajouté')+'</span><button type="button" data-rm="'+d.k+'" data-i="'+i+'" title="Retirer">Retirer</button></div>'; }).join('')+'</div></div>'; }).join('');
 }

@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=728;
+var LAST_VER=729;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -54022,6 +54022,36 @@ function testLienSignature() {
     '@media(max-width:760px){.mq-onb-it{grid-template-columns:1fr}.mq-onb-a{justify-content:flex-start}.mq-onb-kpi{grid-template-columns:1fr}}'
   ].join('');
   document.head.appendChild(css);
+})();
+</script>
+<script id="mq-infos-activite-729">
+/* ============================================================================
+   v729 — Le questionnaire en ligne demande aussi les pièces de l'activité
+
+   Le lien du questionnaire (infos.html) porte désormais, comme le lien de
+   dépôt depuis v725, les pièces propres à l'activité du dossier qui manquent
+   encore (décennale, carte professionnelle, formation d'exploitant…). Le
+   questionnaire les repère aussi seul, dès que le client saisit l'objet
+   social, avec la même liste d'activités réglementées que Mar'q. Les pièces
+   déposées reviennent au dossier sous leur clé « act_… » : la carte « Pièces
+   selon l'activité » les voit reçues.
+   ============================================================================ */
+(function(){
+  if(window.__mqIA729) return; window.__mqIA729=1;
+  function dossierDe(e){ try{ if(!e) return null; if(e.intake||e.clientIds) return e;
+    var d=e.dossierId&&((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===e.dossierId; })[0]; return d||e; }catch(x){ return e; } }
+  var _il=window.infosLien;
+  if(typeof _il==='function'&&!_il.__act){
+    window.infosLien=function(e){
+      var u=_il.apply(this,arguments);
+      try{ var A=u&&typeof window.activiteAnalyse==='function'?window.activiteAnalyse(dossierDe(e)):null;
+        if(A&&A.manquantes&&A.manquantes.length){
+          var x=A.manquantes.slice(0,8).map(function(p){ return [p.k,p.label,p.note]; });
+          u+='&x='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(x))))); } }catch(err){}
+      return u; };
+    Object.keys(_il).forEach(function(k){ window.infosLien[k]=_il[k]; });
+    window.infosLien.__act=1;
+  }
 })();
 </script>
 </body>
