@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=725;
+var LAST_VER=726;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -52720,6 +52720,363 @@ function testLienSignature() {
     '.mq-act-pcs .d{flex:0 0 7px;height:7px;border-radius:50%;margin-top:5px;background:#c8963c}.mq-act-pcs li.ok .d{background:#5a9a70}',
     '.mq-act-add{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}.mq-act-add select{min-width:220px}',
     '.mq-act-apercu{margin-top:6px;font-size:12.5px;line-height:1.45;padding:8px 10px;border:1px solid rgba(200,150,60,.4);border-radius:9px;color:var(--ink-2,#c5c5cc)}'
+  ].join('\n'); document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script id="mq-connaissances-726">
+/* ============================================================================
+   Mar'q — Moteur de connaissances (v726)
+   ----------------------------------------------------------------------------
+   Mar'q connaît désormais, organisme par organisme, ce qu'une entreprise doit
+   faire : INPI (guichet unique), greffe, BODACC, TVA, impôts, URSSAF, banque —
+   et les règles propres aux activités réglementées (v725).
+
+   Chaque règle dit à qui elle s'applique (forme, impôt, TVA, statut social,
+   salariés, activité) ; appliquée à un dossier, la base produit la liste de
+   ses obligations, des formalités à accomplir et des documents à tenir, avec
+   leur échéance quand elle se calcule (clôture de l'exercice, date de début).
+
+   Où on la voit :
+   - Formulaire : dès que la forme et l'activité sont saisies, « À prévoir » ;
+   - Traitement, onglet Clôture : « Obligations et formalités » du dossier,
+     à cocher (fait / sans objet), à imprimer ou à envoyer au client ;
+   - « Base de connaissances » : toutes les règles, par organisme.
+
+   Les textes sont des repères de pratique, datés : ils ne remplacent pas la
+   vérification du gestionnaire (seuils et dates bougent chaque année).
+   ============================================================================ */
+(function(){
+  if(window.__mqKN) return; window.__mqKN=1;
+
+  var MAJ='septembre 2026';
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function num(v){ var n=parseFloat(S(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function client(d){ try{ return (typeof clientById==='function'&&d&&clientById((d.clientIds||[])[0]))||{}; }catch(e){ return {}; } }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  function dire(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function hist(d,t){ (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:t}); }
+  function ref(d){ return S(d.numeroDossier||d.ref||d.id); }
+  function fr(dt){ try{ return dt.toLocaleDateString('fr-FR'); }catch(e){ return ''; } }
+  var MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+  /* ---------------- les organismes ---------------- */
+  var ORGS=[
+    ['inpi','INPI — guichet unique','Formalités de création et de modification, marques.','formalites.entreprises.gouv.fr'],
+    ['greffe','Greffe du tribunal de commerce','Registre du commerce, comptes annuels, bénéficiaires effectifs.','infogreffe.fr'],
+    ['bodacc','BODACC','Publicité légale des créations, modifications et procédures.','bodacc.fr'],
+    ['tva','TVA — service des impôts des entreprises','Régime, déclarations et facturation.','impots.gouv.fr'],
+    ['impots','Impôts','IS ou IR, liasse fiscale, CFE.','impots.gouv.fr'],
+    ['urssaf','URSSAF','Cotisations du dirigeant et des salariés.','urssaf.fr'],
+    ['banque','Banque','Compte professionnel, capital, moyens de paiement.',''],
+    ['activite','Règles de l’activité','Obligations propres aux activités réglementées.','']
+  ];
+  var ORG={}; ORGS.forEach(function(o){ ORG[o[0]]=o; });
+  var TYPES={obligation:'Obligation',formalite:'Formalité',document:'Document à tenir'};
+
+  /* ---------------- le contexte d'un dossier (ou du Formulaire) ---------------- */
+  function contexte(d){
+    var I=d.intake||{}, soc=I.societe||{}, ap=I.apports||{}, F=d.fiscal||{}, c=client(d), pr=I.profil||{};
+    var t=S(I.type).toLowerCase(), ty='';
+    try{ ty=d.id&&typeof formaliteType==='function'?S(formaliteType(d)):''; }catch(e){}
+    if(!ty){ if(I.nature==='modification') ty='modification';
+      else ty={sas:'creation_sas',sasu:'creation_sas',sarl:'creation_sarl',eurl:'creation_sarl',sci:'creation_sci',micro:'creation_micro',ei:'creation_micro'}[t]||'creation_sas'; }
+    var f=S(d.forme||c.forme||'').toUpperCase();
+    if(/^(sas|sasu|sarl|eurl|sci)$/.test(t)&&(!f||(f==='SAS'&&t==='sasu')||(f==='SARL'&&t==='eurl'))) f=t.toUpperCase();
+    if(/^(micro|ei)$/.test(t)) f='EI';
+    if(!f) f={creation_sas:'SAS',creation_sarl:'SARL',creation_sci:'SCI',creation_micro:'EI'}[ty]||'';
+    var societe=f!=='EI'&&!!f, commerciale=/^(SAS|SASU|SARL|EURL|SA|SNC)$/.test(f);
+    var regime=S(F.regimeFiscal||soc.regime||c.regime).toUpperCase();
+    if(!regime) regime=(f==='SCI'||f==='EURL'||f==='EI')?'IR':'IS';
+    var tv=S(F.tva?({franchise:'franchise',rs:'rs',rn:'rn'}[F.tva]||F.tva):(ap.tva||soc.tva||c.regimeTva||'')).toLowerCase();
+    tv=/franchise/.test(tv)?'franchise':(/simplifi|^rs$|ca12/.test(tv)?'rs':(/normal|^rn$|ca3/.test(tv)?'rn':''));
+    var so=S(F.regimeSocial||ap.regimeSocial||'').toLowerCase();
+    so=/tns|non[- ]salari/.test(so)?'tns':(so?'assimile':'');
+    if(!so) so=/^(SAS|SASU)$/.test(f)?'assimile':(f==='EURL'||f==='EI'?'tns':(f==='SCI'?'':''));
+    var eff=num(soc.effectif)||num(pr.nbSalaries)||num(F.nbSalaries)||((c.salaries||[]).length||0);
+    var act=[];
+    try{ if(d.id&&typeof window.activiteAnalyse==='function'){ var A=window.activiteAnalyse(d); act=(A&&A.actives||[]).map(function(x){ return x.k; }); }
+      else if(window.ACTIVITES_REGLEMENTEES){ var txt=S(soc.objet).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+        act=window.ACTIVITES_REGLEMENTEES.filter(function(x){ return x.rx.test(txt); }).map(function(x){ return x.k; }); } }catch(e){}
+    /* clôture de l'exercice : fin d'exercice saisie, sinon 31 décembre */
+    var clot={m:12,j:31};
+    try{ var fe=S((I.dates||{}).finExo||F.dateCloture||''); var m=fe.match(/(\d{1,2})[\/.-](\d{1,2})/); if(m){ clot={j:+m[1],m:+m[2]}; } }catch(e){}
+    var creation=/^creation_/.test(ty);
+    return {forme:f,type:ty,creation:creation,micro:ty==='creation_micro'||f==='EI',societe:societe,commerciale:commerciale,regime:regime,tva:tv,social:so,
+      effectif:eff,activites:act,clot:clot,debut:S(soc.debut||c.dateDebut||''),siege:S((I.siege||{}).type||c.siegeType||''),
+      immat:!!(d.immat&&d.immat.verifie),immatLe:(d.immat&&d.immat.verifie)||0,capital:num(soc.capital)||num(c.capital)};
+  }
+  window.connaissancesContexte=contexte;
+
+  /* ---------------- les dates ---------------- */
+  function prochaine(m,j,apres){ var now=apres||new Date(); var y=now.getFullYear(); var dt=new Date(y,m-1,j);
+    if(dt<new Date(now.getFullYear(),now.getMonth(),now.getDate())) dt=new Date(y+1,m-1,j); return dt; }
+  /* n mois après la prochaine clôture, jour borné à la fin du mois (31 décembre + 6 mois = 30 juin) */
+  function apresCloture(ctx,mois,jour){ var c=prochaine(ctx.clot.m,ctx.clot.j); var y=c.getFullYear(), m=c.getMonth()+mois;
+    var fin=new Date(y,m+1,0).getDate(); return new Date(y,m,Math.min(jour||c.getDate(),fin)); }
+  function libClot(ctx){ return ctx.clot.j+' '+MOIS[ctx.clot.m-1]; }
+
+  /* ---------------- les règles ----------------
+     si : à qui la règle s'applique, en clair ; quand : le test ; ech : l'échéance */
+  function R(id,org,type,titre,txt,si,quand,ech){ return {id:id,org:org,type:type,titre:titre,txt:txt,si:si,quand:quand,ech:ech||null}; }
+  var REGLES=[
+    /* INPI */
+    R('inpi-creation','inpi','formalite','Déclaration de création au guichet unique','Formalité en ligne unique : elle transmet la création au greffe, à l’INSEE, aux impôts et à l’URSSAF.','création',function(c){ return c.creation&&!c.immat; }),
+    R('inpi-modif','inpi','obligation','Déclarer toute modification dans le mois','Transfert de siège, changement de dirigeant, d’objet ou de capital : déclaration au guichet unique dans le mois qui suit la décision.','toute entreprise',function(c){ return true; }),
+    R('inpi-marque','inpi','formalite','Protéger le nom par un dépôt de marque','Le K-bis ne protège pas le nom commercial : un dépôt de marque à l’INPI le réserve pour 10 ans, renouvelables.','création',function(c){ return c.creation; }),
+    /* Greffe */
+    R('greffe-dbe','greffe','obligation','Déclaration des bénéficiaires effectifs','Déposée avec l’immatriculation, puis mise à jour dans les 30 jours de tout changement (cession, nouvel associé à plus de 25 %).','sociétés',function(c){ return c.societe; }),
+    R('greffe-ago','greffe','obligation','Approuver les comptes dans les six mois','Assemblée ou décision de l’associé unique dans les six mois de la clôture ('+'exercice clos le 31 décembre : avant le 30 juin).','sociétés',function(c){ return c.societe; },function(c){ return apresCloture(c,6); }),
+    R('greffe-depot','greffe','obligation','Déposer les comptes annuels au greffe','Dans le mois qui suit l’approbation (deux mois en ligne). Les micro-entreprises peuvent demander la confidentialité des comptes.','sociétés commerciales',function(c){ return c.commerciale; },function(c){ return apresCloture(c,7); }),
+    R('greffe-registre','greffe','document','Registre des décisions','Registre coté et paraphé où sont consignés les procès-verbaux d’assemblée (ou les décisions de l’associé unique dans une société à associé unique).','sociétés',function(c){ return c.societe; }),
+    /* BODACC */
+    R('bodacc-creation','bodacc','formalite','Vérifier l’avis de création au BODACC','Le greffe publie l’avis dans les jours qui suivent l’immatriculation : vérifier dénomination, siège et dirigeant.','création',function(c){ return c.creation&&!c.micro; }),
+    R('bodacc-modif','bodacc','obligation','Publicité des modifications','Chaque modification inscrite au registre est publiée au BODACC après l’annonce légale : prévoir les frais de publication.','sociétés',function(c){ return c.societe&&!c.creation; }),
+    /* TVA */
+    R('tva-choix','tva','formalite','Choisir le régime de TVA','Franchise en base, réel simplifié ou réel normal : le choix se fait à la création et se révise selon le chiffre d’affaires.','régime de TVA non choisi',function(c){ return c.creation&&!c.tva&&c.forme!=='SCI'; }),
+    R('tva-franchise','tva','obligation','Franchise en base : surveiller les seuils','Pas de TVA facturée ni récupérée. Mention obligatoire sur les factures : « TVA non applicable, article 293 B du CGI ». Au-delà des seuils, la TVA est due dès le mois de dépassement.','franchise en base',function(c){ return c.tva==='franchise'; }),
+    R('tva-rs','tva','obligation','Réel simplifié : déclaration CA12 et deux acomptes','Une déclaration annuelle CA12 (début mai pour une clôture au 31 décembre), deux acomptes en juillet (55 %) et en décembre (40 %).','TVA au réel simplifié',function(c){ return c.tva==='rs'; },function(c){ return prochaine(7,24); }),
+    R('tva-rn','tva','obligation','Réel normal : déclaration CA3 mensuelle','Déclaration et paiement chaque mois, entre le 15 et le 24 selon l’entreprise ; trimestrielle possible si la TVA annuelle est inférieure à 4 000 €.','TVA au réel normal',function(c){ return c.tva==='rn'; },function(c){ var n=new Date(); return new Date(n.getFullYear(),n.getMonth()+(n.getDate()>24?1:0),24); }),
+    R('tva-intracom','tva','formalite','Numéro de TVA intracommunautaire','Attribué par le service des impôts des entreprises : il figure sur les factures dès qu’on est redevable de la TVA.','entreprise redevable de la TVA',function(c){ return c.tva==='rs'||c.tva==='rn'; }),
+    R('tva-efacture','tva','obligation','Facturation électronique','Depuis le 1er septembre 2026, toute entreprise doit pouvoir recevoir ses factures par une plateforme agréée ; l’émission devient obligatoire pour les PME le 1er septembre 2027.','toute entreprise',function(c){ return c.forme!=='SCI'||c.regime==='IS'; }),
+    R('tva-factures','tva','document','Mentions obligatoires des factures','Numéro unique et chronologique, SIREN, adresse, date, taux et montant de TVA, conditions de paiement, pénalités de retard et indemnité forfaitaire de 40 €.','entreprise qui facture',function(c){ return c.forme!=='SCI'; }),
+    /* Impôts */
+    R('imp-espace','impots','formalite','Créer l’espace professionnel impots.gouv.fr','Indispensable pour déclarer et payer la TVA, l’impôt sur les sociétés et la CFE en ligne.','création',function(c){ return c.creation; }),
+    R('imp-cfe','impots','obligation','Cotisation foncière des entreprises (CFE)','Déclaration 1447-C avant le 31 décembre de l’année de création (exonération l’année de création, base réduite de moitié la suivante), puis avis de paiement mi-décembre.','création',function(c){ return c.creation&&c.forme!=='SCI'; },function(c){ return prochaine(12,31); }),
+    R('imp-is','impots','obligation','Impôt sur les sociétés : acomptes et solde','Quatre acomptes (15 mars, 15 juin, 15 septembre, 15 décembre) dès le deuxième exercice, si l’impôt dépasse 3 000 € ; solde le 15 du quatrième mois après la clôture (15 mai pour une clôture au 31 décembre). Taux réduit de 15 % jusqu’à 42 500 € de bénéfice pour les PME.','société à l’IS',function(c){ return c.societe&&c.regime==='IS'; },function(c){ return c.clot.m===12&&c.clot.j===31?prochaine(5,15):apresCloture(c,4,15); }),
+    R('imp-liasse','impots','obligation','Liasse fiscale annuelle','Déclaration de résultat (2065 à l’IS, 2031 ou 2035 à l’IR) : mi-mai pour un exercice clos le 31 décembre, sinon trois mois après la clôture.','entreprise au réel',function(c){ return !c.micro&&c.forme!=='SCI'; },function(c){ return c.clot.m===12?prochaine(5,18):apresCloture(c,3); }),
+    R('imp-2072','impots','obligation','SCI : déclaration 2072','Déclaration annuelle des résultats de la SCI à l’impôt sur le revenu, début mai ; chaque associé reporte sa quote-part.','SCI à l’IR',function(c){ return c.forme==='SCI'&&c.regime!=='IS'; },function(c){ return prochaine(5,18); }),
+    R('imp-micro','impots','obligation','Micro-entreprise : revenus sur la déclaration personnelle','Le chiffre d’affaires est reporté chaque année sur la déclaration 2042-C-PRO ; option possible pour le versement libératoire.','micro-entreprise',function(c){ return c.micro; },function(c){ return prochaine(5,25); }),
+    /* URSSAF */
+    R('urs-assimile','urssaf','obligation','Président assimilé salarié','Cotisations au régime général, uniquement s’il est rémunéré, déclarées par la DSN comme pour un salarié. Pas de cotisation sur les dividendes.','président de SAS ou SASU',function(c){ return /^(SAS|SASU)$/.test(c.forme); }),
+    R('urs-tns','urssaf','obligation','Dirigeant non salarié (TNS)','Affiliation à la sécurité sociale des indépendants, cotisations provisionnelles puis régularisées sur la déclaration de revenus professionnels (mai–juin).','gérant majoritaire, EURL ou entrepreneur individuel',function(c){ return c.social==='tns'&&!c.micro; }),
+    R('urs-micro','urssaf','obligation','Déclarer le chiffre d’affaires à l’URSSAF','Chaque mois ou chaque trimestre, même à zéro ; les cotisations sont un pourcentage du chiffre d’affaires encaissé.','micro-entreprise',function(c){ return c.micro; }),
+    R('urs-acre','urssaf','formalite','Vérifier l’éligibilité à l’ACRE','Exonération partielle des cotisations la première année pour les créateurs éligibles.','création',function(c){ return c.creation; }),
+    R('urs-dpae','urssaf','obligation','Déclaration préalable à l’embauche (DPAE)','Avant chaque embauche, au plus tôt huit jours avant la prise de poste.','entreprise qui embauche',function(c){ return c.effectif>0; }),
+    R('urs-dsn','urssaf','obligation','Déclaration sociale nominative (DSN)','Chaque mois, le 5 ou le 15 selon l’effectif ; mutuelle collective obligatoire et adhésion à un service de santé au travail.','entreprise avec salariés',function(c){ return c.effectif>0; },function(c){ var n=new Date(); return new Date(n.getFullYear(),n.getMonth()+(n.getDate()>15?1:0),15); }),
+    R('urs-registres','urssaf','document','Registre unique du personnel et document unique (DUERP)','Tenus dès le premier salarié ; le DUERP évalue les risques professionnels et se met à jour chaque année à partir de onze salariés.','entreprise avec salariés',function(c){ return c.effectif>0; }),
+    /* Banque */
+    R('bq-compte','banque','obligation','Compte bancaire professionnel','Un compte dédié est obligatoire pour une société ; pour une micro-entreprise, dès 10 000 € de chiffre d’affaires deux années de suite.','toute entreprise',function(c){ return true; }),
+    R('bq-capital','banque','formalite','Débloquer le capital sur présentation du K-bis','Les fonds déposés à la constitution restent bloqués jusqu’à l’immatriculation : la banque les libère sur présentation du K-bis.','société avec capital en numéraire',function(c){ return c.societe&&c.creation&&c.capital>0; }),
+    R('bq-fournisseurs','banque','document','RIB professionnel pour les clients et les impôts','À communiquer au service des impôts (prélèvements TVA, IS, CFE) et à l’URSSAF.','toute entreprise',function(c){ return c.creation; }),
+    /* Activités réglementées */
+    R('act-btp-mentions','activite','obligation','Assurance décennale sur chaque devis et facture','Nom de l’assureur, couverture géographique et activités garanties doivent figurer sur chaque devis et facture.','bâtiment',function(c){ return c.activites.indexOf('btp')>=0; }),
+    R('act-btp-vigilance','urssaf','document','Attestation de vigilance URSSAF','À remettre au donneur d’ordre dès 5 000 € de travaux sous-traités, puis tous les six mois.','bâtiment',function(c){ return c.activites.indexOf('btp')>=0; }),
+    R('act-btp-carte','activite','formalite','Carte BTP de chaque salarié','Chaque salarié présent sur un chantier doit détenir la carte, demandée en ligne par l’employeur.','bâtiment avec salariés',function(c){ return c.activites.indexOf('btp')>=0&&c.effectif>0; }),
+    R('act-resto-ddpp','activite','formalite','Déclaration à la DDPP avant l’ouverture','Déclaration de l’activité de manipulation de denrées alimentaires (Cerfa 13984) auprès de la direction départementale de la protection des populations.','restauration',function(c){ return c.activites.indexOf('restauration')>=0; }),
+    R('act-resto-affichage','activite','obligation','Affichages obligatoires en salle','Prix, allergènes, origine des viandes, et licence le cas échéant.','restauration',function(c){ return c.activites.indexOf('restauration')>=0; }),
+    R('act-boissons-mairie','activite','formalite','Déclarer la licence à la mairie','Au moins quinze jours avant l’ouverture, ou avant la mutation de la licence.','débit de boissons',function(c){ return c.activites.indexOf('boissons')>=0; }),
+    R('act-transport-registre','activite','formalite','Inscription au registre des transporteurs','Auprès de la DREAL, avant tout transport pour compte d’autrui.','transport',function(c){ return c.activites.indexOf('transport')>=0; }),
+    R('act-vtc-registre','activite','formalite','Inscription au registre des exploitants VTC','Obligatoire avant la première course, avec une assurance responsabilité civile professionnelle.','VTC',function(c){ return c.activites.indexOf('vtc')>=0; }),
+    R('act-immo-mandats','activite','document','Registre des mandats','Tenu à jour et numéroté ; la carte professionnelle se renouvelle tous les trois ans.','immobilier',function(c){ return c.activites.indexOf('immobilier')>=0; }),
+    R('act-lcb','activite','obligation','Lutte contre le blanchiment (Tracfin)','Identifier les clients, conserver les justificatifs, déclarer les opérations suspectes.','immobilier, finance',function(c){ return c.activites.indexOf('immobilier')>=0||c.activites.indexOf('finance')>=0; }),
+    R('act-orias','activite','formalite','Renouveler l’inscription à l’ORIAS','Chaque année, avant le 31 janvier.','finance ou assurance',function(c){ return c.activites.indexOf('finance')>=0; },function(c){ return prochaine(1,31); }),
+    R('act-cnaps','activite','formalite','Autorisation du CNAPS','Pour la société et pour chaque agent, avant toute prestation.','sécurité privée',function(c){ return c.activites.indexOf('securite')>=0; }),
+    R('act-prix','activite','obligation','Affichage des prix','Prix des prestations affichés à l’entrée et à l’intérieur.','coiffure, esthétique',function(c){ return c.activites.indexOf('coiffure')>=0; })
+  ];
+  window.CONNAISSANCES={organismes:ORGS,regles:REGLES,maj:MAJ};
+
+  /* ---------------- appliquer la base ---------------- */
+  window.connaissancesPour=function(id){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    var ctx=contexte(d), st=((d.kn726||{}).etat)||{};
+    var items=[];
+    REGLES.forEach(function(r){ var ok=false; try{ ok=!!r.quand(ctx); }catch(e){} if(!ok) return;
+      var ech=null; try{ ech=r.ech?r.ech(ctx):null; }catch(e){}
+      var s=st[r.id]||null;
+      items.push({id:r.id,org:r.org,orgLbl:ORG[r.org][1],type:r.type,titre:r.titre,txt:r.txt,si:r.si,ech:ech,etat:s?s.s:'afaire',le:s?s.ts:0}); });
+    var n={afaire:0,fait:0,na:0}; items.forEach(function(i){ n[i.etat]=(n[i.etat]||0)+1; });
+    return {ctx:ctx,items:items,compte:n};
+  };
+  window.connaissancesMarquer=function(id,rid,s){
+    var d=dossier(id); if(!d) return;
+    var r=REGLES.filter(function(x){ return x.id===rid; })[0]; if(!r) return;
+    d.kn726=d.kn726||{}; d.kn726.etat=d.kn726.etat||{};
+    if(!s||s==='afaire') delete d.kn726.etat[rid]; else d.kn726.etat[rid]={s:s,ts:Date.now()};
+    var lib={fait:'faite',na:'sans objet',afaire:'à faire'}[s||'afaire'];
+    hist(d,r.titre+' : '+lib); trace('Obligations et formalités',r.titre+' — '+lib+' — '+ref(d)); sauver(); rendre();
+  };
+
+  /* ---------------- la fiche du client ---------------- */
+  function libEch(i){ return i.ech?(' — prochaine échéance : '+fr(i.ech)):''; }
+  window.connaissancesTexte=function(id){
+    var d=dossier(id); if(!d) return '';
+    var K=window.connaissancesPour(d), items=K.items.filter(function(i){ return i.etat!=='na'; });
+    var nom=S(((d.intake||{}).societe||{}).denomination||client(d).denomination||d.denom||'');
+    var t='Obligations et formalités de '+nom+'\n';
+    ORGS.forEach(function(o){ var x=items.filter(function(i){ return i.org===o[0]; }); if(!x.length) return;
+      t+='\n'+o[1]+'\n'+x.map(function(i){ return '  - '+i.titre+(i.etat==='fait'?' (fait)':'')+libEch(i)+'\n    '+i.txt; }).join('\n')+'\n'; });
+    return t;
+  };
+  window.connaissancesEnvoyer=function(id){
+    var d=dossier(id); if(!d) return;
+    var c=client(d), to=S(c.email||((d.intake||{}).contact||{}).email||'').trim();
+    var dir=((d.intake||{}).direction)||{};
+    var corps=(S(dir.nom).trim()?('Bonjour '+(S(dir.civilite)?(S(dir.civilite)+' '):'')+S(dir.nom).trim()+','):'Bonjour,')
+      +'\n\nVoici les obligations et formalités qui accompagnent votre entreprise, organisme par organisme. Nous restons à votre disposition pour les prendre en charge.\n\n'
+      +window.connaissancesTexte(id)+'\nCes repères sont à jour en '+MAJ+' ; seuils et dates évoluent chaque année.\n\nBien cordialement,\nAEM CONSEIL';
+    var b='<div class="mq-kn-mail"><p>Relisez la fiche avant l’envoi. Les points marqués « sans objet » n’y figurent pas.</p>'
+      +'<label>Destinataire<input id="kn-to" value="'+E(to)+'"></label>'
+      +'<label>Objet<input id="kn-sujet" value="'+E('Vos obligations et formalités — '+(((d.intake||{}).societe||{}).denomination||ref(d)))+'"></label>'
+      +'<label>Message<textarea id="kn-corps" rows="14">'+E(corps)+'</textarea></label></div>';
+    var f='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="connaissancesEnvoyerGo(\''+jq(id)+'\')">Envoyer au client</button>';
+    if(typeof openModal==='function') openModal('Fiche des obligations au client',b,f);
+  };
+  window.connaissancesEnvoyerGo=function(id){
+    var d=dossier(id); if(!d) return false;
+    function v(x){ var e=document.getElementById(x); return e?S(e.value).trim():''; }
+    var to=v('kn-to'), sujet=v('kn-sujet'), corps=v('kn-corps');
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){ dire('Indiquez une adresse e-mail valide pour le client.'); return false; }
+    var direct=false; try{ direct=(typeof demEnvoiSilencieux==='function'&&demEnvoiSilencieux(to,sujet,corps))||(typeof demEnvoiDirect==='function'&&demEnvoiDirect(to,sujet,corps)); }catch(e){}
+    d.kn726=d.kn726||{}; (d.kn726.envois=d.kn726.envois||[]).unshift({ts:Date.now(),to:to,direct:!!direct});
+    hist(d,'Fiche des obligations envoyée au client'+(direct?'':' (préparée dans la messagerie)'));
+    trace('Obligations et formalités','Fiche envoyée à '+to+' — '+ref(d)); sauver();
+    try{ if(typeof closeModal==='function') closeModal(); }catch(e){}
+    dire(direct?'Fiche envoyée au client.':'Fiche préparée dans votre messagerie : vérifiez puis envoyez.'); rendre(); return true;
+  };
+  window.connaissancesImprimer=function(id){
+    var d=dossier(id); if(!d) return;
+    var K=window.connaissancesPour(d), nom=S(((d.intake||{}).societe||{}).denomination||client(d).denomination||'');
+    var h='<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Obligations et formalités — '+E(nom)+'</title><style>'
+      +'body{font:13px/1.5 system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 6px}'
+      +'ul{margin:0;padding-left:18px}li{margin:4px 0}.t{color:#555}.e{font-weight:600}.f{color:#2d6a3e}</style></head><body>'
+      +'<h1>Obligations et formalités — '+E(nom)+'</h1><div class="t">Dossier '+E(ref(d))+' · repères à jour en '+MAJ+'</div>'
+      +ORGS.map(function(o){ var x=K.items.filter(function(i){ return i.org===o[0]&&i.etat!=='na'; }); if(!x.length) return '';
+        return '<h2>'+E(o[1])+'</h2><ul>'+x.map(function(i){ return '<li><b>'+E(i.titre)+'</b>'+(i.etat==='fait'?' <span class="f">(fait)</span>':'')+(i.ech?(' <span class="e">— '+E(fr(i.ech))+'</span>'):'')+'<div class="t">'+E(i.txt)+'</div></li>'; }).join('')+'</ul>'; }).join('')
+      +'</body></html>';
+    try{ var w=window.open('','_blank'); if(w&&w.document){ w.document.write(h); w.document.close(); if(w.print) setTimeout(function(){ try{ w.print(); }catch(e){} },300); } }catch(e){}
+  };
+
+  /* ---------------- le suivi fiscal du client (module Fiscal) ---------------- */
+  function abonneDe(d){ var s=S(((d.intake||{}).societe||{}).denomination||client(d).denomination).toLowerCase().trim(), sir=S((d.immat||{}).siren||client(d).siren).replace(/\s/g,'');
+    return ((typeof DB!=='undefined'&&DB.abonnes)||[]).filter(function(a){ return (sir&&S(a.siren).replace(/\s/g,'')===sir)||(s&&S(a.raison).toLowerCase().trim()===s); })[0]||null; }
+  window.connaissancesAbonne=function(id){ var d=dossier(id); return d?abonneDe(d):null; };
+  /* Ouvre le formulaire du module Fiscal pré-rempli : le gestionnaire relit,
+     fixe la formule d'abonnement et crée lui-même le carnet d'obligations. */
+  window.connaissancesSuiviFiscal=function(id){
+    var d=dossier(id); if(!d) return;
+    var a=abonneDe(d); if(a&&typeof cfOpen==='function'){ cfOpen(a.id); return; }
+    if(typeof cfNouvel!=='function'){ dire('Module Fiscal indisponible.'); return; }
+    var ctx=contexte(d); cfNouvel();
+    function set(k,v){ var e=document.getElementById(k); if(e&&v!=null&&v!==''){ e.value=v; } }
+    set('cf-raison',S(((d.intake||{}).societe||{}).denomination||client(d).denomination));
+    set('cf-forme',{SAS:'SAS',SASU:'SASU',SARL:'SARL',EURL:'EURL',SCI:'SCI',EI:'EI'}[ctx.forme]||'SAS');
+    set('cf-siren',S((d.immat||{}).siren||client(d).siren));
+    set('cf-fiscal',ctx.micro?'micro':(ctx.regime==='IS'?'IS':'reel-IR'));
+    set('cf-tva',{franchise:'franchise',rs:'ca12',rn:'ca3-mensuel'}[ctx.tva]||'franchise');
+    set('cf-dir',ctx.social==='tns'?'tns':'assimile');
+    set('cf-sal',ctx.effectif>0?'oui':'non');
+    set('cf-clot',String(ctx.clot.m||12));
+    hist(d,'Suivi fiscal préparé dans le module Fiscal'); trace('Obligations et formalités','Suivi fiscal préparé — '+ref(d));
+  };
+
+  /* ---------------- base de connaissances (toutes les règles) ---------------- */
+  window.connaissancesBase=function(){
+    var b='<div class="mq-kn-base"><p>Ce que Mar’q applique à chaque dossier, organisme par organisme. Repères à jour en '+MAJ+'.</p>'
+      +ORGS.map(function(o){ var x=REGLES.filter(function(r){ return r.org===o[0]; }); if(!x.length) return '';
+        return '<div class="mq-kn-org"><div class="mq-kn-oh"><b>'+E(o[1])+'</b><span>'+E(o[2])+(o[3]?(' · '+E(o[3])):'')+'</span></div><ul>'
+          +x.map(function(r){ return '<li><span class="mq-kn-ty '+r.type+'">'+TYPES[r.type]+'</span><div><b>'+E(r.titre)+'</b><span>'+E(r.txt)+'</span><em>S’applique : '+E(r.si)+'</em></div></li>'; }).join('')+'</ul></div>'; }).join('')+'</div>';
+    if(typeof openModal==='function') openModal('Base de connaissances',b,'<button class="btn" onclick="closeModal()">Fermer</button>');
+  };
+
+  /* ---------------- la carte du dossier : onglet Clôture ---------------- */
+  var FILTRE='tout';
+  window.connaissancesFiltre=function(f){ FILTRE=f; rendre(); };
+  function carte(d){
+    var K=window.connaissancesPour(d), id=d.id;
+    var items=K.items.filter(function(i){ return FILTRE==='tout'||i.type===FILTRE; });
+    var groupes=ORGS.map(function(o){ var x=items.filter(function(i){ return i.org===o[0]; }); if(!x.length) return '';
+      return '<div class="mq-kn-org"><div class="mq-kn-oh"><b>'+E(o[1])+'</b><span>'+x.length+'</span></div><ul>'+x.map(function(i){
+        var acts=i.etat==='afaire'
+          ?'<button class="btn btn-sm" onclick="connaissancesMarquer(\''+jq(id)+'\',\''+i.id+'\',\'fait\')">Fait</button><button class="btn btn-sm btn-ghost" onclick="connaissancesMarquer(\''+jq(id)+'\',\''+i.id+'\',\'na\')">Sans objet</button>'
+          :'<button class="btn btn-sm btn-ghost" onclick="connaissancesMarquer(\''+jq(id)+'\',\''+i.id+'\',\'afaire\')">Rouvrir</button>';
+        return '<li class="'+i.etat+'"><span class="mq-kn-ty '+i.type+'">'+TYPES[i.type]+'</span><div><b>'+E(i.titre)+'</b><span>'+E(i.txt)+'</span>'
+          +(i.ech&&i.etat==='afaire'?('<em>Prochaine échéance : '+E(fr(i.ech))+'</em>'):'')+(i.etat==='fait'?('<em>Fait le '+E(fr(new Date(i.le)))+'</em>'):'')+(i.etat==='na'?'<em>Sans objet pour ce dossier</em>':'')+'</div><div class="mq-kn-acts">'+acts+'</div></li>'; }).join('')+'</ul></div>'; }).join('');
+    var ctx=K.ctx, profil=[ctx.forme||'forme ?',ctx.regime,ctx.tva?({franchise:'franchise de TVA',rs:'TVA réel simplifié',rn:'TVA réel normal'}[ctx.tva]):'TVA non choisie',
+      ctx.social?({assimile:'dirigeant assimilé salarié',tns:'dirigeant TNS'}[ctx.social]):'',ctx.effectif?(ctx.effectif+' salarié(s)'):'sans salarié',
+      'clôture au '+libClot(ctx)].filter(Boolean).join(' · ');
+    var act=(ctx.activites||[]).length?(' · activité réglementée : '+ctx.activites.map(function(k){ var f=(window.ACTIVITES_REGLEMENTEES||[]).filter(function(x){ return x.k===k; })[0]; return f?f.lbl:k; }).join(', ')):'';
+    var ab=abonneDe(d);
+    var filt=['tout','obligation','formalite','document'].map(function(f){ return '<button class="mq-kn-f'+(FILTRE===f?' on':'')+'" onclick="connaissancesFiltre(\''+f+'\')">'+(f==='tout'?'Tout':({obligation:'Obligations',formalite:'Formalités',document:'Documents à tenir'})[f])+'</button>'; }).join('');
+    var env=((d.kn726||{}).envois||[])[0];
+    return '<div class="card mq-kn-card"><div class="card-h"><h2>Obligations et formalités</h2><span class="mq-kn-n">'+K.compte.afaire+' à faire · '+K.compte.fait+' fait'+(K.compte.fait>1?'s':'')+'</span></div><div class="card-b">'
+      +'<div class="mq-kn-prof">'+E(profil+act)+'</div>'
+      +'<div class="mq-kn-filtres">'+filt+'</div>'+groupes
+      +(env?('<div class="mq-kn-env">Fiche envoyée au client le '+E(fr(new Date(env.ts)))+' à '+E(env.to)+'.</div>'):'')
+      +'<div class="mq-kn-bar"><button class="btn btn-ghost" onclick="connaissancesBase()">Base de connaissances</button>'
+      +'<button class="btn btn-ghost" onclick="connaissancesImprimer(\''+jq(id)+'\')">Imprimer</button>'
+      +'<button class="btn btn-ghost" onclick="connaissancesSuiviFiscal(\''+jq(id)+'\')">'+(ab?'Ouvrir le suivi fiscal':'Préparer le suivi fiscal')+'</button>'
+      +'<button class="btn btn-pri" onclick="connaissancesEnvoyer(\''+jq(id)+'\')">Envoyer la fiche au client</button></div></div></div>';
+  }
+  window.connaissancesCarte=function(id){ var d=dossier(id); return d?carte(d):''; };
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace') return;
+    var d=dossier(state.espaceDossier); if(!d) return;
+    if((state.espTab||'demande')!=='cloture') return;
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="cloture"]'); if(!panel||panel.querySelector('.mq-kn-card')) return;
+    var t=document.createElement('div'); t.innerHTML=carte(d); var el=t.firstElementChild; if(!el) return;
+    var st=panel.querySelector('.mq-st-card')||panel.querySelector(':scope > .trw-foot'); if(st) panel.insertBefore(el,st); else panel.appendChild(el);
+  }catch(e){} }
+
+  /* ---------------- le Formulaire : « À prévoir » ---------------- */
+  window.connaissancesFormulaire=function(){
+    var fd=window.__formData||{}; var K=null; try{ K=window.connaissancesPour({intake:fd}); }catch(e){}
+    return K; };
+  window.connaissancesFormulaireDetail=function(){
+    var K=window.connaissancesFormulaire(); if(!K) return;
+    var b='<div class="mq-kn-base"><p>D’après la forme, le régime et l’activité saisis dans le Formulaire. La liste se précise au fil du dossier.</p>'
+      +ORGS.map(function(o){ var x=K.items.filter(function(i){ return i.org===o[0]; }); if(!x.length) return '';
+        return '<div class="mq-kn-org"><div class="mq-kn-oh"><b>'+E(o[1])+'</b><span>'+x.length+'</span></div><ul>'
+          +x.map(function(i){ return '<li><span class="mq-kn-ty '+i.type+'">'+TYPES[i.type]+'</span><div><b>'+E(i.titre)+'</b><span>'+E(i.txt)+'</span></div></li>'; }).join('')+'</ul></div>'; }).join('')+'</div>';
+    if(typeof openModal==='function') openModal('À prévoir pour cette entreprise',b,'<button class="btn" onclick="closeModal()">Fermer</button>');
+  };
+  function formulaire(){ try{
+    if(typeof state==='undefined'||state.page!=='formulaire') return;
+    var inp=document.querySelector('#view #fi-objet'); if(!inp) return;
+    var box=inp.parentNode.querySelector('.mq-kn-apercu');
+    if(!box){ box=document.createElement('div'); box.className='mq-kn-apercu';
+      var ref=inp.parentNode.querySelector('.mq-act-apercu')||inp.parentNode.querySelector('#fi-objet-sug')||inp; ref.insertAdjacentElement('afterend',box); }
+    function maj(){ var K=window.connaissancesFormulaire(); if(!K||!K.items.length){ box.style.display='none'; return; }
+      var par={}; K.items.forEach(function(i){ par[i.org]=(par[i.org]||0)+1; });
+      var n={obligation:0,formalite:0,document:0}; K.items.forEach(function(i){ n[i.type]++; });
+      box.style.display='';
+      box.innerHTML='<b>À prévoir :</b> '+n.obligation+' obligation'+(n.obligation>1?'s':'')+', '+n.formalite+' formalité'+(n.formalite>1?'s':'')+', '+n.document+' document'+(n.document>1?'s':'')+' à tenir — '
+        +ORGS.filter(function(o){ return par[o[0]]; }).map(function(o){ return E(o[1].split(' — ')[0]); }).join(', ')
+        +'. <button type="button" class="btn btn-sm btn-ghost" onclick="connaissancesFormulaireDetail()">Voir le détail</button>'; }
+    if(!inp.__kn){ inp.__kn=1; inp.addEventListener('input',function(){ setTimeout(maj,0); }); }
+    maj();
+  }catch(e){} }
+
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__kn){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); formulaire(); return x; }; window.render.__kn=1; } }catch(e){}
+
+  try{ var st=document.createElement('style'); st.id='mq-kn-css'; st.textContent=[
+    '.mq-kn-n{margin-left:auto;font-size:12px;color:var(--ink-3,#8a8a93)}',
+    '.mq-kn-prof{font-size:12.5px;color:var(--ink-3,#8a8a93);margin-bottom:10px}',
+    '.mq-kn-filtres{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}',
+    '.mq-kn-f{font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid #3a3a40;background:transparent;color:inherit;cursor:pointer}',
+    '.mq-kn-f.on{border-color:#8a8a93;background:rgba(255,255,255,.06);font-weight:600}',
+    '.mq-kn-org{margin-bottom:12px}.mq-kn-oh{display:flex;gap:10px;align-items:baseline;font-size:13px;margin-bottom:6px}.mq-kn-oh span{font-size:12px;color:var(--ink-3,#8a8a93)}',
+    '.mq-kn-org ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}',
+    '.mq-kn-org li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line-soft,#2a2a30);border-radius:9px;font-size:12.5px}',
+    '.mq-kn-org li div:not(.mq-kn-acts){flex:1;min-width:0}.mq-kn-org li b{display:block;font-weight:600}.mq-kn-org li span:not(.mq-kn-ty){display:block;color:var(--ink-3,#8a8a93)}',
+    '.mq-kn-org li em{display:block;font-style:normal;font-size:11.5px;color:#e8c98a;margin-top:2px}.mq-kn-org li.fait em{color:#a9dcbc}.mq-kn-org li.na{opacity:.55}',
+    '.mq-kn-org li.fait{border-color:rgba(84,150,104,.4)}',
+    '.mq-kn-ty{flex:0 0 auto;font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid #3a3a40;white-space:nowrap;margin-top:1px}',
+    '.mq-kn-ty.obligation{border-color:rgba(200,150,60,.6);color:#e8c98a}.mq-kn-ty.formalite{border-color:rgba(120,140,200,.55);color:#b9c4ea}.mq-kn-ty.document{border-color:rgba(84,150,104,.5);color:#a9dcbc}',
+    '.mq-kn-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}',
+    '.mq-kn-bar{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px}',
+    '.mq-kn-env{font-size:12px;color:var(--ink-3,#8a8a93)}',
+    '.mq-kn-base p{margin:0 0 12px;font-size:13px}.mq-kn-base li em{display:block;font-style:normal;font-size:11.5px;color:var(--ink-3,#8a8a93);margin-top:2px}',
+    '.mq-kn-mail p{margin:0 0 12px;font-size:13px}.mq-kn-mail label{display:flex;flex-direction:column;gap:4px;font-size:12px;margin-bottom:10px}',
+    '.mq-kn-mail input,.mq-kn-mail textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px}',
+    '.mq-kn-apercu{margin-top:6px;font-size:12.5px;line-height:1.45;padding:8px 10px;border:1px solid var(--line-soft,#2a2a30);border-radius:9px;color:var(--ink-2,#c5c5cc)}',
+    '.mq-kn-apercu .btn{margin-left:4px}'
   ].join('\n'); document.head.appendChild(st); }catch(e){}
 })();
 </script>
