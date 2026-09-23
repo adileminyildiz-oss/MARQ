@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#131316">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<title>AEM CONSEIL | Pré-diagnostic de création</title>
+<style>
+:root{--bg:#f2f2f3;--card:#ffffff;--ink:#111113;--ink2:#3a3a41;--ink3:#6b6b73;--line:#dedee2;--line2:#c6c6cc;--accent:#131316;--accent2:#3a3a41;--soft:#f0f0f2;--ok:#1f5f3f;--okbg:#eef3f0;--okline:#c5d6cb;--err:#a8231d;--errbg:#f9eeed;--errline:#e6c3c0;--focus:0 0 0 3px rgba(19,19,22,.14);--r:6px}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14.5px/1.6 "Inter","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;padding:0 0 56px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.topbar{background:var(--accent);color:#fff;padding:14px 20px;border-bottom:1px solid #2a2a2f}
+.topbar .in{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px;margin:0}
+.brand .logo{font:600 16px/1 inherit;letter-spacing:3.5px;color:#fff}
+.brand .sub{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:rgba(255,255,255,.62);font-weight:500;border-left:1px solid rgba(255,255,255,.22);padding-left:14px}
+.topbar .ctc{font-size:12px;color:rgba(255,255,255,.62);letter-spacing:.3px}
+.wrap{max-width:720px;margin:0 auto;padding:30px 16px 0}
+h1{font-size:23px;font-weight:600;letter-spacing:-.02em;margin:0 0 6px;color:var(--ink)}
+.lead{color:var(--ink2);margin:0 0 18px;max-width:640px}
+.dosno{display:inline-flex;gap:10px;align-items:center;font:600 13px/1 inherit;letter-spacing:.6px;color:var(--accent);background:#fff;border:1px solid var(--line2);border-radius:6px;padding:9px 12px;margin-bottom:16px;flex-wrap:wrap}
+.dosno small{font:500 11.5px/1 inherit;letter-spacing:0;color:var(--ink3)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px 26px;box-shadow:0 1px 2px rgba(20,24,32,.04),0 8px 24px -16px rgba(20,24,32,.18)}
+.msg{border-left:3px solid var(--accent);background:var(--soft);border-radius:0 6px 6px 0;padding:11px 14px;margin:0 0 18px;color:var(--ink2);white-space:pre-wrap}
+/* progression */
+.steps{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.steps .st{flex:1;min-width:48px;height:4px;border-radius:2px;background:var(--line)}
+.steps .st.on{background:var(--accent)}
+.steps .st.done{background:#8a8a93}
+.stepname{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink3);font-weight:600;margin-bottom:14px}
+.prog{display:flex;align-items:center;gap:12px;margin:0 0 10px;font-size:12px;color:var(--ink3);font-weight:600;letter-spacing:.3px}
+.prog .bar{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:var(--accent2);transition:width .25s}
+h2{font-size:16.5px;font-weight:600;letter-spacing:-.01em;margin:22px 0 4px;color:var(--ink)}
+h2:first-of-type{margin-top:0}
+h2 small{font-weight:400;color:var(--ink3);font-size:12.5px}
+.hint{color:var(--ink3);font-size:13px;margin:0 0 12px}
+label{display:block;font-size:12.5px;font-weight:500;color:var(--ink2);margin:14px 0 6px}
+label .req{color:var(--err)}
+label small{font-weight:400;color:var(--ink3)}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line2);border-radius:6px;background:#fff;color:var(--ink);font:inherit;outline:none;min-height:42px;transition:border-color .12s,box-shadow .12s}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%233a3a41' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input::placeholder,textarea::placeholder{color:#9aa0aa}
+input:focus,select:focus,textarea:focus{border-color:var(--accent2);box-shadow:var(--focus)}
+input.bad,select.bad,textarea.bad{border-color:var(--err);box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+textarea{min-height:96px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:560px){.row,.row3{grid-template-columns:1fr}}
+/* choix de formalité */
+.types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+@media(max-width:560px){.types{grid-template-columns:1fr}}
+.type{border:1px solid var(--line2);border-radius:6px;padding:13px 14px;cursor:pointer;background:#fff;transition:border-color .12s,box-shadow .12s;display:flex;align-items:center;gap:14px}
+.type:hover{border-color:var(--accent2)}
+.type.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.type .tag{flex:none;min-width:48px;height:34px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:4px;font:600 11px/1 inherit;letter-spacing:1px;color:var(--accent);background:var(--soft)}
+.type.on .tag{background:var(--accent);color:#fff;border-color:var(--accent)}
+.type b{display:block;font-size:14px;font-weight:600}
+.type span{font-size:12px;color:var(--ink3)}
+/* blocs répétés */
+.asso{border:1px solid var(--line);border-radius:6px;padding:14px 16px 16px;margin-top:12px;background:#fafbfc;position:relative}
+.asso .tt{font-size:11px;font-weight:600;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+.asso .del{position:absolute;top:10px;right:10px;border:1px solid var(--line2);background:#fff;color:var(--ink2);border-radius:4px;padding:4px 10px;cursor:pointer;font:600 11.5px/1.2 inherit}
+.asso .del:hover{border-color:var(--err);color:var(--err)}
+.asso label{margin-top:10px}
+.addbtn{margin-top:12px;background:#fff;border:1px dashed var(--line2);color:var(--accent);border-radius:6px;padding:11px;width:100%;cursor:pointer;font:600 13.5px/1.2 inherit}
+.addbtn:hover{border-color:var(--accent2);background:var(--soft)}
+.capbar{margin-top:12px;font-size:13px;padding:10px 12px;border-radius:6px;background:var(--soft);border:1px solid var(--line);color:var(--ink2)}
+.capbar.ok{background:var(--okbg);border-color:var(--okline);color:var(--ok)}
+.capbar.ko{background:var(--errbg);border-color:var(--errline);color:var(--err)}
+/* récapitulatif */
+.recap{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+.recap .rg{background:var(--soft);padding:8px 14px;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;color:var(--ink3)}
+.recap .rr{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.recap .rr .k{color:var(--ink3)}
+.recap .rr .v{font-weight:600;text-align:right}
+/* documents */
+.doc,.piece{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-top:10px;background:#fafbfc}
+.piece{margin:0 0 12px}
+.doc.bad{border-color:var(--err);box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+.piece.done{border-color:var(--okline);background:var(--okbg)}
+.doc .dl,.piece-h b{font-size:14px;font-weight:600;color:var(--ink)}
+.doc .dh,.piece .hint{font-size:12.5px;color:var(--ink3);margin:3px 0 10px}
+.piece-h{display:flex;align-items:center;gap:10px}
+.piece-h .st{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3)}
+.piece.done .st{color:var(--ok)}
+.doc .pick,.drop{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border:1px solid var(--accent2);border-radius:6px;background:#fff;color:var(--accent);font:600 13.5px/1.2 inherit;cursor:pointer;min-height:42px}
+.drop{width:100%;text-align:center}
+.doc .pick:hover,.drop:hover{background:var(--soft)}
+.doc .pick input{display:none}
+.doc .files,.files{margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink2)}
+.doc .file,.files div{display:flex;align-items:center;gap:8px;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:4px;padding:7px 10px}
+.doc .file b{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .file small,.files small{color:var(--ink3);font-size:11.5px;white-space:nowrap}
+.doc .file .ok{color:var(--ok);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;display:inline;padding:0}
+.doc .file button{border:1px solid var(--line2);background:#fff;color:var(--ink2);cursor:pointer;font:600 11.5px/1.2 inherit;padding:4px 9px;border-radius:4px}
+.doc .file button:hover{border-color:var(--err);color:var(--err)}
+.libre{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:0 0 16px}
+.libre label{margin-top:0}
+.pieces{margin-top:18px;border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:13px;color:var(--ink2);background:var(--soft)}
+.pieces a{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+/* boutons */
+.btn{padding:0 20px;min-height:44px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;font:500 14px/1.2 inherit;letter-spacing:.2px;cursor:pointer;transition:background .12s,border-color .12s;display:inline-flex;align-items:center;justify-content:center}
+.btn:hover{background:var(--accent2);border-color:var(--accent2)}
+.btn.sec{background:#fff;color:var(--accent);border-color:var(--line2)}
+.btn.sec:hover{background:var(--soft);border-color:var(--accent2)}
+.btn.gold{background:var(--accent);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+#send{width:100%;margin-top:6px}
+.btn:focus-visible{box-shadow:var(--focus);outline:none}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:24px;flex-wrap:wrap}
+.nav .btn{flex:1}
+.nav span:empty{flex:1}
+.errline,.err{display:none;color:var(--err);font-size:13px;margin-top:10px;font-weight:600}
+.fatal{color:var(--err);font-size:14px;text-align:center;padding:24px;background:#fff;border:1px solid var(--errline);border-radius:var(--r)}
+.note{font-size:12px;color:var(--ink3);margin-top:16px;text-align:center}
+.ok{display:none;text-align:center;padding:40px 20px}
+.ok h2{color:var(--ink);font-size:22px;margin:14px 0 6px}
+.ok .mark{width:52px;height:52px;border-radius:50%;background:var(--okbg);border:1px solid var(--okline);display:inline-flex;align-items:center;justify-content:center;color:var(--ok)}
+.ok .mark svg{width:24px;height:24px}
+.ok .recap{text-align:left;display:inline-block;margin:12px auto 0;font-size:13px;color:var(--ink2);border:none}
+.ok .recap div{padding:2px 0}
+.dossierno{display:inline-block;margin-top:10px;font:600 14px/1 inherit;letter-spacing:1px;color:var(--accent);background:var(--soft);border:1px solid var(--line2);border-radius:6px;padding:9px 14px}
+.foot{font-size:12px;color:var(--ink3);text-align:center;margin-top:26px;line-height:1.7}
+.foot a{color:var(--ink3)}
+@media(max-width:600px){.wrap{padding-top:20px}.card{padding:20px 16px}h1{font-size:21px}.btn{width:100%}.nav{flex-direction:column}.doc .pick{width:100%}.brand .sub{display:none}.topbar .ctc{display:none}input,select,textarea{font-size:16px}}
+@media print{.topbar{background:#fff;color:#000;border-bottom:1px solid #000}.topbar .logo,.topbar .sub,.topbar .ctc{color:#000}.card{box-shadow:none}}
+
+.wrap{max-width:1080px}
+.lead{max-width:760px}
+.pd-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:900px){.pd-grid{grid-template-columns:1fr}}
+.pd-q{margin-top:18px}
+.pd-q:first-of-type{margin-top:6px}
+.pd-q>label{display:flex;gap:10px;align-items:baseline;font-size:14px;font-weight:600;color:var(--ink);margin:0 0 6px}
+.pd-n{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);font-size:11.5px;font-weight:600;color:var(--ink2)}
+.pd-aide{font-size:12.5px;color:var(--ink3);margin:-2px 0 8px 32px}
+.pd-q textarea,.pd-q input{margin-left:32px;width:calc(100% - 32px)}
+.pd-ch{display:flex;flex-wrap:wrap;gap:7px;margin-left:32px}
+.pd-ch button{font:inherit;font-size:13.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--line2);background:#fff;color:var(--ink);cursor:pointer;min-height:40px}
+.pd-ch button:hover{border-color:var(--accent2)}
+.pd-ch button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pd-res{position:sticky;top:16px}
+.pd-res .card{padding:22px 22px}
+.pd-k{display:block;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.pd-f b{display:block;font-size:20px;letter-spacing:-.01em}
+.pd-cx{display:inline-block;margin-top:6px;font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line2);color:var(--ink2)}
+.pd-reco{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+.pd-c{border:1px solid var(--line);border-radius:6px;padding:8px 10px}.pd-c b{font-size:14px}
+.pd-why{font-size:13.5px;color:var(--ink2);margin:12px 0 0}
+.pd-alt{font-size:12.5px;color:var(--ink3);margin:6px 0 0}
+.pd-sec{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.pd-st{font-size:13.5px;font-weight:600;margin-bottom:6px}
+.pd-delai b{display:block;font-size:16px}.pd-delai span{font-size:12.5px;color:var(--ink3)}
+.pd-delai.s-serre b{color:#8a5b12}.pd-delai.s-impossible b{color:var(--err)}
+.pd-mini{display:none}
+@media(max-width:900px){.pd-mini{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--accent);color:#fff;padding:10px 16px;gap:12px;align-items:center;justify-content:space-between;box-shadow:0 -6px 18px rgba(0,0,0,.18)}.pd-mini b{display:block;font-size:14px}.pd-mini span{font-size:12px;color:rgba(255,255,255,.7)}.pd-mini a{color:#fff;font-weight:600;font-size:13px;white-space:nowrap;text-decoration:underline;text-underline-offset:3px}body{padding-bottom:84px}}
+.pd-px{width:100%;border-collapse:collapse;font-size:13.5px}.pd-px td{padding:5px 0;border-bottom:1px solid var(--line)}.pd-px td+td{text-align:right;white-space:nowrap}.pd-px .tot td{font-weight:700;border-bottom:none;font-size:15px}
+.pd-opt{font-size:12.5px;color:var(--ink3);margin-top:5px}
+.pd-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.pd-list li{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.pd-list b{display:block;font-size:13.5px}.pd-list span{display:block;color:var(--ink3);font-size:12.5px}
+.pd-niv{flex:none;font-size:10.5px;font-weight:600;letter-spacing:.3px;padding:3px 8px;border-radius:999px;border:1px solid;min-width:62px;text-align:center;margin-top:1px}
+.pd-niv.critique{color:var(--err);border-color:var(--errline);background:var(--errbg)}
+.pd-niv.majeure{color:#8a5b12;border-color:#e6d2a8;background:#fbf5e8}
+.pd-niv.mineure{color:var(--ink2);border-color:var(--line2);background:var(--soft)}
+.pd-manq{font-size:12.5px;color:#8a5b12;margin-top:10px}
+.pd-send{margin-top:18px}
+.pd-legal{font-size:12px;color:var(--ink3);margin-top:12px}
+@media(max-width:600px){.pd-q textarea,.pd-q input,.pd-ch,.pd-aide{margin-left:0;width:100%}.pd-res{position:static}}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="in"><div class="brand"><span class="logo" id="cabName">AEM CONSEIL</span><span class="sub">Création et formalités d'entreprise</span></div><span class="ctc">aemconseil.eu</span></div></header>
+<div class="wrap">
+  <h1>Votre projet de société : où allez-vous ?</h1>
+  <p class="lead">Répondez à ces quelques questions. Vous voyez aussitôt la forme conseillée, les points d'attention, les documents à réunir, le délai et le prix du dossier. Envoyez ensuite vos réponses au cabinet : nous reprenons contact avec vous.</p>
+  <div class="pd-grid" id="cardForm">
+    <div class="card">
+      <h2>Vos coordonnées</h2>
+      <div class="row"><div><label>Nom et prénom <span class="req">*</span></label><input id="c-nom" autocomplete="name"></div>
+      <div><label>E-mail <span class="req">*</span></label><input id="c-email" type="email" autocomplete="email"></div></div>
+      <label>Téléphone <small>(facultatif)</small></label><input id="c-tel" type="tel" autocomplete="tel">
+      <h2 style="margin-top:24px">Votre projet</h2>
+      <div id="questions"></div>
+      <form id="post" action="https://formsubmit.co/aemconseil.sas@gmail.com" method="POST">
+        <input type="hidden" name="_captcha" value="false">
+        <input type="hidden" name="_template" value="box">
+        <input type="hidden" name="_subject" id="p_subject" value="PRÉ-DIAGNOSTIC - AEM CONSEIL">
+        <input type="hidden" name="_next" id="p_next" value="">
+        <input type="hidden" name="Origine" value="Pré-diagnostic en ligne">
+        <input type="hidden" name="Nom" id="p_nom" value="">
+        <input type="hidden" name="email" id="p_email" value="">
+        <input type="hidden" name="Téléphone" id="p_tel" value="">
+        <input type="hidden" name="Pré-diagnostic" id="p_resume" value="">
+        <input type="hidden" name="MQDIAG_DATA" id="p_data" value="">
+        <div class="err" id="err"></div>
+        <button class="btn pd-send" type="button" id="send" style="width:100%">Envoyer mes réponses au cabinet</button>
+      </form>
+      <div class="note">Vos réponses ne sont transmises qu'à l'envoi. Aucun compte à créer.</div>
+    </div>
+    <div class="pd-res"><div class="card" id="res"></div></div>
+    <div class="pd-mini" id="mini"><div><b id="mini-f"></b><span id="mini-p"></span></div><a href="#res">Voir le détail</a></div>
+  </div>
+  <div class="card ok" id="cardOk">
+    <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><h2>Vos réponses ont bien été envoyées</h2>
+    <p class="lead" style="text-align:center;margin:0 auto">Nous les étudions et revenons vers vous rapidement pour confirmer ce pré-diagnostic et lancer votre dossier.</p>
+    <div id="okRes" style="text-align:left;margin-top:18px"></div>
+  </div>
+  <div class="foot">Pré-diagnostic indicatif, confirmé par le cabinet avant tout lancement. Vos informations sont utilisées uniquement pour étudier votre projet (RGPD).<br><a href="https://aemconseil.eu" rel="noopener">aemconseil.eu</a></div>
+</div>
+<script>
+/* MQDIAG-ENGINE-START — moteur du pré-diagnostic, identique dans index.html et diagnostic.html (un test le vérifie) */
+(function(root){
+  function S(v){ return v==null?'':String(v); }
+  function plat(t){ return S(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim(); }
+  function num(v){ var n=parseFloat(S(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+  function r2(n){ return Math.round(n*100)/100; }
+
+  var QUESTIONS=[
+    {k:'activite',lbl:'Quelle sera l’activité principale de la société ?',type:'text',aide:'En quelques mots : ce que vous vendez ou faites, et pour qui.',req:1},
+    {k:'reglementee',lbl:'Cette activité exige-t-elle un diplôme, une carte ou une autorisation ?',type:'choix',options:[['non','Non'],['oui','Oui'],['nsp','Je ne sais pas']]},
+    {k:'associes',lbl:'Combien serez-vous au capital ?',type:'choix',options:[['1','Seul(e)'],['2','À deux'],['3','À trois ou plus']],req:1},
+    {k:'holding',lbl:'Une autre société est-elle concernée ?',type:'choix',options:[['non','Non'],['holding','La société détiendra des participations (holding)'],['pm','Un associé est une société']]},
+    {k:'capital',lbl:'Quel capital envisagez-vous ?',type:'nombre',aide:'En euros. Il peut être modeste : ce qui compte, c’est la crédibilité auprès de la banque et des partenaires.'},
+    {k:'nature',lbl:'Apporterez-vous des biens à la société ?',type:'choix',aide:'Matériel, véhicule, fonds de commerce, titres…',options:[['non','Non, uniquement de l’argent'],['oui','Oui']]},
+    {k:'local',lbl:'Où sera le siège social ?',type:'choix',options:[['domicile','À mon domicile'],['domiciliation','Chez une société de domiciliation'],['bail','Dans un local loué'],['achat','Dans un local acheté'],['aucun','Pas encore décidé']]},
+    {k:'ca',lbl:'Quel chiffre d’affaires prévoyez-vous la première année ?',type:'choix',options:[['faible','Moins de 35 000 €'],['moyen','De 35 000 à 85 000 €'],['eleve','Plus de 85 000 €']]},
+    {k:'clientele',lbl:'Qui seront vos clients ?',type:'choix',options:[['pro','Des professionnels'],['part','Des particuliers'],['mixte','Les deux']]},
+    {k:'tva',lbl:'Souhaitez-vous facturer la TVA ?',type:'choix',options:[['facturer','Oui'],['franchise','Non, si c’est possible'],['nsp','Je ne sais pas']]},
+    {k:'embauche',lbl:'Prévoyez-vous d’embaucher la première année ?',type:'choix',options:[['non','Non'],['1','Un ou deux salariés'],['3','Trois salariés ou plus']]},
+    {k:'objectif',lbl:'Qu’est-ce qui compte le plus pour vous ?',type:'choix',req:1,options:[['protection','Une bonne protection sociale'],['cout','Des cotisations les plus basses'],['dividendes','Me verser des dividendes'],['levee','Accueillir des investisseurs'],['transmission','Un cadre familial, la transmission'],['immobilier','Détenir un patrimoine immobilier'],['simplicite','La simplicité']]},
+    {k:'situation',lbl:'Quelle est votre situation aujourd’hui ?',type:'choix',options:[['salarie','Salarié(e) dans une autre entreprise'],['demandeur','Demandeur d’emploi'],['independant','Déjà indépendant(e)'],['autre','Autre (étudiant, retraité…)']]},
+    {k:'nationalite',lbl:'Votre nationalité ?',type:'choix',options:[['ue','France ou Union européenne'],['hors','Hors Union européenne']]},
+    {k:'debut',lbl:'Pour quand souhaitez-vous démarrer ?',type:'date',aide:'Date à laquelle l’activité doit pouvoir commencer.'}
+  ];
+
+  /* barème par défaut : remplacé par les prestations du cabinet dans Mar'q, et transmis dans le lien de la page publique */
+  var TARIF={cab:'AEM CONSEIL',creation:390,statuts:300,pacte:350,domiciliation:240,
+    frais:{SAS:{annonce:197,greffe:37.45},SASU:{annonce:138,greffe:37.45},SARL:{annonce:147,greffe:37.45},EURL:{annonce:123,greffe:37.45},SCI:{annonce:189,greffe:66.88}}};
+
+  var FORMES={sas:'SAS',sasu:'SASU',sarl:'SARL',eurl:'EURL',sci:'SCI'};
+  var AUTORISATION=['immobilier','securite','voyages','finance','autoecole','sante','ordre','vtc','transport','enfance'];
+
+  function ouvres(d0,n){ var d=new Date(d0.getTime()); var k=0; while(k<n){ d.setDate(d.getDate()+1); var w=d.getDay(); if(w!==0&&w!==6) k++; } return d; }
+  function iso(d){ var m=d.getMonth()+1, j=d.getDate(); return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(j<10?'0':'')+j; }
+  function isoDate(s){ s=S(s).trim(); var m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if(m) return m[3]+'-'+(m[2].length<2?'0':'')+m[2]+'-'+(m[1].length<2?'0':'')+m[1]; return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):''; }
+  function frDate(s){ var m=S(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):S(s); }
+  function eur(n){ var s=(Math.round(n*100)/100).toFixed(2).split('.'); return s[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+s[1]+' €'; }
+
+  function calc(R,opt){
+    R=R||{}; opt=opt||{};
+    var T=opt.tarif||TARIF, FAM=opt.familles||[], jour=opt.aujourdhui?new Date(opt.aujourdhui+'T12:00:00'):new Date();
+    var manquantes=QUESTIONS.filter(function(q){ return q.req&&!S(R[q.k]).trim(); }).map(function(q){ return q.k; });
+    var act=plat(R.activite), n=num(R.associes)||1, o=S(R.objectif)||'protection', hold=S(R.holding)||'non';
+    var cap=num(R.capital), nat=R.nature==='oui', loc=S(R.local), ca=S(R.ca), cli=S(R.clientele), tv=S(R.tva);
+
+    /* 1. l'activité */
+    var fams=FAM.filter(function(f){ return f.rx&&f.rx.test(act); });
+    var meuble=/meubl|lmnp|saisonni|airbnb|chambres? d.hotes|gite/.test(act);
+    var immoPat=!meuble&&!/agence immobiliere|marchand de biens|transaction/.test(act)&&(o==='immobilier'||/location (nue|de (logements?|biens?|locaux) (nus?|vides?))|gestion (d.un |de (son|mon|notre) )?patrimoine|\bsci\b|detention (d.un |de biens? )?immobili|acquisition (d.un |de )?(bien|immeuble|local)/.test(act));
+
+    /* 2. la forme */
+    var f, pourquoi=[];
+    if(hold==='holding'){ f=n>1?'sas':'sasu'; pourquoi.push('Une holding se constitue presque toujours en SAS : souplesse des statuts et imposition à l’IS, qui ouvre le régime mère-fille.'); }
+    else if(immoPat){ f='sci'; pourquoi.push('Pour détenir et louer un bien immobilier (location nue), la SCI facilite la gestion à plusieurs et la transmission par donation de parts.'); }
+    else if(o==='levee'){ f=n>1?'sas':'sasu'; pourquoi.push('La SAS est la forme attendue par les investisseurs : actions de préférence, pacte d’associés, gouvernance sur mesure.'); }
+    else if(o==='cout'||o==='simplicite'){ f=n>1?'sarl':'eurl'; pourquoi.push(o==='cout'?'Le gérant majoritaire de SARL (ou d’EURL) cotise comme travailleur non salarié : environ 40 à 45 % de la rémunération, contre 70 à 80 % pour un président de SAS.':'La SARL (ou l’EURL) offre un cadre simple et très encadré par la loi, adapté à une activité de proximité.'); }
+    else if(o==='transmission'){ f=n>1?'sarl':'eurl'; pourquoi.push(n>1?'Entre membres d’une même famille, la SARL peut opter pour l’impôt sur le revenu sans limite de durée (SARL de famille).':'L’EURL reste simple à transmettre, et le patrimoine personnel est protégé.'); }
+    else { f=n>1?'sas':'sasu'; pourquoi.push(o==='dividendes'?'Le président de SAS ne cotise pas sur les dividendes : ils sont soumis au prélèvement forfaitaire de 30 %.':'Le président de SAS relève du régime général de la sécurité sociale (assimilé salarié) : la meilleure protection sociale.'); }
+    if(meuble&&(o==='immobilier'||o==='transmission')) pourquoi.push('La location meublée est une activité commerciale : une SCI serait imposée d’office à l’IS. Une SARL de famille à l’IR convient mieux.');
+    var alt=null;
+    if(f==='sas'||f==='sasu') alt={forme:f==='sas'?'sarl':'eurl',pourquoi:'Si le coût des cotisations prime : la '+(f==='sas'?'SARL':'EURL')+' coûte moins cher en charges sociales, avec une protection sociale moindre.'};
+    else if(f==='sarl'||f==='eurl') alt={forme:f==='sarl'?'sas':'sasu',pourquoi:'Si la protection sociale ou la souplesse des statuts priment : la '+(f==='sarl'?'SAS':'SASU')+'.'};
+    else alt={forme:'',pourquoi:'Détenir le bien en nom propre reste possible : plus simple, mais moins souple pour la gestion à plusieurs et la transmission.'};
+
+    /* 3. les régimes */
+    var fiscal, social, tvaK, tvaLbl;
+    if(f==='sci') fiscal='IR';
+    else if(f==='eurl') fiscal=(o==='dividendes'||o==='levee'||hold!=='non')?'IS':'IR';
+    else if(f==='sarl') fiscal=(o==='transmission')?'IR':'IS';
+    else fiscal='IS';
+    var fiscalLbl=fiscal==='IS'?'Impôt sur les sociétés':'Impôt sur le revenu';
+    if(f==='eurl'&&fiscal==='IR') fiscalLbl+=' (option pour l’IS possible)';
+    if(f==='sarl'&&fiscal==='IR') fiscalLbl+=' (option SARL de famille)';
+    if(f==='sas'||f==='sasu') social='Assimilé salarié (régime général)';
+    else if(f==='sci') social='Aucun régime social propre (gérance en principe non rémunérée)';
+    else social='Travailleur non salarié (gérant majoritaire)';
+    if(f==='sci') { tvaK='exoneree'; tvaLbl='Non assujettie : la location nue est exonérée de TVA'; }
+    else if(ca==='eleve'){ tvaK='rs'; tvaLbl='Réel simplifié (réel normal si la TVA due dépasse 15 000 € par an)'; }
+    else if((tv==='franchise'||tv==='nsp'||!tv)&&(ca==='faible'||!ca)&&cli!=='pro'){ tvaK='franchise'; tvaLbl='Franchise en base de TVA'+(tv==='franchise'?'':' (à confirmer)'); }
+    else { tvaK='rs'; tvaLbl='Réel simplifié'; }
+
+    /* 4. les risques et conseils */
+    var risques=[], conseils=[];
+    function rq(niv,titre,txt){ risques.push({niv:niv,titre:titre,txt:txt}); }
+    function cs(titre,txt){ conseils.push({titre:titre,txt:txt}); }
+    fams.forEach(function(x){
+      var aut=AUTORISATION.indexOf(x.k)>=0;
+      rq(aut?'critique':'majeure','Activité réglementée : '+x.lbl,(aut?'L’activité ne peut pas commencer sans : ':'À fournir avant de démarrer : ')+x.pieces.map(function(p){ return p.label; }).join(' ; ')+'.');
+    });
+    if(!fams.length&&R.reglementee==='oui') rq('majeure','Activité réglementée à préciser','Vous indiquez qu’un diplôme ou une autorisation est nécessaire : nous l’identifierons ensemble avant le dépôt.');
+    if(!fams.length&&R.reglementee==='nsp') rq('mineure','Réglementation de l’activité à vérifier','Nous vérifierons si votre activité exige un diplôme, une carte ou une autorisation.');
+    if(f==='sci'&&n<2) rq('critique','Une SCI exige au moins deux associés','Il faut au moins un second associé (un proche, par exemple). À défaut, la détention en nom propre reste possible.');
+    if(nat) rq('majeure','Apports de biens : commissaire aux apports','Les biens apportés doivent être évalués par un commissaire aux apports, sauf dispense : décision unanime, aucun bien de plus de 30 000 € et apports en nature ne dépassant pas la moitié du capital. Ses honoraires sont sur devis.');
+    if(hold==='pm') rq('mineure','Associé personne morale','Il faudra l’extrait K-bis de la société associée et la décision qui autorise son représentant à signer.');
+    if(hold==='holding') cs('Holding','Le régime mère-fille exonère presque entièrement les dividendes reçus d’une filiale détenue à 5 % au moins ; l’intégration fiscale suppose 95 %.');
+    if(f!=='sci'&&cap>0&&cap<1000) rq('mineure','Capital faible','Un capital de '+eur(cap)+' est légal mais pèse sur la crédibilité auprès des banques et des fournisseurs.');
+    if(!cap) rq('mineure','Capital à fixer','Le montant du capital et sa répartition sont à fixer avant la rédaction des statuts.');
+    if(loc==='aucun') rq('majeure','Pas encore de siège','La société ne peut pas être immatriculée sans adresse : une domiciliation peut dépanner le temps de trouver un local.');
+    if(loc==='domicile') rq('mineure','Siège au domicile','Si le bail ou le règlement de copropriété l’interdit, la domiciliation au domicile est limitée à cinq ans, sans recevoir de clientèle ni de marchandises.');
+    if(loc==='bail') rq('mineure','Local loué','Le bail doit autoriser votre activité ; signé avant l’immatriculation, il l’est « au nom de la société en formation » pour être repris par elle.');
+    if(tv==='franchise'&&ca&&ca!=='faible') rq('majeure','Franchise de TVA peu probable','Au chiffre d’affaires prévu, vous dépasserez les seuils de la franchise : la TVA sera due dès le mois de dépassement.');
+    if(tvaK==='franchise'&&cli==='pro') cs('TVA et clients professionnels','Vos clients professionnels récupèrent la TVA : la facturer ne leur coûte rien, et vous permet de récupérer celle de vos achats.');
+    if(R.embauche&&R.embauche!=='non') rq('mineure','Obligations d’employeur','Déclaration préalable à l’embauche, registre du personnel, document unique d’évaluation des risques, mutuelle collective et médecine du travail.');
+    if(R.situation==='salarie') rq('mineure','Contrat de travail en cours','Vérifiez les clauses d’exclusivité et de non-concurrence de votre contrat avant de démarrer.');
+    if(R.situation==='demandeur') cs('Demandeur d’emploi','L’ACRE allège les cotisations la première année. Le maintien de l’allocation ou son versement en capital (ARCE) dépend du statut choisi : à voir avec nous avant de signer.');
+    if(R.nationalite==='hors') rq('critique','Titre de séjour','Le dirigeant doit détenir un titre de séjour qui l’autorise à exercer cette activité ; il sera demandé au dépôt.');
+    if((f==='sas'||f==='sasu')&&o==='dividendes') cs('Rémunération du président','Sans aucune rémunération, le président ne cotise pas pour sa retraite : un socle de salaire reste conseillé.');
+    if((f==='sarl'||f==='sas')&&n>1) cs('Pacte d’associés','Entre associés, un pacte règle l’entrée et la sortie, les décisions importantes et les conflits : fortement conseillé.');
+
+    /* 5. les documents */
+    var docs=[];
+    function doc(label,pourquoi){ docs.push({label:label,pourquoi:pourquoi||''}); }
+    doc('Pièce d’identité du dirigeant (recto verso, en cours de validité)','Vérification de l’identité au dépôt.');
+    doc('Justificatif de domicile du dirigeant de moins de trois mois','Adresse personnelle déclarée au registre.');
+    doc('Déclaration de non-condamnation et de filiation','Préparée par le cabinet, à signer par le dirigeant.');
+    if(n>1) doc('Pièce d’identité de chaque associé','Identification de tous les associés dans les statuts.');
+    doc({domicile:'Justificatif de domicile servant d’adresse au siège',domiciliation:'Contrat de domiciliation',bail:'Bail du local (ou promesse de bail)',achat:'Titre de propriété ou attestation du notaire',aucun:'Justificatif du siège (à trouver)'}[loc]||'Justificatif du siège social','Justifie l’adresse du siège.');
+    if(f!=='sci') doc('Attestation de dépôt des fonds du capital','Délivrée par la banque ou le notaire, une fois le capital versé.');
+    if(nat) doc('Rapport du commissaire aux apports (ou décision de dispense) et liste des biens apportés','Évaluation des apports en nature.');
+    if(hold==='pm') doc('Extrait K-bis de moins de trois mois de la société associée','Et la décision qui autorise son représentant.');
+    if(R.nationalite==='hors') doc('Titre de séjour du dirigeant','Autorisant l’exercice de l’activité.');
+    var vus={}; fams.forEach(function(x){ x.pieces.forEach(function(p){ if(vus[p.label]) return; vus[p.label]=1; doc(p.label,p.note||('Activité : '+x.lbl)); }); });
+
+    /* 6. le délai (jours ouvrés) */
+    var complexe=n>1||hold!=='non'||nat||o==='levee'||fams.length>0;
+    var et=[];
+    function st(lbl,a,b){ et.push({lbl:lbl,min:a,max:b}); }
+    st('Réunir les pièces et informations',2+(fams.length?2:0)+(hold==='pm'?2:0),5+(fams.length?5:0)+(hold==='pm'?5:0));
+    st('Rédiger et relire les statuts',complexe?2:1,complexe?4:2);
+    st('Signer',1,3);
+    if(f!=='sci') st(nat?'Déposer le capital et faire évaluer les apports':'Déposer le capital',nat?10:2,nat?20:5);
+    st('Publier l’annonce légale',1,2);
+    st('Déposer au guichet unique, instruction du greffe',3+(fams.length?2:0),10+(fams.length?5:0));
+    var mn=0,mx=0; et.forEach(function(e){ mn+=e.min; mx+=e.max; });
+    var du=iso(ouvres(jour,mn)), au=iso(ouvres(jour,mx)), stD='ok';
+    var souh=isoDate(R.debut);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(souh)){ if(souh<du) stD='impossible'; else if(souh<au) stD='serre'; }
+    if(stD==='impossible') rq('critique','Date de démarrage trop proche','Au '+frDate(souh)+', l’immatriculation ne sera pas obtenue : comptez au plus tôt le '+frDate(du)+'.');
+    else if(stD==='serre') rq('majeure','Calendrier serré','Le démarrage au '+frDate(souh)+' est possible si les pièces arrivent vite : l’immatriculation est attendue entre le '+frDate(du)+' et le '+frDate(au)+'.');
+
+    /* 7. le prix */
+    var F=FORMES[f], fr=(T.frais&&T.frais[F])||{annonce:0,greffe:0}, lignes=[], options=[], enSus=[];
+    lignes.push({lbl:'Honoraires : formalité de création ('+F+')',ht:num(T.creation),tva:true,type:'hon'});
+    if(complexe&&num(T.statuts)) lignes.push({lbl:'Honoraires : statuts rédigés sur mesure',ht:num(T.statuts),tva:true,type:'hon'});
+    lignes.push({lbl:'Annonce légale',ht:num(fr.annonce),tva:true,type:'debours'});
+    lignes.push({lbl:'Frais de greffe et du guichet unique',ht:num(fr.greffe),tva:false,type:'debours'});
+    if(n>1&&num(T.pacte)) options.push({lbl:'Pacte d’associés',ht:num(T.pacte)});
+    if(nat) enSus.push({lbl:'Commissaire aux apports',txt:'sur devis'});
+    if(loc==='domiciliation'&&num(T.domiciliation)) enSus.push({lbl:'Domiciliation (première année, à régler au domiciliataire)',txt:eur(num(T.domiciliation))});
+    var honHT=0, tvaTot=0, deb=0;
+    lignes.forEach(function(l){ l.tvaMt=l.tva?r2(l.ht*0.2):0; l.ttc=r2(l.ht+l.tvaMt); if(l.type==='hon') honHT+=l.ht; else deb+=l.ht; tvaTot+=l.tvaMt; });
+    var prix={lignes:lignes,options:options,enSus:enSus,honHT:r2(honHT),tva:r2(tvaTot),debours:r2(deb),total:r2(honHT+deb+tvaTot)};
+
+    var ordre={critique:0,majeure:1,mineure:2}; risques.sort(function(a,b){ return ordre[a.niv]-ordre[b.niv]; });
+    return {manquantes:manquantes,complexe:complexe,
+      reco:{forme:f,formeLbl:F,formalite:'Création '+F,pourquoi:pourquoi,alt:alt,fiscal:fiscal,fiscalLbl:fiscalLbl,social:social,tva:tvaK,tvaLbl:tvaLbl},
+      activites:fams.map(function(x){ return {k:x.k,lbl:x.lbl}; }),
+      risques:risques,conseils:conseils,documents:docs,
+      delai:{min:mn,max:mx,etapes:et,du:du,au:au,souhaite:souh,statut:stD},
+      prix:prix};
+  }
+
+  function texte(res,R){
+    var r=res.reco, L=[];
+    L.push('Forme conseillée : '+r.formeLbl+' — '+r.pourquoi.join(' '));
+    if(r.alt&&r.alt.pourquoi) L.push('Autre possibilité : '+r.alt.pourquoi);
+    L.push('Imposition : '+r.fiscalLbl+'. Statut du dirigeant : '+r.social+'. TVA : '+r.tvaLbl+'.');
+    L.push('');
+    L.push('POINTS D’ATTENTION');
+    if(!res.risques.length) L.push('- Aucun point bloquant repéré.');
+    res.risques.forEach(function(x){ L.push('- '+x.titre+' : '+x.txt); });
+    if(res.conseils.length){ L.push(''); L.push('CONSEILS'); res.conseils.forEach(function(x){ L.push('- '+x.titre+' : '+x.txt); }); }
+    L.push(''); L.push('DOCUMENTS À PRÉPARER');
+    res.documents.forEach(function(x){ L.push('- '+x.label); });
+    L.push(''); L.push('DÉLAI');
+    L.push('Entre '+res.delai.min+' et '+res.delai.max+' jours ouvrés, soit une immatriculation attendue entre le '+frDate(res.delai.du)+' et le '+frDate(res.delai.au)+' si le dossier démarre aujourd’hui.');
+    L.push(''); L.push('PRIX DU DOSSIER');
+    res.prix.lignes.forEach(function(l){ L.push('- '+l.lbl+' : '+eur(l.ht)+' HT'+(l.tva?'':' (sans TVA)')); });
+    L.push('Total : '+eur(res.prix.total)+' TTC (dont '+eur(res.prix.honHT)+' HT d’honoraires).');
+    res.prix.options.forEach(function(x){ L.push('En option : '+x.lbl+' — '+eur(x.ht)+' HT.'); });
+    res.prix.enSus.forEach(function(x){ L.push('En sus : '+x.lbl+' — '+x.txt+'.'); });
+    return L.join('\n');
+  }
+
+  root.MQDIAG={version:1,QUESTIONS:QUESTIONS,TARIF:TARIF,FORMES:FORMES,calc:calc,texte:texte,eur:eur,frDate:frDate,isoDate:isoDate,plat:plat};
+})(typeof window!=='undefined'?window:this);
+/* MQDIAG-ENGINE-END */
+
+</script>
+<script>
+(function(){
+/* MQDIAG-FAMILLES-START — copie des activités réglementées de Mar'q */
+  function pc(k,label,note){ return {k:'act_'+k,label:label,note:note||''}; }
+  var FAMILLES=[
+    {k:'btp',lbl:'Bâtiment (BTP)',
+     rx:/\bbtp\b|entreprise (generale )?du batiment|metiers? du batiment|travaux (de |du )?batiment|maconn|plomb|electricien|electricite generale|chauffagiste|couvreur|charpent|menuiserie|carrel|platrier|platrerie|peintre en batiment|peinture en batiment|terrassement|gros oeuvre|second oeuvre|travaux de (renovation|construction|peinture|isolation|terrassement)|isolation thermique/,
+     pieces:[pc('decennale','Attestation d’assurance décennale','Obligatoire avant le premier chantier : elle doit couvrir chacune des activités exercées.'),
+             pc('carte_btp','Carte d’identification professionnelle BTP','Demandée pour chaque salarié ou dirigeant intervenant sur un chantier.'),
+             pc('qualif_btp','Justificatif de qualification professionnelle','CAP, BEP ou diplôme du métier, ou 3 ans d’expérience dans le métier.')]},
+    {k:'restauration',lbl:'Restauration',
+     rx:/\brestaurants?\b|\brestauration\b(?! (de|des|du|d.) ?(meubles?|mobilier|tableaux|monuments?|batiments?|vehicules?|voitures?|oeuvres?|objets?|patrimoine))|brasserie|traiteur|\bsnack|pizzeria|fast[- ]?food|food[- ]?truck|creperie|salon de the|kebab|plats a emporter|vente de plats/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation », pour vendre de l’alcool (licence restaurant).'),
+             pc('hygiene','Attestation de formation à l’hygiène alimentaire (HACCP)','Au moins une personne de l’établissement doit l’avoir suivie.')]},
+    {k:'boissons',lbl:'Débit de boissons',
+     rx:/licence (iii|iv|3|4)\b|debit de boissons|\bbars?\b|discotheque|vente d.alcool|cave a vin|caviste/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation ».'),
+             pc('licence_boissons','Récépissé de déclaration de licence (mairie)','Déclaration d’ouverture ou de mutation de la licence III ou IV, auprès de la mairie.')]},
+    {k:'transport',lbl:'Transport',
+     rx:/transport (routier|de (personnes|marchandises|voyageurs))|transporteur|\bdemenagement|messagerie express|livraison de colis|\bfret\b/,
+     pieces:[pc('capacite_transp','Attestation de capacité professionnelle en transport','Délivrée après examen ou par équivalence de diplôme.'),
+             pc('registre_transp','Justificatif d’inscription au registre des transporteurs','Licence de transport (DREAL) : inscription au registre avant de commencer.')]},
+    {k:'vtc',lbl:'VTC / taxi',
+     rx:/\bvtc\b|\btaxis?\b|voiture de transport avec chauffeur/,
+     pieces:[pc('carte_vtc','Carte professionnelle de conducteur VTC ou taxi','Délivrée par la préfecture après examen.')]},
+    {k:'immobilier',lbl:'Immobilier (carte professionnelle)',
+     rx:/agence immobiliere|agents? immobiliers?|transactions? immobilieres?|gestion locative|syndic de copropriete|marchand de biens/,
+     pieces:[pc('carte_immo','Carte professionnelle immobilière (CCI)','Carte T (transaction) ou G (gestion), délivrée par la CCI.'),
+             pc('garantie','Attestation de garantie financière','Obligatoire dès que l’agence détient des fonds pour le compte de clients.'),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'coiffure',lbl:'Coiffure / esthétique',
+     rx:/coiff|esthetique|institut de beaute|onglerie|barbier/,
+     pieces:[pc('qualif_coiff','Diplôme ou justificatif de qualification (CAP, BP)','Le salon doit être placé sous le contrôle effectif d’une personne qualifiée.')]},
+    {k:'sante',lbl:'Profession de santé',
+     rx:/\bmedecins?\b|\bmedical|infirmi|kinesi|dentist|sage[- ]femme|pharmac|veterinaire|laboratoire d.analyses?/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'ordre',lbl:'Profession à ordre',
+     rx:/\bavocats?\b|expert[- ]?comptable|expertise[- ]comptable|commissaire aux comptes|\bnotaires?\b|commissaire de justice|huissier|\barchitectes?\b|geometre/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'autoecole',lbl:'Auto-école',
+     rx:/auto[- ]?ecole|enseignement de la conduite/,
+     pieces:[pc('agrement_ae','Agrément préfectoral de l’établissement d’enseignement de la conduite',''),
+             pc('autor_ens','Autorisation d’enseigner de l’exploitant','')]},
+    {k:'securite',lbl:'Sécurité privée',
+     rx:/securite privee|gardiennage|surveillance humaine|agents? de securite/,
+     pieces:[pc('cnaps','Autorisation d’exercice délivrée par le CNAPS','Pour la société et pour son dirigeant.')]},
+    {k:'voyages',lbl:'Agence de voyages',
+     rx:/agence de voyages?|tour[- ]?operateur/,
+     pieces:[pc('atout','Justificatif d’inscription au registre des opérateurs de voyages (Atout France)',''),
+             pc('garantie','Attestation de garantie financière','')]},
+    {k:'finance',lbl:'Finance ou assurance',
+     rx:/courti(er|age) en (assurance|credit|pret)|intermediaire en (assurance|operations de banque)|\borias\b|conseil en investissements? financiers?|\bcif\b|\biobsp\b|\bpsan\b|etablissement de paiement/,
+     pieces:[pc('orias','Justificatif d’inscription à l’ORIAS',''),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'enfance',lbl:'Accueil ou aide à la personne',
+     rx:/micro[- ]?creche|\bcreches?\b|petite enfance|\behpad\b|aide a domicile|services a la personne/,
+     pieces:[pc('agrement_pmi','Autorisation ou agrément (PMI, services à la personne)','Selon l’activité : avis de la PMI, déclaration ou agrément du département.')]}
+  ];
+/* MQDIAG-FAMILLES-END */
+window.__FAM=FAMILLES;
+var M=window.MQDIAG, R={}, C={};
+function qp(n){var m=location.search.match(new RegExp('[?&]'+n+'=([^&]*)'));return m?decodeURIComponent(m[1].replace(/\+/g,' ')):'';}
+function esc(s){return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function b64(s){return btoa(unescape(encodeURIComponent(s)));}
+/* barème transmis dans le lien par le cabinet (sinon barème par défaut) */
+var T=JSON.parse(JSON.stringify(M.TARIF));
+try{ var t=qp('t'); if(t){ var o=JSON.parse(decodeURIComponent(escape(atob(t))));
+  ['creation','statuts','pacte','domiciliation'].forEach(function(k){ var v=+o[k]; if(isFinite(v)&&v>=0&&v<100000) T[k]=v; });
+  if(o.cab&&typeof o.cab==='string') T.cab=o.cab.slice(0,80);
+  if(o.frais) Object.keys(T.frais).forEach(function(k){ var f=o.frais[k]; if(f){ var a=+f.annonce, g=+f.greffe; if(isFinite(a)&&a>=0&&a<5000) T.frais[k].annonce=a; if(isFinite(g)&&g>=0&&g<5000) T.frais[k].greffe=g; } });
+} }catch(e){}
+document.getElementById('cabName').textContent=T.cab;
+var REF=qp('r').slice(0,40);
+var NIV={critique:'Critique',majeure:'Majeur',mineure:'Mineur'};
+function calc(){ return M.calc(R,{familles:FAMILLES,tarif:T}); }
+function qHTML(q,i){ var v=R[q.k]==null?'':R[q.k];
+  var h='<div class="pd-q"><label><span class="pd-n">'+(i+1)+'</span>'+esc(q.lbl)+(q.req?' <span class="req">*</span>':'')+'</label>'+(q.aide?'<div class="pd-aide">'+esc(q.aide)+'</div>':'');
+  if(q.type==='choix') h+='<div class="pd-ch" data-k="'+q.k+'">'+q.options.map(function(o){ return '<button type="button" data-v="'+esc(o[0])+'" class="'+(v===o[0]?'on':'')+'">'+esc(o[1])+'</button>'; }).join('')+'</div>';
+  else if(q.type==='text') h+='<textarea data-k="'+q.k+'" rows="2">'+esc(v)+'</textarea>';
+  else if(q.type==='nombre') h+='<input data-k="'+q.k+'" type="number" min="0" step="100" inputmode="numeric" value="'+esc(v)+'">';
+  else h+='<input data-k="'+q.k+'" type="date" value="'+esc(v)+'">';
+  return h+'</div>'; }
+function resHTML(res){
+  var r=res.reco,d=res.delai,p=res.prix;
+  return '<div class="pd-f"><span class="pd-k">Formalité conseillée</span><b>'+esc(r.formalite)+'</b><span class="pd-cx">'+(res.complexe?'Dossier complexe':'Dossier simple')+'</span></div>'
+   +(res.manquantes.length?'<div class="pd-manq">Pour un résultat fiable, répondez aussi aux questions marquées d\'un astérisque.</div>':'')
+   +'<div class="pd-reco"><div class="pd-c"><span class="pd-k">Imposition</span><b>'+esc(r.fiscal==='IS'?'Impôt sur les sociétés':'Impôt sur le revenu')+'</b></div>'
+   +'<div class="pd-c"><span class="pd-k">TVA</span><b>'+esc({franchise:'Franchise en base',rs:'Réel simplifié',exoneree:'Exonérée'}[r.tva]||'')+'</b></div>'
+   +'<div class="pd-c" style="grid-column:1/-1"><span class="pd-k">Votre statut de dirigeant</span><b>'+esc(r.social)+'</b></div></div>'
+   +'<p class="pd-why">'+esc(r.pourquoi.join(' '))+'</p>'+(r.alt&&r.alt.pourquoi?'<p class="pd-alt">Autre possibilité : '+esc(r.alt.pourquoi)+'</p>':'')
+   +'<div class="pd-sec"><div class="pd-st">Délai</div><div class="pd-delai s-'+d.statut+'"><b>'+d.min+' à '+d.max+' jours ouvrés</b><span>Immatriculation attendue entre le '+M.frDate(d.du)+' et le '+M.frDate(d.au)+' si le dossier démarre aujourd\'hui.</span></div></div>'
+   +'<div class="pd-sec"><div class="pd-st">Prix du dossier</div><table class="pd-px"><tbody>'+p.lignes.map(function(l){ return '<tr><td>'+esc(l.lbl)+'</td><td>'+M.eur(l.ht)+' HT</td></tr>'; }).join('')
+   +'<tr><td>TVA</td><td>'+M.eur(p.tva)+'</td></tr><tr class="tot"><td>Total</td><td>'+M.eur(p.total)+' TTC</td></tr></tbody></table>'
+   +p.options.map(function(x){ return '<div class="pd-opt">En option : '+esc(x.lbl)+', '+M.eur(x.ht)+' HT</div>'; }).join('')
+   +p.enSus.map(function(x){ return '<div class="pd-opt">En sus : '+esc(x.lbl)+', '+esc(x.txt)+'</div>'; }).join('')+'</div>'
+   +'<div class="pd-sec"><div class="pd-st">Points d\'attention</div>'+(res.risques.length?'<ul class="pd-list">'+res.risques.map(function(x){ return '<li><span class="pd-niv '+x.niv+'">'+NIV[x.niv]+'</span><div><b>'+esc(x.titre)+'</b><span>'+esc(x.txt)+'</span></div></li>'; }).join('')+'</ul>':'<p class="hint" style="margin:0">Aucun point bloquant repéré.</p>')+'</div>'
+   +(res.conseils.length?'<div class="pd-sec"><div class="pd-st">Nos conseils</div><ul class="pd-list">'+res.conseils.map(function(x){ return '<li><div><b>'+esc(x.titre)+'</b><span>'+esc(x.txt)+'</span></div></li>'; }).join('')+'</ul></div>':'')
+   +'<div class="pd-sec"><div class="pd-st">Documents à préparer</div><ul class="pd-list">'+res.documents.map(function(x){ return '<li><div><b>'+esc(x.label)+'</b>'+(x.pourquoi?'<span>'+esc(x.pourquoi)+'</span>':'')+'</div></li>'; }).join('')+'</ul></div>'
+   +'<div class="pd-legal">Pré-diagnostic indicatif : le cabinet le confirme avec vous avant de lancer le dossier. Frais de greffe et d\'annonce légale en vigueur à ce jour.</div>'; }
+function peindre(){ var x=calc(); document.getElementById('res').innerHTML=resHTML(x); document.getElementById('mini-f').textContent=x.reco.formalite; document.getElementById('mini-p').textContent=M.eur(x.prix.total)+' TTC · '+x.delai.min+' à '+x.delai.max+' jours ouvrés'; }
+var Q=document.getElementById('questions');
+Q.innerHTML=M.QUESTIONS.map(qHTML).join('');
+Q.addEventListener('click',function(e){ var b=e.target.closest('.pd-ch button'); if(!b) return; var box=b.parentNode, k=box.getAttribute('data-k'), v=b.getAttribute('data-v');
+  R[k]=(R[k]===v)?'':v; Array.prototype.forEach.call(box.querySelectorAll('button'),function(x){ x.classList.toggle('on',x.getAttribute('data-v')===R[k]); }); peindre(); });
+Q.addEventListener('input',function(e){ var k=e.target.getAttribute('data-k'); if(!k) return; R[k]=e.target.value; peindre(); });
+['nom','email','tel'].forEach(function(k){ document.getElementById('c-'+k).addEventListener('input',function(e){ C[k]=e.target.value; e.target.classList.remove('bad'); }); });
+peindre();
+function err(m){ var e=document.getElementById('err'); e.textContent=m; e.style.display=m?'block':'none'; }
+document.getElementById('send').addEventListener('click',function(){
+  err('');
+  if(!(C.nom||'').trim()){ document.getElementById('c-nom').classList.add('bad'); err('Indiquez votre nom.'); document.getElementById('c-nom').focus(); return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((C.email||'').trim())){ document.getElementById('c-email').classList.add('bad'); err('Indiquez une adresse e-mail valide.'); document.getElementById('c-email').focus(); return; }
+  var res=calc(); if(res.manquantes.length){ err('Répondez aux questions marquées d\'un astérisque.'); return; }
+  var data={v:'MQDIAGv1',R:R,contact:{nom:C.nom.trim(),email:C.email.trim(),tel:(C.tel||'').trim()},ref:REF,ts:Date.now()};
+  document.getElementById('p_subject').value='PRÉ-DIAGNOSTIC - '+data.contact.nom+' - '+res.reco.formalite;
+  document.getElementById('p_nom').value=data.contact.nom;
+  document.getElementById('p_email').value=data.contact.email;
+  document.getElementById('p_tel').value=data.contact.tel;
+  document.getElementById('p_resume').value=M.texte(res,R);
+  document.getElementById('p_data').value='MQDIAGv1:'+b64(JSON.stringify(data));
+  document.getElementById('p_next').value=location.href.split('#')[0]+'#ok';
+  try{ sessionStorage.setItem('mqdiag',JSON.stringify(data)); }catch(e){}
+  var b=document.getElementById('send'); b.disabled=true; b.textContent='Envoi en cours…';
+  document.getElementById('post').submit();
+});
+if(location.hash==='#ok'){ document.getElementById('cardForm').style.display='none'; document.getElementById('mini').style.display='none'; document.getElementById('cardOk').style.display='block';
+  try{ var s=JSON.parse(sessionStorage.getItem('mqdiag')||'null'); if(s&&s.R){ R=s.R; document.getElementById('okRes').innerHTML=resHTML(calc()); } }catch(e){} }
+})();
+</script>
+</body>
+</html>
