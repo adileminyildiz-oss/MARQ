@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=722;
+var LAST_VER=723;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -51103,7 +51103,9 @@ function testLienSignature() {
     var st=window.controleHumainEtat(d), c=d.controleHumain||{points:{}}, id=d.id;
     var badge={conforme:['ok','Conforme'],a_corriger:['ko','À corriger'],caduc:['warn','À revoir'],afaire:['','À faire']}[st.etat];
     var auto='';
-    try{ if(typeof window.controleQualite==='function'){ var r=window.controleQualite(d);
+    try{ if(typeof window.controle360==='function'){ var r3=window.controle360(d);
+      auto='<div class="mq-ch-auto">Contrôle 360° : <b>'+(r3.score==null?'—':r3.score)+' / 100</b> · '+r3.compte.critique+' critique(s), '+r3.compte.majeure+' majeure(s), '+r3.compte.mineure+' mineure(s) — détail dans la carte « Contrôle 360° » en tête de cet onglet.</div>'; }
+      else if(typeof window.controleQualite==='function'){ var r=window.controleQualite(d);
       auto='<div class="mq-ch-auto">Contrôle automatique : <b>'+E(r.verdict)+'</b> · '+r.score+' / 100'
         +(typeof window.ouvrirControleQualite==='function'?(' <button class="btn btn-sm btn-ghost" onclick="ouvrirControleQualite(\''+jq(id)+'\')">Voir le détail</button>'):'')
         +'</div>'; } }catch(e){}
@@ -51577,6 +51579,504 @@ function testLienSignature() {
     '.mq-zd-p{font-size:12.5px;line-height:1.55;color:#a9a9b2;margin:0 0 4px}',
     '.mq-zd-err{min-height:16px;margin-top:8px;font-size:12px;color:#f4b3aa}'
   ].join(''); document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script id="mq-360-723">
+/* ============================================================================
+   Mar'q — Contrôle 360° et rapport d'anomalies (v723)
+   ----------------------------------------------------------------------------
+   Le contrôle automatique existant notait trois blocs (juridique, formalités,
+   fiscal) et la TVA y restait toujours « à définir ». Le contrôle 360° relit
+   le dossier en SIX blocs, chacun noté sur 100 :
+
+     Juridique   forme, capital, répartition, dirigeant, objet, orthographe
+     Fiscal      IS / IR, cohérence avec la forme, TVA, franchise en base
+     Social      président assimilé salarié, gérant TNS, effectif prévu
+     Pièces      identité, domiciliation, dépôt du capital
+     Conformité  bénéficiaires effectifs, activité réglementée, autorisation
+     Dépôt       dossier INPI, pièces jointes, validation finale
+
+   Chaque point en défaut devient une anomalie classée Critique, Majeure ou
+   Mineure. Celles que le client peut lever (une pièce, une information) sont
+   réunies dans un RAPPORT qu'on lui envoie par e-mail — jamais sans que le
+   gestionnaire l'ait relu et ait cliqué sur « Envoyer ».
+
+   Les anomalies CRITIQUES entrent dans le contrôle zéro défaut (v722) : un
+   dossier dont la pièce d'identité est expirée, ou dont l'activité réglementée
+   n'a pas d'autorisation vérifiée, ne part pas au dépôt.
+   ============================================================================ */
+(function(){
+  if(window.__mq360) return; window.__mq360=1;
+
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function client(d){ try{ return (typeof clientById==='function'&&clientById((d.clientIds||[])[0]))||{}; }catch(e){ return {}; } }
+  function num(v){ var n=parseFloat(S(v).replace(/\s/g,'').replace(',','.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+  function plat(t){ return S(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  function dateFr(ts){ try{ return new Date(ts).toLocaleDateString('fr-FR'); }catch(e){ return ''; } }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  function dire(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function qui(){ try{ return (typeof auditUser==='function')?auditUser():'Admin'; }catch(e){ return 'Admin'; } }
+  function hist(d,t){ (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:t}); }
+  function ref(d){ return S(d.numeroDossier||d.ref||d.id); }
+
+  /* ---------------- ce que le dossier déclare ---------------- */
+  function type(d){ try{ return (typeof formaliteType==='function')?S(formaliteType(d)):''; }catch(e){ return ''; } }
+  function I(d){ return d.intake||{}; }
+  function forme(d){
+    var c=client(d), t=S(I(d).type||'').toUpperCase();
+    var f=S(d.forme||c.forme||'').toUpperCase().trim();
+    if(/^(SAS|SASU|SARL|EURL|SCI|EI|SNC)$/.test(t)&&(!f||(f==='SAS'&&t==='SASU')||(f==='SARL'&&t==='EURL'))) f=t;
+    if(!f){ var ty=type(d); f={creation_sas:'SAS',creation_sarl:'SARL',creation_sci:'SCI',creation_micro:'EI'}[ty]||''; }
+    return f;
+  }
+  function estCreation(d){ return /^creation_/.test(type(d)); }
+  function estSociete(d){ return estCreation(d)&&type(d)!=='creation_micro'&&forme(d)!=='EI'; }
+  function soc(d){ return I(d).societe||{}; }
+  function capital(d){ return num(soc(d).capital)||num(client(d).capital); }
+  function associes(d){
+    var a=(I(d).associes||[]).filter(function(x){ return x&&S(x.nom).trim(); });
+    if(!a.length) a=(client(d).associes||[]).filter(function(x){ return x&&S(x.nom).trim(); });
+    return a; }
+  function dirigeant(d){
+    var dir=I(d).direction||{}, c=client(d);
+    if(S(dir.nom).trim()) return {nom:(S(dir.prenom)+' '+S(dir.nom)).trim(),naissance:dir.naissance,lieu:dir.lieuNaissance,nationalite:dir.nationalite,adresse:dir.adresse};
+    var nom=S(c.president).trim(); if(!nom) return null;
+    var a=(c.associes||[]).filter(function(x){ return S(x.nom).trim()===nom; })[0]||{};
+    return {nom:nom,naissance:a.naissance,lieu:a.lieuNaissance,nationalite:a.nationalite,adresse:a.adresse||c.adresse};
+  }
+  function objetSocial(d){ return S(soc(d).objet||(client(d).activites||[])[0]||client(d).objet||'').trim(); }
+  function regimeFiscal(d){ var F=d.fiscal||{}; return S(F.regimeFiscal||soc(d).regime||client(d).regime).toUpperCase(); }
+  function tva(d){
+    var F=d.fiscal||{}, ap=I(d).apports||{};
+    var v=F.tva?({franchise:'Franchise en base',rs:'Réel simplifié',rn:'Réel normal'}[F.tva]||F.tva):(ap.tva||soc(d).tva||client(d).regimeTva||'');
+    return S(v).trim(); }
+  function regimeSocialDeclare(d){
+    var F=d.fiscal||{}, v=S(F.regimeSocial||(I(d).apports||{}).regimeSocial||'').toLowerCase();
+    if(!v) return ''; return /tns|non[- ]salari/.test(v)?'tns':'assimile'; }
+  function profil(d){ return I(d).profil||{}; }
+
+  /* Texte de l'activité, pour repérer une activité réglementée (liste v721) */
+  function reglementee(d){
+    if(typeof window.qualifDemande!=='function') return '';
+    var t=objetSocial(d)+' '+(client(d).activites||[]).join(' ')+' '+S(d.activite||'');
+    var r=window.qualifDemande({objet:t});
+    var x=(r&&r.raisons||[]).filter(function(s){ return /^Activité réglementée : /.test(s); })[0];
+    return x?x.replace(/^Activité réglementée : /,''):'';
+  }
+
+  function pieces(d){
+    var dem=null; try{ dem=(typeof espDemandeDe==='function')?espDemandeDe(d):null; }catch(e){}
+    return (d.attachments||[]).concat((dem&&dem!==d&&dem.attachments)||[]); }
+  function aPiece(d,cle,re){
+    var p=(d.pieces||{})[cle]; if(p&&(p.data||p.recu)) return true;
+    return pieces(d).some(function(a){ return re.test(plat(a&&(a.name||a.nom))); }); }
+
+  /* Fautes de frappe courantes. On ne prétend pas corriger l'orthographe :
+     on signale ce qui se voit à coup sûr. */
+  function fautes(txt){
+    var t=S(txt), f=[];
+    if(!t.trim()) return f;
+    if(/ {2,}/.test(t)) f.push('espace en double');
+    if(/ [,.](?!\d)/.test(t)) f.push('espace avant une virgule ou un point');
+    if(/,[^\s\d]/.test(t)) f.push('espace manquante après une virgule');
+    var m=t.toLowerCase().match(/\b([a-zàâçéèêëîïôûùüÿœ]{2,})\s+\1\b/);
+    if(m) f.push('mot répété : « '+m[1]+' '+m[1]+' »');
+    return f;
+  }
+
+  /* ---------------- la grille ---------------- */
+  var BLOCS=[['juridique','Juridique'],['fiscal','Fiscal'],['social','Social'],['pieces','Pièces'],['conformite','Conformité'],['depot','Dépôt']];
+  var GRAV={critique:['Critique','bloque le dépôt'],majeure:['Majeure','à régler avant signature'],mineure:['Mineure','à vérifier']};
+  var enCours=0;
+
+  function base(d){ var ds=window.dossierStatuts; var R=null; try{ R=(typeof ds==='function')?ds(d):null; }catch(e){}
+    var L={}; (R&&R.lignes||[]).forEach(function(x){ L[x.k]=x; }); return L; }
+
+  window.controle360=function(id,opts){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    opts=opts||{};
+    enCours++;
+    try{
+      var B={}; BLOCS.forEach(function(b){ B[b[0]]=[]; });
+      /* etat : ok | warn | ko | na ; une anomalie n'existe que pour ko (ou warn gradué) */
+      function P(bloc,k,lbl,etat,detail,a){
+        var p={k:k,lbl:lbl,etat:etat,detail:S(detail)};
+        if(a){ p.grav=a.grav; p.client=!!a.client; p.demande=S(a.demande||''); }
+        B[bloc].push(p); }
+      var creation=estCreation(d), societe=estSociete(d), f=forme(d), ty=type(d), L=base(d);
+      var cap=capital(d), ass=associes(d), dir=dirigeant(d);
+
+      /* ---- Juridique ---- */
+      if(!creation) P('juridique','forme','Forme juridique','na','modification d’une société existante');
+      else if(f) P('juridique','forme','Forme juridique','ok',f);
+      else P('juridique','forme','Forme juridique','ko','non renseignée',{grav:'majeure',client:false});
+
+      if(!societe) P('juridique','capital','Capital social','na','sans objet pour cette formalité');
+      else if(cap>0) P('juridique','capital','Capital social','ok',cap.toLocaleString('fr-FR')+' €');
+      else P('juridique','capital','Capital social','ko','capital manquant',{grav:'critique',client:true,demande:'Indiquez le montant du capital social.'});
+
+      if(!societe||!ass.length) P('juridique','repartition','Répartition du capital','na',societe?'associés non renseignés':'sans objet');
+      else {
+        var tot=ass.reduce(function(s,a){ return s+num(a.apport); },0);
+        var parts=ass.reduce(function(s,a){ return s+num(a.parts); },0), nb=num((I(d).titres||{}).nbTitres);
+        var pb=[];
+        if(cap>0&&tot>0&&Math.abs(tot-cap)>=1) pb.push('apports '+tot.toLocaleString('fr-FR')+' € pour un capital de '+cap.toLocaleString('fr-FR')+' €');
+        if(nb>0&&parts>0&&parts!==nb) pb.push(parts+' titres répartis sur '+nb+' émis');
+        if(/^(SASU|EURL)$/.test(f)&&ass.length>1) pb.push(ass.length+' associés pour une société unipersonnelle');
+        if(pb.length) P('juridique','repartition','Répartition du capital','ko',pb.join(' ; '),{grav:'majeure',client:true,demande:'Confirmez la répartition du capital entre les associés ('+pb.join(' ; ')+').'});
+        else P('juridique','repartition','Répartition du capital','ok',ass.length+' associé'+(ass.length>1?'s':'')+', répartition cohérente');
+      }
+
+      var titreDir=/^(SARL|EURL|SCI)$/.test(f)?'Gérant':'Président';
+      if(!creation&&ty!=='changement_dirigeant') P('juridique','dirigeant','Dirigeant','na','inchangé par cette formalité');
+      else if(!dir) P('juridique','dirigeant',titreDir,'ko','non renseigné',{grav:'critique',client:true,demande:'Indiquez le nom du '+titreDir.toLowerCase()+'.'});
+      else {
+        var manque=[['naissance','date de naissance'],['lieu','lieu de naissance'],['nationalite','nationalité'],['adresse','adresse personnelle']]
+          .filter(function(x){ return !S(dir[x[0]]).trim(); }).map(function(x){ return x[1]; });
+        if(manque.length) P('juridique','dirigeant',titreDir,'ko',dir.nom+' — manque : '+manque.join(', '),{grav:'majeure',client:true,demande:'Complétez l’identité de '+dir.nom+' : '+manque.join(', ')+'.'});
+        else P('juridique','dirigeant',titreDir,'ok',dir.nom);
+      }
+
+      var obj=objetSocial(d);
+      if(!creation&&ty!=='objet') P('juridique','objet','Objet social','na','inchangé par cette formalité');
+      else if(!obj) P('juridique','objet','Objet social','ko','absent',{grav:'majeure',client:true,demande:'Décrivez précisément l’activité de la société (objet social).'});
+      else if(obj.length<25||obj.split(/\s+/).length<4) P('juridique','objet','Objet social','ko','incomplet : « '+obj+' »',{grav:'majeure',client:true,demande:'Précisez l’objet social : « '+obj+' » est trop vague pour les statuts.'});
+      else P('juridique','objet','Objet social','ok',obj.length>60?obj.slice(0,57)+'…':obj);
+
+      var champs=[['dénomination',soc(d).denomination||client(d).denomination],['objet social',obj],['nom du dirigeant',dir&&dir.nom],['adresse du siège',(I(d).siege||{}).rue||client(d).siege]];
+      var fs=[]; champs.forEach(function(c){ fautes(c[1]).forEach(function(x){ fs.push(c[0]+' : '+x); }); });
+      if(fs.length) P('juridique','orthographe','Orthographe et typographie','ko',fs.join(' ; '),{grav:'mineure',client:true,demande:'Confirmez l’orthographe exacte ('+fs.join(' ; ')+').'});
+      else P('juridique','orthographe','Orthographe et typographie','ok','aucune faute de frappe repérée');
+
+      /* ---- Fiscal ---- */
+      var rf=regimeFiscal(d), tv=tva(d), pr=profil(d);
+      if(!societe) { P('fiscal','regime','Impôt : IS ou IR','na','sans objet pour cette formalité'); P('fiscal','coherence','Cohérence forme / impôt','na','');}
+      else {
+        if(rf==='IS'||rf==='IR') P('fiscal','regime','Impôt : IS ou IR','ok',rf);
+        else P('fiscal','regime','Impôt : IS ou IR','ko','non choisi',{grav:'majeure',client:true,demande:'Confirmez le régime d’imposition souhaité (impôt sur les sociétés ou impôt sur le revenu).'});
+        if(rf==='IR'&&/^(SAS|SASU|SARL)$/.test(f)) P('fiscal','coherence','Cohérence forme / impôt','warn','option IR d’une '+f+' : limitée à 5 exercices, sous conditions (PME de moins de 5 ans, non cotée) — à justifier',{grav:'mineure',client:false});
+        else if(rf==='IS'&&/^(EURL|SCI)$/.test(f)) P('fiscal','coherence','Cohérence forme / impôt','warn','l’IS est une option pour une '+f+' : elle est irrévocable',{grav:'mineure',client:false});
+        else P('fiscal','coherence','Cohérence forme / impôt','ok',rf?(f+' à l’'+rf):'');
+      }
+      if(!creation) { P('fiscal','tva','Régime de TVA','na','inchangé par cette formalité'); P('fiscal','franchise','Franchise en base','na',''); }
+      else {
+        if(tv) P('fiscal','tva','Régime de TVA','ok',tv);
+        else P('fiscal','tva','Régime de TVA','ko','non choisi',{grav:'majeure',client:true,demande:'Indiquez le régime de TVA souhaité : franchise en base, réel simplifié ou réel normal.'});
+        if(!/franchise/i.test(tv)) P('fiscal','franchise','Franchise en base','na',tv?'régime réel retenu':'');
+        else {
+          var ca=num(pr.caPrev), com=S(pr.activiteType)==='commerciale', seuil=com?85000:37500;
+          if(ca>seuil) P('fiscal','franchise','Franchise en base','ko','chiffre d’affaires prévu '+ca.toLocaleString('fr-FR')+' € au-delà du seuil de '+seuil.toLocaleString('fr-FR')+' €',{grav:'majeure',client:false});
+          else if(S(pr.tvaInvest)==='oui') P('fiscal','franchise','Franchise en base','warn','investissements prévus : la franchise empêche de récupérer la TVA',{grav:'mineure',client:false});
+          else P('fiscal','franchise','Franchise en base','ok',ca?('CA prévu '+ca.toLocaleString('fr-FR')+' € sous le seuil'):'retenue');
+        }
+      }
+
+      /* ---- Social ---- */
+      var decl=regimeSocialDeclare(d), attendu='';
+      if(societe&&/^(SAS|SASU)$/.test(f)) attendu='assimile';
+      else if(societe&&f==='EURL') attendu='tns';
+      else if(societe&&f==='SARL'&&dir){
+        var totP=ass.reduce(function(s,a){ return s+num(a.parts); },0);
+        var nm=plat(dir.nom), g=ass.filter(function(a){ var n=plat(S(a.prenom)+' '+S(a.nom)); return n.trim()===nm||nm.indexOf(plat(a.nom))>=0; })[0];
+        if(g&&totP>0) attendu=(num(g.parts)/totP>0.5)?'tns':'assimile';
+      }
+      var LBL={assimile:'assimilé salarié',tns:'travailleur non salarié (TNS)'};
+      if(societe&&/^(SAS|SASU)$/.test(f)){
+        if(decl&&decl!=='assimile') P('social','president','Président assimilé salarié','ko','déclaré TNS : un président de '+f+' relève du régime général',{grav:'majeure',client:false});
+        else P('social','president','Président assimilé salarié','ok',decl?'déclaré assimilé salarié':'régime général (déduit de la forme)');
+      } else P('social','president','Président assimilé salarié','na','');
+      if(societe&&/^(SARL|EURL)$/.test(f)){
+        if(!attendu) P('social','gerant','Gérant : TNS ou assimilé','warn','répartition des parts du gérant inconnue',{grav:'mineure',client:false});
+        else if(decl&&decl!==attendu) P('social','gerant','Gérant : TNS ou assimilé','ko','déclaré '+LBL[decl]+', attendu : '+LBL[attendu],{grav:'majeure',client:false});
+        else P('social','gerant','Gérant : TNS ou assimilé','ok',LBL[attendu]);
+      } else P('social','gerant','Gérant : TNS ou assimilé','na','');
+      var eff=S(soc(d).effectif||pr.nbSalaries||client(d).salaries||'').trim();
+      if(!creation) P('social','effectif','Effectif prévisionnel','na','');
+      else if(eff!=='') P('social','effectif','Effectif prévisionnel','ok',eff+' salarié'+(num(eff)>1?'s':'')+' prévu'+(num(eff)>1?'s':''));
+      else P('social','effectif','Effectif prévisionnel','ko','non renseigné',{grav:'mineure',client:true,demande:'Indiquez le nombre de salariés prévus la première année (0 si aucun).'});
+
+      /* ---- Pièces ---- */
+      var piecesOk=L.pieces&&L.pieces.etat==='oui';
+      var pc=[]; try{ pc=(typeof pieceControles==='function')?(pieceControles(d)||[]):[]; }catch(e){}
+      var exp=pc.filter(function(x){ return x.k==='expiration'; })[0];
+      var iaExp=pieces(d).some(function(a){ var lu=a&&a.iaLu&&a.iaLu.data; return lu&&lu.expiree===true; });
+      var aId=piecesOk||aPiece(d,'identite',/cni|identit|passeport|titre de sejour|carte nationale/);
+      if(!creation&&ty!=='changement_dirigeant') P('pieces','identite','Pièce d’identité','na','');
+      else if(!aId) P('pieces','identite','Pièce d’identité','ko','absente',{grav:'critique',client:true,demande:'Envoyez la pièce d’identité du dirigeant (recto et verso, en cours de validité).'});
+      else if((exp&&exp.statut==='ko')||iaExp) P('pieces','identite','Pièce d’identité','ko','pièce expirée'+(function(){ var m=exp&&exp.statut==='ko'&&S(exp.detail).match(/le ([\d\/.\s]+\d)/); return m?(' le '+m[1].trim()):''; })(),{grav:'critique',client:true,demande:'La pièce d’identité transmise est expirée : envoyez une pièce en cours de validité.'});
+      else if(exp&&exp.statut==='warn') P('pieces','identite','Pièce d’identité','warn','reçue — date de validité à vérifier sur la pièce',{grav:'mineure',client:false});
+      else P('pieces','identite','Pièce d’identité','ok','reçue, en cours de validité');
+
+      var iaVieux=pieces(d).some(function(a){ var lu=a&&a.iaLu&&a.iaLu.data; return lu&&lu.recent===false; });
+      var aDom=piecesOk||aPiece(d,'domiciliation',/domicil|edf|engie|facture|quittance|bail|justificatif|attestation d.heberg|taxe fonciere/)||!!(((d.pieces||{}).edf||{}).data);
+      if(!creation&&ty!=='transfert_siege') P('pieces','domiciliation','Domiciliation du siège','na','');
+      else if(!aDom) P('pieces','domiciliation','Domiciliation du siège','ko','justificatif absent',{grav:'critique',client:true,demande:'Envoyez le justificatif du siège : contrat de domiciliation, bail, ou justificatif de domicile de moins de 3 mois.'});
+      else if(iaVieux) P('pieces','domiciliation','Domiciliation du siège','ko','justificatif de plus de 3 mois',{grav:'majeure',client:true,demande:'Le justificatif de domicile a plus de 3 mois : envoyez-en un plus récent.'});
+      else P('pieces','domiciliation','Domiciliation du siège','ok','justificatif reçu');
+
+      var lc=L.capital;
+      if(!lc||lc.etat==='na') P('pieces','capital','Attestation de dépôt du capital','na','sans objet pour cette formalité');
+      else if(lc.etat==='oui') P('pieces','capital','Attestation de dépôt du capital','ok',lc.detail);
+      else P('pieces','capital','Attestation de dépôt du capital','ko',lc.detail||'attendue',{grav:'critique',client:true,demande:'Déposez le capital en banque et envoyez-nous l’attestation de dépôt des fonds.'});
+
+      /* ---- Conformité ---- */
+      var benef=(I(d).beneficiaires||[]).filter(function(b){ return b&&S(b.nom).trim(); }).length;
+      try{ if(!benef&&typeof rbeBeneficiaires==='function') benef=(rbeBeneficiaires(d)||[]).length; }catch(e){}
+      if(!societe&&ty!=='cession') P('conformite','be','Bénéficiaires effectifs','na','sans objet pour cette formalité');
+      else if(benef) P('conformite','be','Bénéficiaires effectifs','ok',benef+' déclaré'+(benef>1?'s':''));
+      else P('conformite','be','Bénéficiaires effectifs','ko','aucun déclaré',{grav:'critique',client:true,demande:'Indiquez les personnes qui détiennent plus de 25 % du capital ou des droits de vote (bénéficiaires effectifs).'});
+
+      var reg=reglementee(d), au=(d.c360||{}).autorisation||null;
+      if(reg) P('conformite','reglementee','Activité réglementée','warn',reg);
+      else P('conformite','reglementee','Activité réglementée','ok','aucune activité réglementée repérée dans l’objet');
+      if(!reg) P('conformite','autorisation','Autorisations','na','aucune autorisation requise');
+      else if(au&&au.ok) P('conformite','autorisation','Autorisations','ok','vérifiée le '+dateFr(au.ts)+(au.par?(' par '+au.par):''));
+      else P('conformite','autorisation','Autorisations','ko','justificatif requis pour : '+reg,{grav:'critique',client:true,demande:'Votre activité ('+reg+') est réglementée : envoyez le justificatif requis (diplôme, carte professionnelle, agrément ou attestation d’assurance).'});
+
+      /* ---- Dépôt ---- */
+      if(!opts.sansDepot){
+        var horsGreffe=L.depot&&L.depot.etat==='na';
+        if(horsGreffe){ ['inpi','pj','finale'].forEach(function(k,i){ P('depot',k,['Dossier INPI','Pièces jointes au dépôt','Validation finale'][i],'na','pas de dépôt au greffe'); }); }
+        else {
+          var bloque=['actes','signature'].filter(function(k){ return L[k]&&L[k].etat!=='oui'&&L[k].etat!=='na'; }).map(function(k){ return L[k].lbl.toLowerCase(); });
+          if(bloque.length) P('depot','inpi','Dossier INPI','ko','manque : '+bloque.join(', '),{grav:'majeure',client:false});
+          else P('depot','inpi','Dossier INPI','ok','actes générés et signés');
+          var pj=[]; try{ pj=(typeof window.im5Pieces==='function')?(window.im5Pieces(d)||[]):[]; }catch(e){}
+          var man=pj.filter(function(p){ return p&&!p.ok; });
+          if(!pj.length) P('depot','pj','Pièces jointes au dépôt','na','');
+          else if(man.length) P('depot','pj','Pièces jointes au dépôt','ko',(pj.length-man.length)+' / '+pj.length+' — manque : '+man.map(function(p){ return S(p.l); }).join(', '),{grav:'majeure',client:false});
+          else P('depot','pj','Pièces jointes au dépôt','ok',pj.length+' / '+pj.length+' réunies');
+          var Z=null; try{ Z=(typeof window.zeroDefaut==='function')?window.zeroDefaut(d):null; }catch(e){}
+          var n1=Z&&Z.n1&&Z.n1.etat==='conforme', n2=Z&&Z.n2&&Z.n2.ok;
+          if(d.immat&&d.immat.depose) P('depot','finale','Validation finale','ok','dépôt constaté');
+          else if(n1&&n2) P('depot','finale','Validation finale','ok','niveaux 1 et 2 validés');
+          else P('depot','finale','Validation finale','ko',(n1?'':'niveau 1 (contrôle humain)')+(n1||n2?'':' et ')+(n2?'':'niveau 2 (responsable conformité)')+' à donner',{grav:'majeure',client:false});
+        }
+      }
+
+      /* ---- scores ---- */
+      var blocs=BLOCS.map(function(b){
+        var pts=B[b[0]], app=pts.filter(function(p){ return p.etat!=='na'; });
+        var ok=app.filter(function(p){ return p.etat==='ok'; }).length, w=app.filter(function(p){ return p.etat==='warn'; }).length;
+        return {k:b[0],titre:b[1],points:pts,applicables:app.length,ok:ok,score:app.length?Math.round((ok+0.5*w)/app.length*100):null}; });
+      var app=0, pts=0; blocs.forEach(function(b){ if(b.score!=null){ app+=b.applicables; pts+=b.score*b.applicables/100; } });
+      var anomalies=[];
+      blocs.forEach(function(b){ b.points.forEach(function(p){ if(p.grav) anomalies.push({grav:p.grav,bloc:b.k,blocTitre:b.titre,k:b.k+'.'+p.k,lbl:p.lbl,detail:p.detail,client:p.client,demande:p.demande}); }); });
+      var ordre={critique:0,majeure:1,mineure:2};
+      anomalies.sort(function(a,b){ return ordre[a.grav]-ordre[b.grav]; });
+      var n={critique:0,majeure:0,mineure:0}; anomalies.forEach(function(a){ n[a.grav]++; });
+      return {blocs:blocs,score:app?Math.round(pts/app*100):null,anomalies:anomalies,compte:n,
+        pourClient:anomalies.filter(function(a){ return a.client; })};
+    } finally { enCours--; }
+  };
+
+  /* ---------------- le zéro défaut tient compte des critiques ----------------
+     Seules les critiques que le zéro défaut ne voyait pas encore sont ajoutées
+     (le capital et les bénéficiaires effectifs y sont déjà). Pendant le calcul
+     du 360, on ne rappelle pas le 360 : le bloc Dépôt lit le zéro défaut. */
+  var DEJA={'pieces.capital':1,'conformite.be':1};
+  var _zd=window.zeroDefaut;
+  if(typeof _zd==='function'){
+    window.zeroDefaut=function(id){
+      var Z=_zd.apply(this,arguments); if(!Z||enCours) return Z;
+      var d=(typeof id==='object')?id:dossier(id); if(!d) return Z;
+      var C=null; try{ C=window.controle360(d,{sansDepot:true}); }catch(e){}
+      var crit=(C&&C.anomalies||[]).filter(function(a){ return a.grav==='critique'&&!DEJA[a.k]; });
+      if(!crit.length) return Z;
+      var aj=crit.map(function(a){ return {k:'360:'+a.k,lbl:'Contrôle 360° — '+a.lbl,detail:a.detail}; });
+      var i=0; while(i<Z.anomalies.length&&!/^niveau[12]$/.test(Z.anomalies[i].k)) i++;
+      Z.anomalies.splice.apply(Z.anomalies,[i,0].concat(aj));
+      Z.pretN2=Z.anomalies.every(function(a){ return a.k==='niveau2'; });
+      Z.ok=false;
+      Z.anomalies.forEach(function(a){ if(a.k==='niveau2'&&!Z.n2.caduc&&!Z.pretN2) a.detail='possible une fois les anomalies levées'; });
+      return Z;
+    };
+  }
+
+  /* ---------------- actions ---------------- */
+  window.c360Autorisation=function(id,ok){
+    var d=dossier(id); if(!d) return;
+    d.c360=d.c360||{};
+    if(ok){ d.c360.autorisation={ok:true,ts:Date.now(),par:qui()}; hist(d,'Autorisation d’exercice vérifiée ('+reglementee(d)+')'); trace('Contrôle 360°','Autorisation vérifiée — '+ref(d)); }
+    else { delete d.c360.autorisation; hist(d,'Vérification de l’autorisation retirée'); trace('Contrôle 360°','Autorisation : vérification retirée — '+ref(d)); }
+    sauver(); rendre();
+  };
+
+  function destinataire(d){
+    var c=client(d), m=S(c.email).trim();
+    if(!m) m=S((I(d).contact||{}).email).trim();
+    if(!m){ try{ var dem=(typeof espDemandeDe==='function')?espDemandeDe(d):null; if(dem&&typeof demReplyTo==='function') m=S(demReplyTo(dem)).trim(); }catch(e){} }
+    return m;
+  }
+  function politesse(d){
+    var dir=I(d).direction||{};
+    if(S(dir.nom).trim()) return 'Bonjour '+(S(dir.civilite)?(S(dir.civilite)+' '):'')+S(dir.nom).trim()+',';
+    return 'Bonjour,';
+  }
+  function signature(d){
+    var cab=''; try{ if(typeof window.courrierResoudre==='function') cab=S(window.courrierResoudre('{cabinet}',d)); }catch(e){}
+    if(!cab||cab==='{cabinet}') cab='AEM CONSEIL';
+    return cab;
+  }
+  window.c360Mail=function(id){
+    var d=dossier(id); if(!d) return null;
+    var C=window.controle360(d), L=C.pourClient;
+    var nom=S(soc(d).denomination||client(d).denomination||d.denom||'votre société');
+    var grp=[['critique','À traiter en priorité — le dossier ne peut pas être déposé sans ces éléments :'],['majeure','Important — à régler avant la signature des actes :'],['mineure','À vérifier :']];
+    var corps=politesse(d)+'\n\nNous avons contrôlé le dossier '+nom+' (réf. '+ref(d)+'). Pour le faire avancer, nous avons besoin des éléments suivants.\n';
+    grp.forEach(function(g){ var x=L.filter(function(a){ return a.grav===g[0]; }); if(!x.length) return;
+      corps+='\n'+g[1]+'\n'+x.map(function(a){ return '  - '+a.demande; }).join('\n')+'\n'; });
+    corps+='\nVous pouvez répondre directement à ce message en joignant les pièces demandées.\n\nBien cordialement,\n'+signature(d);
+    return {to:destinataire(d),sujet:'Dossier '+nom+' — éléments à nous transmettre ('+ref(d)+')',corps:corps,n:L.length};
+  };
+
+  window.c360OuvrirEnvoi=function(id){
+    var d=dossier(id); if(!d) return;
+    var M=window.c360Mail(id);
+    if(!M.n){ dire('Rien à demander au client : aucune anomalie ne dépend de lui.'); return; }
+    var b='<div class="mq-360-mail"><p>Relisez le message avant l’envoi. Seules les '+M.n+' demande(s) que le client peut satisfaire y figurent ; les points internes au cabinet restent au dossier.</p>'
+      +'<label>Destinataire<input id="c360-to" value="'+E(M.to)+'" placeholder="adresse e-mail du client"></label>'
+      +'<label>Objet<input id="c360-sujet" value="'+E(M.sujet)+'"></label>'
+      +'<label>Message<textarea id="c360-corps" rows="14">'+E(M.corps)+'</textarea></label></div>';
+    var f='<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="c360Envoyer(\''+jq(id)+'\')">Envoyer au client</button>';
+    if(typeof openModal==='function') openModal('Rapport d’anomalies au client',b,f);
+  };
+
+  window.c360Envoyer=function(id){
+    var d=dossier(id); if(!d) return false;
+    function v(x){ var e=document.getElementById(x); return e?S(e.value).trim():''; }
+    var M=window.c360Mail(id), to=v('c360-to')||M.to, sujet=v('c360-sujet')||M.sujet, corps=v('c360-corps')||M.corps;
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){ dire('Indiquez une adresse e-mail valide pour le client.'); return false; }
+    var direct=false;
+    try{ direct=(typeof demEnvoiSilencieux==='function'&&demEnvoiSilencieux(to,sujet,corps))||(typeof demEnvoiDirect==='function'&&demEnvoiDirect(to,sujet,corps)); }catch(e){}
+    d.c360=d.c360||{}; (d.c360.envois=d.c360.envois||[]).unshift({ts:Date.now(),to:to,n:M.n,par:qui(),direct:!!direct});
+    d.c360.envois=d.c360.envois.slice(0,20);
+    hist(d,'Rapport d’anomalies envoyé au client ('+M.n+' demande'+(M.n>1?'s':'')+')');
+    trace('Contrôle 360°','Rapport d’anomalies envoyé à '+to+' — '+ref(d)+' ('+M.n+')');
+    sauver(); try{ if(typeof closeModal==='function') closeModal(); }catch(e){}
+    dire(direct?'Rapport envoyé au client.':'Rapport préparé dans votre messagerie : vérifiez puis envoyez.');
+    rendre(); return true;
+  };
+
+  window.c360Imprimer=function(id){
+    var d=dossier(id); if(!d) return;
+    var C=window.controle360(d);
+    var nom=S(soc(d).denomination||client(d).denomination||d.denom||'');
+    var h='<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d’anomalies — '+E(nom)+'</title><style>'
+      +'body{font:13px/1.5 system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}'
+      +'table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f2f2f2}'
+      +'.g{font-weight:700}.critique{color:#a4271b}.majeure{color:#8a5a00}.mineure{color:#555}</style></head><body>'
+      +'<h1>Rapport d’anomalies — '+E(nom)+'</h1><div>Dossier '+E(ref(d))+' · contrôle 360° du '+E(dateFr(Date.now()))+' · score '+(C.score==null?'—':C.score)+' / 100</div>'
+      +'<h2>Scores par bloc</h2><table><tr>'+C.blocs.map(function(b){ return '<th>'+E(b.titre)+'</th>'; }).join('')+'</tr><tr>'
+      +C.blocs.map(function(b){ return '<td>'+(b.score==null?'sans objet':(b.score+' / 100'))+'</td>'; }).join('')+'</tr></table>'
+      +'<h2>Anomalies</h2>'+(C.anomalies.length?('<table><tr><th>Gravité</th><th>Bloc</th><th>Point</th><th>Constat</th><th>Côté</th></tr>'
+      +C.anomalies.map(function(a){ return '<tr><td class="g '+a.grav+'">'+GRAV[a.grav][0]+'</td><td>'+E(a.blocTitre)+'</td><td>'+E(a.lbl)+'</td><td>'+E(a.detail)+'</td><td>'+(a.client?'client':'cabinet')+'</td></tr>'; }).join('')+'</table>'):'<p>Aucune anomalie.</p>')
+      +'</body></html>';
+    try{ var w=window.open('','_blank'); if(w&&w.document){ w.document.write(h); w.document.close(); if(w.focus) w.focus(); if(w.print) setTimeout(function(){ try{ w.print(); }catch(e){} },300); } }catch(e){}
+    trace('Contrôle 360°','Rapport d’anomalies imprimé — '+ref(d));
+  };
+
+  /* ---------------- la carte ---------------- */
+  function carte(d){
+    var C=window.controle360(d), id=d.id;
+    var cls=C.compte.critique?'ko':(C.compte.majeure?'warn':'ok');
+    var tete='<span class="mq-360-score '+cls+'">'+(C.score==null?'—':C.score)+' / 100</span>';
+    var blocs=C.blocs.map(function(b){
+      var sc=b.score, t=sc==null?'na':(sc>=100?'ok':(sc>=60?'warn':'ko'));
+      return '<div class="mq-360-bloc '+t+'"><div class="mq-360-bh"><b>'+E(b.titre)+'</b><span>'+(sc==null?'sans objet':(sc+' / 100'))+'</span></div>'
+        +'<div class="mq-360-bar"><i style="width:'+(sc==null?0:sc)+'%"></i></div>'
+        +(function(){
+          function li(p){
+          var extra='';
+          if(b.k==='conformite'&&p.k==='autorisation'&&p.etat!=='na')
+            extra=p.etat==='ok'?' <button class="btn btn-sm btn-ghost" onclick="c360Autorisation(\''+jq(id)+'\',false)">Retirer</button>'
+                              :' <button class="btn btn-sm" onclick="c360Autorisation(\''+jq(id)+'\',true)">Autorisation vérifiée</button>';
+          return '<li class="'+p.etat+'" title="'+E(p.detail)+'"><span class="d"></span><div><b>'+E(p.lbl)+'</b>'+(p.detail?('<span>'+E(p.detail)+'</span>'):'')+extra+'</div></li>'; }
+          /* ce qui demande une action reste sous les yeux ; les points conformes
+             et sans objet se replient, pour que la carte tienne à l'écran */
+          var vus=b.points.filter(function(p){ return p.etat==='ko'||p.etat==='warn'; });
+          var reste=b.points.filter(function(p){ return p.etat==='ok'||p.etat==='na'; });
+          var nOk=reste.filter(function(p){ return p.etat==='ok'; }).length;
+          return (vus.length?('<ul>'+vus.map(li).join('')+'</ul>'):'<div class="mq-360-tout">Tous les points sont conformes.</div>')
+            +(reste.length?('<details class="mq-360-plus"><summary>'+(nOk?(nOk+' point'+(nOk>1?'s':'')+' conforme'+(nOk>1?'s':'')):'')+(nOk&&reste.length>nOk?' · ':'')+(reste.length>nOk?((reste.length-nOk)+' sans objet'):'')+'</summary><ul>'+reste.map(li).join('')+'</ul></details>'):'');
+        })()+'</div>'; }).join('');
+    var rap='';
+    if(!C.anomalies.length) rap='<div class="mq-360-vide">Aucune anomalie : le dossier est conforme sur les six blocs.</div>';
+    else rap=['critique','majeure','mineure'].map(function(g){
+      var x=C.anomalies.filter(function(a){ return a.grav===g; }); if(!x.length) return '';
+      return '<div class="mq-360-grp '+g+'"><div class="mq-360-gh"><b>'+GRAV[g][0]+'</b><span>'+x.length+' · '+GRAV[g][1]+'</span></div><ul>'
+        +x.map(function(a){ return '<li><span class="mq-360-tag">'+E(a.blocTitre)+'</span><div><b>'+E(a.lbl)+'</b><span>'+E(a.detail)+'</span></div>'
+          +'<em>'+(a.client?'à demander au client':'cabinet')+'</em></li>'; }).join('')+'</ul></div>'; }).join('');
+    var env=(d.c360&&d.c360.envois||[])[0];
+    var nc=C.pourClient.length;
+    var acts='<button class="btn btn-ghost" onclick="c360Imprimer(\''+jq(id)+'\')">Imprimer le rapport</button>'
+      +'<button class="btn btn-pri'+(nc?'':' is-disabled')+'" onclick="c360OuvrirEnvoi(\''+jq(id)+'\')">'+(nc?('Envoyer au client ('+nc+')'):'Rien à demander au client')+'</button>';
+    return '<div class="card mq-360-card"><div class="card-h"><h2>Contrôle 360°</h2>'+tete+'</div><div class="card-b">'
+      +'<div class="mq-360-grid">'+blocs+'</div>'
+      +'<div class="mq-360-rap"><div class="mq-360-rh">Rapport d’anomalies'
+        +'<span>'+C.compte.critique+' critique'+(C.compte.critique>1?'s':'')+' · '+C.compte.majeure+' majeure'+(C.compte.majeure>1?'s':'')+' · '+C.compte.mineure+' mineure'+(C.compte.mineure>1?'s':'')+'</span></div>'+rap+'</div>'
+      +(env?('<div class="mq-360-env">Dernier envoi au client le '+E(dateFr(env.ts))+' à '+E(env.to)+' ('+env.n+' demande'+(env.n>1?'s':'')+').</div>'):'')
+      +'<div class="mq-360-acts">'+acts+'</div></div></div>';
+  }
+  window.c360Carte=function(id){ var d=dossier(id); return d?carte(d):''; };
+
+  /* Peint dans les onglets Pièces et Actes, en tête du panneau (même
+     principe que les cartes v721/v722 : organize() range les cartes du
+     Traitement dans les panneaux, on peint donc après le rendu). */
+  var ONGLETS={pieces:1,actes:1};
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace') return;
+    var d=dossier(state.espaceDossier); if(!d) return;
+    var tab=state.espTab||'demande'; if(!ONGLETS[tab]) return;
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="'+tab+'"]'); if(!panel||panel.querySelector('.mq-360-card')) return;
+    var t=document.createElement('div'); t.innerHTML=carte(d); var el=t.firstElementChild; if(!el) return;
+    panel.insertBefore(el,panel.firstChild);
+  }catch(e){} }
+  window.c360Peindre=peindre;
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__c360){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); return x; };
+    window.render.__c360=1; } }catch(e){}
+
+  try{ var st=document.createElement('style'); st.id='mq-360-css'; st.textContent=[
+    '.mq-360-score{margin-left:auto;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid #3a3a40}',
+    '.mq-360-score.ok{border-color:rgba(84,150,104,.6);color:#a9dcbc}',
+    '.mq-360-score.warn{border-color:rgba(200,150,60,.6);color:#e8c98a}',
+    '.mq-360-score.ko{border-color:rgba(200,90,80,.7);color:#f4b3aa;background:rgba(160,50,40,.14)}',
+    '.mq-360-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:10px;margin-bottom:14px}',
+    '.mq-360-tout{font-size:12px;color:#a9dcbc}',
+    '.mq-360-plus{margin-top:6px;font-size:12px}.mq-360-plus summary{cursor:pointer;color:var(--ink-3,#8a8a93);list-style:revert}.mq-360-plus ul{margin-top:6px}',
+    '.mq-360-bloc{border:1px solid var(--line-soft,#2a2a30);border-radius:10px;padding:10px 12px}',
+    '.mq-360-bh{display:flex;align-items:baseline;gap:8px;font-size:13px}.mq-360-bh span{margin-left:auto;font-size:12px;color:var(--ink-3,#8a8a93)}',
+    '.mq-360-bar{height:4px;border-radius:4px;background:rgba(255,255,255,.07);margin:7px 0 8px;overflow:hidden}.mq-360-bar i{display:block;height:100%;background:#8a8a93}',
+    '.mq-360-bloc.ok .mq-360-bar i{background:#5a9a70}.mq-360-bloc.warn .mq-360-bar i{background:#c8963c}.mq-360-bloc.ko .mq-360-bar i{background:#c85a50}',
+    '.mq-360-bloc ul,.mq-360-grp ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}',
+    '.mq-360-bloc li{display:flex;gap:8px;font-size:12px;line-height:1.35}.mq-360-bloc li div{min-width:0}',
+    '.mq-360-bloc li b{font-weight:600;display:block}.mq-360-bloc li span:not(.d){color:var(--ink-3,#8a8a93);display:block;overflow:hidden;text-overflow:ellipsis}',
+    '.mq-360-bloc li .d{flex:0 0 7px;height:7px;border-radius:50%;margin-top:5px;background:#55555c}',
+    '.mq-360-bloc li.ok .d{background:#5a9a70}.mq-360-bloc li.warn .d{background:#c8963c}.mq-360-bloc li.ko .d{background:#c85a50}.mq-360-bloc li.na{opacity:.5}',
+    '.mq-360-bloc li .btn{margin-top:4px}',
+    '.mq-360-rap{border-top:1px solid var(--line-soft,#2a2a30);padding-top:12px}',
+    '.mq-360-rh{display:flex;align-items:baseline;gap:10px;font-weight:700;font-size:13.5px;margin-bottom:10px}.mq-360-rh span{font-weight:500;font-size:12px;color:var(--ink-3,#8a8a93)}',
+    '.mq-360-grp{margin-bottom:10px}.mq-360-gh{display:flex;gap:8px;align-items:baseline;font-size:12.5px;margin-bottom:6px}.mq-360-gh span{color:var(--ink-3,#8a8a93);font-size:12px}',
+    '.mq-360-grp.critique .mq-360-gh b{color:#f4b3aa}.mq-360-grp.majeure .mq-360-gh b{color:#e8c98a}.mq-360-grp.mineure .mq-360-gh b{color:#c5c5cc}',
+    '.mq-360-grp li{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border:1px solid var(--line-soft,#2a2a30);border-radius:9px;font-size:12.5px}',
+    '.mq-360-grp.critique li{border-color:rgba(200,90,80,.45)}.mq-360-grp.majeure li{border-color:rgba(200,150,60,.4)}',
+    '.mq-360-grp li div{flex:1;min-width:0}.mq-360-grp li b{display:block;font-weight:600}.mq-360-grp li div span{color:var(--ink-3,#8a8a93)}',
+    '.mq-360-grp li em{font-style:normal;font-size:11px;color:var(--ink-3,#8a8a93);white-space:nowrap}',
+    '.mq-360-tag{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid #3a3a40;white-space:nowrap;margin-top:1px}',
+    '.mq-360-vide{font-size:13px;color:#a9dcbc}',
+    '.mq-360-env{font-size:12px;color:var(--ink-3,#8a8a93);margin-top:6px}',
+    '.mq-360-acts{display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap}',
+    '.mq-360-acts .btn.is-disabled{opacity:.45;pointer-events:none}',
+    '.mq-360-mail p{margin:0 0 12px;font-size:13px}.mq-360-mail label{display:flex;flex-direction:column;gap:4px;font-size:12px;margin-bottom:10px}',
+    '.mq-360-mail input,.mq-360-mail textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px}'
+  ].join('\n'); document.head.appendChild(st); }catch(e){}
 })();
 </script>
 
