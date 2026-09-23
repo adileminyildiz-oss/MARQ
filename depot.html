@@ -170,6 +170,16 @@ var PIECES=[
  {k:'impot',l:"Avis d'impôt (facultatif)",h:'Dernier avis d\'imposition, si demandé.'}
 ];
 function qp(n){var m=location.search.match(new RegExp('[?&]'+n+'=([^&]*)'));return m?decodeURIComponent(m[1].replace(/\+/g,' ')):'';}
+/* Pièces propres à l'activité du client (décennale, carte professionnelle…),
+   transmises par Mar'q dans le lien (paramètre x). Clés contrôlées : rien
+   d'autre que des pièces « act_… » ne peut être ajouté par ce biais. */
+(function(){ try{ var x=qp('x'); if(!x) return;
+  var L=JSON.parse(decodeURIComponent(escape(atob(x))));
+  if(!Array.isArray(L)) return;
+  L.slice(0,8).forEach(function(p){ if(!Array.isArray(p)||!/^act_[a-z0-9_]{2,30}$/.test(p[0]||'')) return;
+    if(PIECES.some(function(q){return q.k===p[0];})) return;
+    PIECES.push({k:p[0],l:String(p[1]||'').slice(0,120),h:String(p[2]||'Pièce demandée pour votre activité.').slice(0,240)}); });
+}catch(e){} })();
 function b64(s){return btoa(unescape(encodeURIComponent(s)));}
 var dossier=qp('d')||qp('dossier'), token=qp('k'), STORE={};
 if(!dossier){document.getElementById('cardForm').style.display='none';document.getElementById('cardErr').style.display='block';}

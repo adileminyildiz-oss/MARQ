@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=724;
+var LAST_VER=725;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -51833,10 +51833,16 @@ function testLienSignature() {
       else P('conformite','be','Bénéficiaires effectifs','ko','aucun déclaré',{grav:'critique',client:true,demande:'Indiquez les personnes qui détiennent plus de 25 % du capital ou des droits de vote (bénéficiaires effectifs).'});
 
       var reg=reglementee(d), au=(d.c360||{}).autorisation||null;
+      /* v725 : l'analyse de l'activité donne les familles et les pièces précises */
+      var AA=null; try{ AA=(typeof window.activiteAnalyse==='function')?window.activiteAnalyse(d):null; }catch(e){}
+      if(AA&&AA.applicable){ reg=AA.actives.map(function(f){ return f.lbl.charAt(0).toLowerCase()+f.lbl.slice(1); }).join(', '); }
       if(reg) P('conformite','reglementee','Activité réglementée','warn',reg);
       else P('conformite','reglementee','Activité réglementée','ok','aucune activité réglementée repérée dans l’objet');
+      var manqAct=AA&&AA.applicable?AA.manquantes:null;
       if(!reg) P('conformite','autorisation','Autorisations','na','aucune autorisation requise');
       else if(au&&au.ok) P('conformite','autorisation','Autorisations','ok','vérifiée le '+dateFr(au.ts)+(au.par?(' par '+au.par):''));
+      else if(manqAct&&AA.pieces.length&&!manqAct.length) P('conformite','autorisation','Autorisations','ok','pièces reçues : '+AA.pieces.map(function(p){ return p.label; }).join(', '));
+      else if(manqAct&&manqAct.length) P('conformite','autorisation','Autorisations','ko','manque : '+manqAct.map(function(p){ return p.label; }).join(', '),{grav:'critique',client:true,demande:'Votre activité ('+reg+') est réglementée : envoyez '+manqAct.map(function(p){ return p.label.charAt(0).toLowerCase()+p.label.slice(1); }).join(', ')+'.'});
       else P('conformite','autorisation','Autorisations','ko','justificatif requis pour : '+reg,{grav:'critique',client:true,demande:'Votre activité ('+reg+') est réglementée : envoyez le justificatif requis (diplôme, carte professionnelle, agrément ou attestation d’assurance).'});
 
       /* ---- Dépôt ---- */
@@ -52450,6 +52456,270 @@ function testLienSignature() {
     '.mq-rj-list li div{flex:1;min-width:0}.mq-rj-list li b{display:block}.mq-rj-list li span{color:var(--ink-3,#8a8a93)}.mq-rj-list.ko li{border-color:rgba(200,90,80,.45)}',
     '.mq-rj-mail p{margin:0 0 12px;font-size:13px}.mq-rj-mail label{display:flex;flex-direction:column;gap:4px;font-size:12px;margin-bottom:10px}',
     '.mq-rj-mail input,.mq-rj-mail textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px}'
+  ].join('\n'); document.head.appendChild(st); }catch(e){}
+})();
+</script>
+
+<script id="mq-activite-725">
+/* ============================================================================
+   Mar'q — Pièces demandées selon l'activité (v725)
+   ----------------------------------------------------------------------------
+   Jusqu'ici, les pièces demandées au client ne dépendaient que de la
+   formalité (création de SAS, transfert de siège…). Désormais, Mar'q lit
+   l'activité (objet social, activités du client) et y ajoute les pièces
+   propres aux activités réglementées : décennale et carte BTP pour le
+   bâtiment, formation d'exploitant et hygiène pour la restauration,
+   capacité et inscription au registre pour le transport, etc.
+
+   Formulaire → analyse de l'activité → pièces demandées. Les pièces ajoutées
+   suivent tout le circuit existant sans rien y changer : la carte « Pièces
+   attendues », le message de demande de pièces, le lien de dépôt, les
+   relances J+1 → J+14 et le contrôle 360°.
+
+   La détection est une aide : le gestionnaire peut écarter une activité
+   repérée à tort, ou en ajouter une que le texte ne laissait pas voir.
+
+   Les libellés évitent les mots qui servent à classer les fichiers reçus
+   (« permis » y désigne une pièce d'identité, « immatriculation » un K-bis) :
+   sinon une carte d'identité passerait pour un permis d'exploitation.
+   ============================================================================ */
+(function(){
+  if(window.__mqACT) return; window.__mqACT=1;
+
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return (typeof esc==='function')?esc(s):S(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function plat(t){ return S(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  function dossier(id){ return ((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function client(d){ try{ return (typeof clientById==='function'&&clientById(((d&&d.clientIds)||[])[0]||(d&&d.clientId)))||{}; }catch(e){ return {}; } }
+  function sauver(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function rendre(){ try{ if(typeof render==='function') render(); }catch(e){} }
+  function trace(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  function hist(d,t){ (d.historique=d.historique||[]).unshift({d:(typeof today==='function'?today():''),t:t}); }
+  function ref(d){ return S(d.numeroDossier||d.ref||d.id); }
+
+  /* ---------------- le référentiel ---------------- */
+  function pc(k,label,note){ return {k:'act_'+k,label:label,note:note||''}; }
+  var FAMILLES=[
+    {k:'btp',lbl:'Bâtiment (BTP)',
+     rx:/\bbtp\b|entreprise (generale )?du batiment|metiers? du batiment|travaux (de |du )?batiment|maconn|plomb|electricien|electricite generale|chauffagiste|couvreur|charpent|menuiserie|carrel|platrier|platrerie|peintre en batiment|peinture en batiment|terrassement|gros oeuvre|second oeuvre|travaux de (renovation|construction|peinture|isolation|terrassement)|isolation thermique/,
+     pieces:[pc('decennale','Attestation d’assurance décennale','Obligatoire avant le premier chantier : elle doit couvrir chacune des activités exercées.'),
+             pc('carte_btp','Carte d’identification professionnelle BTP','Demandée pour chaque salarié ou dirigeant intervenant sur un chantier.'),
+             pc('qualif_btp','Justificatif de qualification professionnelle','CAP, BEP ou diplôme du métier, ou 3 ans d’expérience dans le métier.')]},
+    {k:'restauration',lbl:'Restauration',
+     rx:/\brestaurants?\b|\brestauration\b(?! (de|des|du|d.) ?(meubles?|mobilier|tableaux|monuments?|batiments?|vehicules?|voitures?|oeuvres?|objets?|patrimoine))|brasserie|traiteur|\bsnack|pizzeria|fast[- ]?food|food[- ]?truck|creperie|salon de the|kebab|plats a emporter|vente de plats/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation », pour vendre de l’alcool (licence restaurant).'),
+             pc('hygiene','Attestation de formation à l’hygiène alimentaire (HACCP)','Au moins une personne de l’établissement doit l’avoir suivie.')]},
+    {k:'boissons',lbl:'Débit de boissons',
+     rx:/licence (iii|iv|3|4)\b|debit de boissons|\bbars?\b|discotheque|vente d.alcool|cave a vin|caviste/,
+     pieces:[pc('form_expl','Attestation de formation d’exploitant','Formation obligatoire dite « permis d’exploitation ».'),
+             pc('licence_boissons','Récépissé de déclaration de licence (mairie)','Déclaration d’ouverture ou de mutation de la licence III ou IV, auprès de la mairie.')]},
+    {k:'transport',lbl:'Transport',
+     rx:/transport (routier|de (personnes|marchandises|voyageurs))|transporteur|\bdemenagement|messagerie express|livraison de colis|\bfret\b/,
+     pieces:[pc('capacite_transp','Attestation de capacité professionnelle en transport','Délivrée après examen ou par équivalence de diplôme.'),
+             pc('registre_transp','Justificatif d’inscription au registre des transporteurs','Licence de transport (DREAL) : inscription au registre avant de commencer.')]},
+    {k:'vtc',lbl:'VTC / taxi',
+     rx:/\bvtc\b|\btaxis?\b|voiture de transport avec chauffeur/,
+     pieces:[pc('carte_vtc','Carte professionnelle de conducteur VTC ou taxi','Délivrée par la préfecture après examen.')]},
+    {k:'immobilier',lbl:'Immobilier (carte professionnelle)',
+     rx:/agence immobiliere|agents? immobiliers?|transactions? immobilieres?|gestion locative|syndic de copropriete|marchand de biens/,
+     pieces:[pc('carte_immo','Carte professionnelle immobilière (CCI)','Carte T (transaction) ou G (gestion), délivrée par la CCI.'),
+             pc('garantie','Attestation de garantie financière','Obligatoire dès que l’agence détient des fonds pour le compte de clients.'),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'coiffure',lbl:'Coiffure / esthétique',
+     rx:/coiff|esthetique|institut de beaute|onglerie|barbier/,
+     pieces:[pc('qualif_coiff','Diplôme ou justificatif de qualification (CAP, BP)','Le salon doit être placé sous le contrôle effectif d’une personne qualifiée.')]},
+    {k:'sante',lbl:'Profession de santé',
+     rx:/\bmedecins?\b|\bmedical|infirmi|kinesi|dentist|sage[- ]femme|pharmac|veterinaire|laboratoire d.analyses?/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'ordre',lbl:'Profession à ordre',
+     rx:/\bavocats?\b|expert[- ]?comptable|expertise[- ]comptable|commissaire aux comptes|\bnotaires?\b|commissaire de justice|huissier|\barchitectes?\b|geometre/,
+     pieces:[pc('ordre','Justificatif d’inscription à l’ordre professionnel','')]},
+    {k:'autoecole',lbl:'Auto-école',
+     rx:/auto[- ]?ecole|enseignement de la conduite/,
+     pieces:[pc('agrement_ae','Agrément préfectoral de l’établissement d’enseignement de la conduite',''),
+             pc('autor_ens','Autorisation d’enseigner de l’exploitant','')]},
+    {k:'securite',lbl:'Sécurité privée',
+     rx:/securite privee|gardiennage|surveillance humaine|agents? de securite/,
+     pieces:[pc('cnaps','Autorisation d’exercice délivrée par le CNAPS','Pour la société et pour son dirigeant.')]},
+    {k:'voyages',lbl:'Agence de voyages',
+     rx:/agence de voyages?|tour[- ]?operateur/,
+     pieces:[pc('atout','Justificatif d’inscription au registre des opérateurs de voyages (Atout France)',''),
+             pc('garantie','Attestation de garantie financière','')]},
+    {k:'finance',lbl:'Finance ou assurance',
+     rx:/courti(er|age) en (assurance|credit|pret)|intermediaire en (assurance|operations de banque)|\borias\b|conseil en investissements? financiers?|\bcif\b|\biobsp\b|\bpsan\b|etablissement de paiement/,
+     pieces:[pc('orias','Justificatif d’inscription à l’ORIAS',''),
+             pc('rcp','Attestation d’assurance responsabilité civile professionnelle','')]},
+    {k:'enfance',lbl:'Accueil ou aide à la personne',
+     rx:/micro[- ]?creche|\bcreches?\b|petite enfance|\behpad\b|aide a domicile|services a la personne/,
+     pieces:[pc('agrement_pmi','Autorisation ou agrément (PMI, services à la personne)','Selon l’activité : avis de la PMI, déclaration ou agrément du département.')]}
+  ];
+  var PAR_K={}; FAMILLES.forEach(function(f){ PAR_K[f.k]=f; });
+  window.ACTIVITES_REGLEMENTEES=FAMILLES;
+
+  /* ---------------- l'analyse ---------------- */
+  /* Ce que le dossier dit de son activité — pas le corps des e-mails,
+     trop bavard pour en déduire une activité. */
+  function texte(d){
+    if(!d) return '';
+    var i=d.intake||{}, s=i.societe||{}, m=(i.modif||{}).nouveau||{}, c=client(d);
+    var t=[s.objet,m.objet,c.objet,(c.activites||[]).join(' '),d.activite,d.serviceSouhaite,d.service];
+    if(!d.intake&&!d.clientIds) t.push(d.objet,d.description);
+    return plat(t.filter(Boolean).join(' \n '));
+  }
+  function applicable(d){
+    var ty=''; try{ ty=(typeof formaliteType==='function')?S(formaliteType(d)):''; }catch(e){}
+    if(/^creation_/.test(ty)) return true;
+    if(ty==='objet') return true;
+    var i=(d&&d.intake)||{}; if(i.nature==='modification'||d.formaliteNature==='modification') return ((i.modif||{}).kind==='objet');
+    return !ty;
+  }
+  window.activiteAnalyse=function(id){
+    var d=(typeof id==='object')?id:dossier(id); if(!d) return null;
+    var o=d.activite725||{}, aj=o.ajout||[], ex=o.exclu||[];
+    var ok=applicable(d), t=texte(d), fams=[];
+    if(ok){
+      FAMILLES.forEach(function(f){ if(f.rx.test(t)) fams.push({k:f.k,lbl:f.lbl,source:ex.indexOf(f.k)>=0?'exclue':'auto'}); });
+      aj.forEach(function(k){ if(PAR_K[k]&&!fams.some(function(x){ return x.k===k; })) fams.push({k:k,lbl:PAR_K[k].lbl,source:'ajout'}); });
+    }
+    var actives=fams.filter(function(f){ return f.source!=='exclue'; });
+    var pieces=[], vus={};
+    actives.forEach(function(f){ PAR_K[f.k].pieces.forEach(function(p){
+      if(vus[p.k]){ vus[p.k].familles.push(f.lbl); return; }
+      var x={k:p.k,label:p.label,note:p.note,familles:[f.lbl]}; vus[p.k]=x; pieces.push(x); }); });
+    pieces.forEach(function(p){ p.recu=recu(d,p.k); });
+    return {applicable:ok,familles:fams,actives:actives,pieces:pieces,manquantes:pieces.filter(function(p){ return !p.recu; })};
+  };
+  function recu(d,k){
+    function sur(e){ if(!e) return false; var p=(e.pieces||{})[k]; if(p&&(p.recu||p.data)) return true;
+      if((e.piecesRecues||{})[k]) return true; var dc=(e.docs||{})[k]; return Array.isArray(dc)&&dc.length>0; }
+    if(sur(d)) return true;
+    try{ var dem=(typeof espDemandeDe==='function')?espDemandeDe(d):null; if(dem&&dem!==d&&sur(dem)) return true; }catch(e){}
+    return false;
+  }
+
+  /* ---------------- dans la liste des pièces ---------------- */
+  var _pr=window.piecesRequises;
+  if(typeof _pr==='function'&&!_pr.__act){
+    window.piecesRequises=function(d){
+      var L=_pr.apply(this,arguments)||[];
+      try{ var A=window.activiteAnalyse(d); if(A&&A.pieces.length){
+        var deja={}; L.forEach(function(p){ deja[p&&p.k]=1; });
+        L=L.concat(A.pieces.filter(function(p){ return !deja[p.k]; }).map(function(p){ return {k:p.k,label:p.label}; })); } }catch(e){}
+      return L; };
+    Object.keys(_pr).forEach(function(k){ window.piecesRequises[k]=_pr[k]; }); window.piecesRequises.__act=1;
+  }
+  /* la carte « Pièces attendues » affiche pourquoi la pièce est demandée */
+  var _ep=window.enregPieces;
+  if(typeof _ep==='function'&&!_ep.__act){
+    window.enregPieces=function(d){
+      var L=_ep.apply(this,arguments)||[];
+      try{ var A=window.activiteAnalyse(d); if(A&&A.pieces.length){ var M={}; A.pieces.forEach(function(p){ M[p.k]=p; });
+        L.forEach(function(o){ var p=M[o.k]; if(p&&!o.note) o.note='Exigée pour l’activité : '+p.familles.join(', ')+(p.note?(' — '+p.note):''); }); } }catch(e){}
+      return L; };
+    window.enregPieces.__act=1;
+  }
+  /* le lien de dépôt porte les pièces propres à l'activité */
+  var _dl=window.depotLien;
+  if(typeof _dl==='function'&&!_dl.__act){
+    window.depotLien=function(d){
+      var u=_dl.apply(this,arguments);
+      try{ var A=u&&window.activiteAnalyse(d); if(A&&A.pieces.length){
+        var x=A.pieces.slice(0,8).map(function(p){ return [p.k,p.label,p.note]; });
+        u+='&x='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(x))))); } }catch(e){}
+      return u; };
+    window.depotLien.__act=1;
+  }
+
+  /* ---------------- corrections du gestionnaire ---------------- */
+  window.activiteExclure=function(id,k,on){
+    var d=dossier(id); if(!d||!PAR_K[k]) return;
+    var o=d.activite725=d.activite725||{ajout:[],exclu:[]}; o.ajout=o.ajout||[]; o.exclu=o.exclu||[];
+    o.exclu=o.exclu.filter(function(x){ return x!==k; }); if(on) o.exclu.push(k);
+    hist(d,(on?'Activité écartée : ':'Activité rétablie : ')+PAR_K[k].lbl);
+    trace('Pièces selon l’activité',(on?'Écartée ':'Rétablie ')+PAR_K[k].lbl+' — '+ref(d)); sauver(); rendre();
+  };
+  window.activiteAjouter=function(id,k){
+    var d=dossier(id); if(!d||!PAR_K[k]) return;
+    var o=d.activite725=d.activite725||{ajout:[],exclu:[]}; o.ajout=o.ajout||[]; o.exclu=(o.exclu||[]).filter(function(x){ return x!==k; });
+    if(o.ajout.indexOf(k)<0) o.ajout.push(k);
+    hist(d,'Activité ajoutée : '+PAR_K[k].lbl); trace('Pièces selon l’activité','Ajoutée '+PAR_K[k].lbl+' — '+ref(d)); sauver(); rendre();
+  };
+  window.activiteRetirerAjout=function(id,k){
+    var d=dossier(id); if(!d||!d.activite725) return;
+    d.activite725.ajout=(d.activite725.ajout||[]).filter(function(x){ return x!==k; });
+    hist(d,'Activité retirée : '+(PAR_K[k]?PAR_K[k].lbl:k)); trace('Pièces selon l’activité','Retirée '+k+' — '+ref(d)); sauver(); rendre();
+  };
+
+  /* ---------------- l'écran : onglet Pièces ---------------- */
+  function carte(d){
+    var A=window.activiteAnalyse(d); if(!A||!A.applicable) return '';
+    var id=d.id;
+    var fam=A.familles.length?A.familles.map(function(f){
+      var b=f.source==='exclue'?'<button class="btn btn-sm btn-ghost" onclick="activiteExclure(\''+jq(id)+'\',\''+f.k+'\',false)">Rétablir</button>'
+        :(f.source==='ajout'?'<button class="btn btn-sm btn-ghost" onclick="activiteRetirerAjout(\''+jq(id)+'\',\''+f.k+'\')">Retirer</button>'
+        :'<button class="btn btn-sm btn-ghost" onclick="activiteExclure(\''+jq(id)+'\',\''+f.k+'\',true)">Pas cette activité</button>');
+      return '<div class="mq-act-fam '+f.source+'"><b>'+E(f.lbl)+'</b><span>'+(f.source==='auto'?'repérée dans l’objet social':(f.source==='ajout'?'ajoutée par le cabinet':'écartée par le cabinet'))+'</span>'+b+'</div>'; }).join('')
+      :'<div class="mq-act-vide">Aucune activité réglementée repérée dans l’objet social : les pièces habituelles suffisent.</div>';
+    var pcs=A.pieces.length?('<ul class="mq-act-pcs">'+A.pieces.map(function(p){
+      return '<li class="'+(p.recu?'ok':'')+'"><span class="d"></span><div><b>'+E(p.label)+'</b>'+(p.note?('<span>'+E(p.note)+'</span>'):'')+'</div><em>'+(p.recu?'reçue':'à recevoir')+'</em></li>'; }).join('')+'</ul>'):'';
+    var dispo=FAMILLES.filter(function(f){ return !A.familles.some(function(x){ return x.k===f.k&&x.source!=='exclue'; }); });
+    var ajout='<div class="mq-act-add"><select id="act-add-'+E(id)+'"><option value="">Ajouter une activité…</option>'
+      +dispo.map(function(f){ return '<option value="'+f.k+'">'+E(f.lbl)+'</option>'; }).join('')+'</select>'
+      +'<button class="btn btn-sm" onclick="(function(){ var s=document.getElementById(\'act-add-'+jq(id)+'\'); if(s&&s.value) activiteAjouter(\''+jq(id)+'\',s.value); })()">Ajouter</button></div>';
+    var n=A.pieces.length, m=A.manquantes.length;
+    return '<div class="card mq-act-card"><div class="card-h"><h2>Pièces selon l’activité</h2>'
+      +(n?('<span class="mq-act-n'+(m?' ko':' ok')+'">'+(n-m)+' / '+n+' reçue'+(n-m>1?'s':'')+'</span>'):'')+'</div><div class="card-b">'
+      +fam+pcs+(n?'<div class="mq-act-info">Ces pièces s’ajoutent à la liste « Pièces attendues », au message de demande de pièces et au lien de dépôt du client.</div>':'')
+      +ajout+'</div></div>';
+  }
+  window.activiteCarte=function(id){ var d=dossier(id); return d?carte(d):''; };
+  function peindre(){ try{
+    if(typeof state==='undefined'||state.page!=='espace') return;
+    var d=dossier(state.espaceDossier); if(!d) return;
+    if((state.espTab||'demande')!=='pieces') return;
+    var panel=document.querySelector('#view .esp-tabpanel[data-tab="pieces"]'); if(!panel) return;
+    var old=panel.querySelector('.mq-act-card'), html=carte(d);
+    if(old){ if(!html) old.remove(); return; }
+    if(!html) return;
+    var t=document.createElement('div'); t.innerHTML=html; var el=t.firstElementChild;
+    var att=panel.querySelector('.fi-attendues'); if(att) panel.insertBefore(el,att); else { var foot=panel.querySelector(':scope > .trw-foot'); if(foot) panel.insertBefore(el,foot); else panel.appendChild(el); }
+  }catch(e){} }
+
+  /* ---------------- l'écran : Formulaire, sous l'objet social ---------------- */
+  function apercu(objet){
+    var t=plat(objet), f=FAMILLES.filter(function(x){ return x.rx.test(t); });
+    if(!f.length) return '';
+    var vus={}, p=[]; f.forEach(function(x){ x.pieces.forEach(function(q){ if(!vus[q.k]){ vus[q.k]=1; p.push(q.label); } }); });
+    return '<b>Activité réglementée : '+E(f.map(function(x){ return x.lbl; }).join(', '))+'.</b> Mar’q demandera aussi : '+E(p.join(' ; '))+'.';
+  }
+  window.activiteApercu=apercu;
+  function formulaire(){ try{
+    if(typeof state==='undefined'||state.page!=='formulaire') return;
+    var inp=document.querySelector('#view #fi-objet')||document.querySelector('#view input[oninput*="\'societe.objet\'"],#view textarea[oninput*="\'societe.objet\'"]'); if(!inp) return;
+    var box=inp.parentNode.querySelector('.mq-act-apercu');
+    if(!box){ box=document.createElement('div'); box.className='mq-act-apercu'; var sug=inp.parentNode.querySelector('#fi-objet-sug'); (sug||inp).insertAdjacentElement('afterend',box); }
+    function maj(){ var h=apercu(inp.value); box.innerHTML=h; box.style.display=h?'':'none'; }
+    if(!inp.__act){ inp.__act=1; inp.addEventListener('input',maj); }
+    maj();
+  }catch(e){} }
+
+  try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__act){
+    window.render=function(){ var x=_rd.apply(this,arguments); peindre(); formulaire(); return x; }; window.render.__act=1; } }catch(e){}
+
+  try{ var st=document.createElement('style'); st.id='mq-act-css'; st.textContent=[
+    '.mq-act-n{margin-left:auto;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid #3a3a40}',
+    '.mq-act-n.ok{border-color:rgba(84,150,104,.6);color:#a9dcbc}.mq-act-n.ko{border-color:rgba(200,150,60,.7);color:#e8c98a}',
+    '.mq-act-fam{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line-soft,#2a2a30);border-radius:9px;margin-bottom:6px;font-size:12.5px}',
+    '.mq-act-fam span{color:var(--ink-3,#8a8a93);flex:1}.mq-act-fam.exclue{opacity:.6}.mq-act-fam.exclue b{text-decoration:line-through}',
+    '.mq-act-vide,.mq-act-info{font-size:12.5px;color:var(--ink-3,#8a8a93);margin:4px 0 10px}',
+    '.mq-act-pcs{list-style:none;margin:10px 0;padding:0;display:flex;flex-direction:column;gap:6px}',
+    '.mq-act-pcs li{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;padding:7px 10px;border:1px solid rgba(200,150,60,.35);border-radius:9px}',
+    '.mq-act-pcs li.ok{border-color:rgba(84,150,104,.45)}.mq-act-pcs li div{flex:1;min-width:0}.mq-act-pcs li b{display:block;font-weight:600}',
+    '.mq-act-pcs li div span{color:var(--ink-3,#8a8a93)}.mq-act-pcs li em{font-style:normal;font-size:11.5px;color:#e8c98a;white-space:nowrap}.mq-act-pcs li.ok em{color:#a9dcbc}',
+    '.mq-act-pcs .d{flex:0 0 7px;height:7px;border-radius:50%;margin-top:5px;background:#c8963c}.mq-act-pcs li.ok .d{background:#5a9a70}',
+    '.mq-act-add{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}.mq-act-add select{min-width:220px}',
+    '.mq-act-apercu{margin-top:6px;font-size:12.5px;line-height:1.45;padding:8px 10px;border:1px solid rgba(200,150,60,.4);border-radius:9px;color:var(--ink-2,#c5c5cc)}'
   ].join('\n'); document.head.appendChild(st); }catch(e){}
 })();
 </script>
