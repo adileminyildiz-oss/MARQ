@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=729;
+var LAST_VER=730;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -11463,7 +11463,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
       an.push(R('Transparence fiscale (IR)','conseil','Les résultats sont imposés directement entre les mains des associés à l\'impôt sur le revenu, à proportion de leurs droits — pas de distinction rémunération/dividendes.','Semi-transparence IR'));
     }
     /* 7. TVA */
-    an.push(R('Régime de TVA','conseil','Franchise en base possible sous les seuils en vigueur (services ~ 37 500 €, ventes ~ 85 000 €) : pas de TVA facturée ni récupérée. Au-delà, ou pour récupérer la TVA sur les investissements, opter pour le réel simplifié ou normal.','Franchise / réel — à vérifier selon la LF'));
+    an.push(R('Régime de TVA','conseil','Franchise en base possible sous les seuils en vigueur (services ~ '+(window.seuilEur?seuilEur('franchiseServices'):'37 500 €')+', ventes ~ '+(window.seuilEur?seuilEur('franchiseVentes'):'85 000 €')+') : pas de TVA facturée ni récupérée. Au-delà, ou pour récupérer la TVA sur les investissements, opter pour le réel simplifié ou normal.','Franchise / réel — à vérifier selon la LF'));
     /* 8. Capital & libération */
     if(cap!=null){
       if(cap>0&&cap<100){ an.push(R('Capital social très faible','attention','Un capital de '+cap+' € est légal mais nuit à la crédibilité et à la capacité de financement ; il réduit aussi la part de dividendes non soumise à cotisations pour un gérant TNS.','Capital / crédibilité')); }
@@ -13305,10 +13305,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   };
 
   /* ---------- Données de référence ---------- */
-  function tvaRegime(ca,forme){ // seuils indicatifs 2025
+  function tvaRegime(ca,forme){ // seuils : barème du millésime (Paramètres › Barèmes & règles)
     var svc=/SCI/.test(forme)?0:(window.barGet?window.barGet('seuil.franchiseServices'):37500), ventes=(window.barGet?window.barGet('seuil.franchiseVentes'):85000);
     if(ca<=svc||ca<=ventes){
-      if(ca<=svc||ca<=ventes) return {reg:'Franchise en base possible',detail:'Sous les seuils (services ~ 37 500 € · ventes ~ 85 000 €) : pas de TVA facturée ni déductible. Mention « TVA non applicable, art. 293 B du CGI ».',periodicite:'—'};
+      if(ca<=svc||ca<=ventes) return {reg:'Franchise en base possible',detail:'Sous les seuils (services ~ '+(window.seuilEur?seuilEur('franchiseServices'):'37 500 €')+' · ventes ~ '+(window.seuilEur?seuilEur('franchiseVentes'):'85 000 €')+') : pas de TVA facturée ni déductible. Mention « TVA non applicable, art. 293 B du CGI ».',periodicite:'—'};
     }
     if(ca<=254000) return {reg:'Réel simplifié (RSI)',detail:'CA sous ~ 254 000 € (services) / ~ 840 000 € (ventes) : déclaration annuelle CA12 + 2 acomptes (juillet & décembre).',periodicite:'Annuelle (CA12) + acomptes'};
     return {reg:'Réel normal',detail:'Au-delà des seuils du RSI : déclaration CA3 mensuelle (ou trimestrielle si TVA due < 4 000 €/an).',periodicite:'Mensuelle (CA3)'};
@@ -13396,7 +13396,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   function m_tva(d){var i=info(d),p=i._p;var t=tvaRegime(i.caPrev,p.forme);
     return '<div class="fx-h1">TVA — régime & obligations</div><div class="fx-grid">'
       +card('Régime applicable',t.reg,E(t.detail)+'<div class="fx-badge">Périodicité : '+E(t.periodicite)+'</div>')
-      +card('Franchise en base','Seuils 2025 (indicatifs)','Services / professions libérales : <b>37 500 €</b> (majoré 41 250 €). Ventes de marchandises : <b>85 000 €</b> (majoré 93 500 €). Sous ces seuils : pas de TVA, mention « TVA non applicable, art. 293 B du CGI ».')
+      +card('Franchise en base','Seuils '+(window.baremeMillesime?baremeMillesime():'')+' (barème)','Services / professions libérales : <b>'+(window.seuilEur?seuilEur('franchiseServices'):'37 500 €')+'</b> (majoré '+(window.seuilEur?seuilEur('franchiseServicesMaj'):'41 250 €')+'). Ventes de marchandises : <b>'+(window.seuilEur?seuilEur('franchiseVentes'):'85 000 €')+'</b> (majoré '+(window.seuilEur?seuilEur('franchiseVentesMaj'):'93 500 €')+'). Sous ces seuils : pas de TVA, mention « TVA non applicable, art. 293 B du CGI ».')
       +card('Réel simplifié (RSI)','Déclaration CA12','Déclaration annuelle <b>CA12</b> (2ᵉ jour ouvré après le 1ᵉʳ mai) + <b>2 acomptes</b> (55 % en juillet, 40 % en décembre). Bascule au réel normal si TVA due &gt; 15 000 €/an.')
       +card('Réel normal','Déclaration CA3','Déclaration <b>mensuelle CA3</b> (ou trimestrielle si TVA &lt; 4 000 €/an), à déposer entre le 15 et le 24 du mois suivant selon le régime.')
       +card('International','TVA intracommunautaire','Numéro de TVA intracom obligatoire pour les échanges UE. Autoliquidation sur les acquisitions ; déclaration d\'échanges de biens/services (DEB/DES) selon les seuils.')
@@ -15957,7 +15957,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     dfis.push(D('Régime d\'imposition : '+regime, regimeWhy, regimeAlts));
     if(regime==='IS')dfis.push(D('Taux réduit d\'IS à 15 %', 'Bénéfice imposé à 15 % jusqu\'à 42 500 €, puis 25 %, si le capital est libéré et détenu à ≥ 75 % par des personnes physiques — avantageux pour une PME.', ['Taux réduit 15 % — jusqu\'à 42 500 € de bénéfice (conditions PME).','Taux normal 25 % — au-delà, ou si conditions non remplies.']));
     if(regime==='IS'&&(P.remun==='dividendes'||P.remun==='mixte'))dfis.push(D('Dividendes : PFU (flat tax) 30 %', 'Les dividendes distribués sont taxés au prélèvement forfaitaire unique de 30 % (12,8 % IR + 17,2 % prélèvements sociaux), sans cotisations sociales pour un dirigeant assimilé salarié.', ['PFU 30 % — forfaitaire, simple (12,8 % IR + 17,2 % PS).','Barème progressif de l\'IR — sur option globale, avec abattement de 40 % (intéressant si TMI faible).']));
-    dfis.push(D('TVA : '+((P.tvaInvest==='oui')?'régime réel (récupération de TVA)':((P.caPrev&&((P.activiteType==='commerciale'&&P.caPrev>85000)||(P.activiteType!=='commerciale'&&P.caPrev>37500)))?'régime réel (assujetti)':'franchise en base possible')), (P.tvaInvest==='oui'?'Des investissements/achats importants sont prévus : opter pour le réel permet de RÉCUPÉRER la TVA sur ces dépenses (la franchise ne le permet pas). ':'')+'Sous les seuils (ventes ~85 000 €, services ~37 500 €), la franchise en base dispense de TVA. Au-delà, ou pour récupérer la TVA sur les achats/investissements, on opte pour le réel simplifié ou normal.', tvaAlts));
+    dfis.push(D('TVA : '+((P.tvaInvest==='oui')?'régime réel (récupération de TVA)':((P.caPrev&&((P.activiteType==='commerciale'&&P.caPrev>(window.barGet?barGet('seuil.franchiseVentes'):85000))||(P.activiteType!=='commerciale'&&P.caPrev>(window.barGet?barGet('seuil.franchiseServices'):37500))))?'régime réel (assujetti)':'franchise en base possible')), (P.tvaInvest==='oui'?'Des investissements/achats importants sont prévus : opter pour le réel permet de RÉCUPÉRER la TVA sur ces dépenses (la franchise ne le permet pas). ':'')+'Sous les seuils (ventes ~'+(window.seuilEur?seuilEur('franchiseVentes'):'85 000 €')+', services ~'+(window.seuilEur?seuilEur('franchiseServices'):'37 500 €')+'), la franchise en base dispense de TVA. Au-delà, ou pour récupérer la TVA sur les achats/investissements, on opte pour le réel simplifié ou normal.', tvaAlts));
     dfis.push(D('CFE'+((P.caPrev&&P.caPrev>500000)?' et CVAE':''), 'La cotisation foncière des entreprises (CFE) est due dès la 2ᵉ année. '+((P.caPrev&&P.caPrev>500000)?'Au-delà de 500 000 € de CA, la CVAE s\'ajoute.':'La CVAE ne s\'applique qu\'au-delà de 500 000 € de CA.'), ['CFE — due dès la 2ᵉ année (exonération la 1ʳᵉ année).','CVAE — seulement au-delà de 500 000 € de CA (en voie de suppression progressive).','Exonérations de zone (ZFU, ZRR…) — selon l\'implantation.']));
     if(best==='EI'&&regime==='IR')dfis.push(D('Régime micro possible', 'Sous les seuils de CA, le régime micro (abattement forfaitaire) simplifie fortement l\'imposition et les obligations.', ['Micro — abattement forfaitaire, comptabilité ultra-simplifiée.','Réel — charges réelles déduites (intéressant si charges élevées).']));
     /* Social — dirigeant + salariés */
@@ -25185,14 +25185,15 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
     ]},
     {g:'Seuils — franchise en base de TVA & micro', items:[
       ['seuil.franchiseServices','Franchise en base — prestations de services','€'],['seuil.franchiseVentes','Franchise en base — ventes de marchandises','€'],
+      ['seuil.franchiseServicesMaj','Franchise en base — services, seuil majoré','€'],['seuil.franchiseVentesMaj','Franchise en base — ventes, seuil majoré','€'],
       ['seuil.microBNC','Micro-BNC — plafond de recettes','€'],['seuil.microBIC','Micro-BIC ventes — plafond','€']
     ]}
   ];
   /* Valeurs par ANNÉE — pré-remplies (À VÉRIFIER : URSSAF / impots.gouv.fr / service-public.fr). Années absentes = report de l'année connue la plus proche. */
   var DEFYEAR={
-    2024:{'paie.smic':11.65,'paie.smicMensuel':1766.92,'paie.pmss':3864,'paie.pass':46368,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':36800,'seuil.franchiseVentes':91900,'seuil.microBNC':77700,'seuil.microBIC':188700},
-    2025:{'paie.smic':11.88,'paie.smicMensuel':1801.80,'paie.pmss':3925,'paie.pass':47100,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':37500,'seuil.franchiseVentes':85000,'seuil.microBNC':77700,'seuil.microBIC':188700},
-    2026:{'paie.smic':12.02,'paie.smicMensuel':1823.07,'paie.pmss':4005,'paie.pass':48060,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':37500,'seuil.franchiseVentes':85000,'seuil.microBNC':77700,'seuil.microBIC':188700}
+    2024:{'paie.smic':11.65,'paie.smicMensuel':1766.92,'paie.pmss':3864,'paie.pass':46368,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':36800,'seuil.franchiseVentes':91900,'seuil.franchiseServicesMaj':39100,'seuil.franchiseVentesMaj':101000,'seuil.microBNC':77700,'seuil.microBIC':188700},
+    2025:{'paie.smic':11.88,'paie.smicMensuel':1801.80,'paie.pmss':3925,'paie.pass':47100,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':37500,'seuil.franchiseVentes':85000,'seuil.franchiseServicesMaj':41250,'seuil.franchiseVentesMaj':93500,'seuil.microBNC':77700,'seuil.microBIC':188700},
+    2026:{'paie.smic':12.02,'paie.smicMensuel':1823.07,'paie.pmss':4005,'paie.pass':48060,'paie.csgBase':98.25,'paie.csgDed':6.80,'paie.csgNd':2.90,'fisc.isReduit':15,'fisc.isSeuil':42500,'fisc.isNormal':25,'fisc.tva20':20,'fisc.tva10':10,'fisc.tva55':5.5,'fisc.tva21':2.1,'seuil.franchiseServices':37500,'seuil.franchiseVentes':85000,'seuil.franchiseServicesMaj':41250,'seuil.franchiseVentesMaj':93500,'seuil.microBNC':77700,'seuil.microBIC':188700}
   };
   var KNOWN=Object.keys(DEFYEAR).map(Number).sort(function(a,b){return a-b;});
   function defYear(y){ y=+y; if(DEFYEAR[y]) return DEFYEAR[y]; var pick=KNOWN[0]; for(var i=0;i<KNOWN.length;i++){ if(KNOWN[i]<=y) pick=KNOWN[i]; } return DEFYEAR[pick]; } /* report de l'année connue la plus proche */
@@ -25231,7 +25232,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'</div>';
   }
   window.baremesCard=baremesCard;
-  try{ var _pp=window.pageParams; if(typeof _pp==='function' && !_pp.__bar){ window.pageParams=function(){ var h=_pp.apply(this,arguments); try{ if(typeof h==='string' && h.indexOf('bar-card')<0){ h += baremesCard(); } }catch(e){} return h; }; window.pageParams.__bar=1; } }catch(e){}
+  try{ var _pp=window.pageParams; if(typeof _pp==='function' && !_pp.__bar){ window.pageParams=function(){ var h=_pp.apply(this,arguments); try{ if(typeof h==='string' && h.indexOf('bar-card')<0){ h += (window.baremesCard||baremesCard)(); } }catch(e){} return h; }; window.pageParams.__bar=1; } }catch(e){}
   try{ if(!document.getElementById('bar-css')){ var st=document.createElement('style'); st.id='bar-css'; st.textContent=
     '.bar-card .bar-badge{font-size:11px;font-weight:600;background:rgba(30,144,255,.15);color:#5ab0ff;border:1px solid rgba(30,144,255,.4);border-radius:20px;padding:2px 10px;margin-left:8px;vertical-align:middle}'
     +'.bar-yearbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px}'
@@ -28599,7 +28600,7 @@ html body .mq-ib-add .mq-ic{width:18px;height:18px}
       if(c>0&&c<1000) return 'Un capital plus étoffé rassure banques/tiers et augmente les dividendes distribuables sans requalification (SARL : seuil '+b('10 % du capital')+').';
       return 'Libération partielle possible à la constitution (50 % SAS / 20 % SARL). Le capital sert de base au seuil de dividendes non chargés (SARL).'; } },
     { key:'objet', sel:'#fi-objet', after:'#fi-objet-sug', fn:function(){ if(!(''+G('societe.objet')).trim())return '';
-      return 'Franchise en base de TVA possible sous seuils (≈ '+b('36 800 € services / 91 900 € vente')+') : pas de TVA facturée (ni récupérée). Vérifier le régime (BIC/BNC) et une éventuelle activité réglementée.'; } },
+      return 'Franchise en base de TVA possible sous seuils (≈ '+b((window.seuilEur?seuilEur('franchiseServices'):'37 500 €')+' services / '+(window.seuilEur?seuilEur('franchiseVentes'):'85 000 €')+' vente')+') : pas de TVA facturée (ni récupérée). Vérifier le régime (BIC/BNC) et une éventuelle activité réglementée.'; } },
     { key:'activiteType', sel:'[onchange*="profil.activiteType"]', fn:function(){ var a=G('profil.activiteType');
       if(a==='commerciale') return 'BIC — micro possible sous seuils (abattement 71 % vente / 50 % services).';
       if(a==='artisanale') return 'BIC artisanal — micro possible (abattement 50 %). Stage/immatriculation CMA selon activité.';
@@ -28608,7 +28609,7 @@ html body .mq-ib-add .mq-ic{width:18px;height:18px}
       if(a==='agricole') return 'BA — régimes micro-BA / réel ; caisse MSA. Dispositifs spécifiques (DPI, étalement).';
       return ''; } },
     { key:'caPrev', sel:'[oninput*="profil.caPrev"]', fn:function(){ var v=N(G('profil.caPrev')); if(!G('profil.caPrev'))return '';
-      if(v>0&&v<77700) return 'Sous les seuils micro : régime '+b('micro')+' envisageable (simplicité, abattement forfaitaire) + franchise de TVA.';
+      if(v>0&&v<(window.barGet?barGet('seuil.microBNC'):77700)) return 'Sous les seuils micro : régime '+b('micro')+' envisageable (simplicité, abattement forfaitaire) + franchise de TVA.';
       return 'Au-delà des seuils micro : régime '+b('réel')+' (récupération de TVA, déduction des charges réelles).'; } },
     { key:'beneficePrev', sel:'[oninput*="profil.beneficePrev"]', fn:function(){ if(!G('profil.beneficePrev'))return '';
       return 'À l\'IS : '+b('15 %')+' jusqu\'à 42 500 €. Une rémunération déductible réduit le bénéfice imposable — à arbitrer avec les dividendes.'; } },
@@ -51770,7 +51771,7 @@ function testLienSignature() {
         else P('fiscal','tva','Régime de TVA','ko','non choisi',{grav:'majeure',client:true,demande:'Indiquez le régime de TVA souhaité : franchise en base, réel simplifié ou réel normal.'});
         if(!/franchise/i.test(tv)) P('fiscal','franchise','Franchise en base','na',tv?'régime réel retenu':'');
         else {
-          var ca=num(pr.caPrev), com=S(pr.activiteType)==='commerciale', seuil=com?85000:37500;
+          var ca=num(pr.caPrev), com=S(pr.activiteType)==='commerciale', seuil=com?(window.barGet?barGet('seuil.franchiseVentes'):85000):(window.barGet?barGet('seuil.franchiseServices'):37500);
           if(ca>seuil) P('fiscal','franchise','Franchise en base','ko','chiffre d’affaires prévu '+ca.toLocaleString('fr-FR')+' € au-delà du seuil de '+seuil.toLocaleString('fr-FR')+' €',{grav:'majeure',client:false});
           else if(S(pr.tvaInvest)==='oui') P('fiscal','franchise','Franchise en base','warn','investissements prévus : la franchise empêche de récupérer la TVA',{grav:'mineure',client:false});
           else P('fiscal','franchise','Franchise en base','ok',ca?('CA prévu '+ca.toLocaleString('fr-FR')+' € sous le seuil'):'retenue');
@@ -54052,6 +54053,85 @@ function testLienSignature() {
     Object.keys(_il).forEach(function(k){ window.infosLien[k]=_il[k]; });
     window.infosLien.__act=1;
   }
+})();
+</script>
+<script id="mq-seuils-730">
+/* v730 — Seuils : une seule source, revus chaque année.
+   Tous les seuils (franchise en base de TVA, micro, IS) se lisent dans le barème du
+   millésime (Paramètres › Barèmes & règles). Chaque année, le barème doit être
+   vérifié puis marqué comme tel ; tant qu'il ne l'est pas, la Prévoyance le rappelle. */
+(function(){ if(window.__mqSeuils730) return; window.__mqSeuils730=1;
+  function DBp(){ try{ var p=DB.parametres=DB.parametres||{}; return p; }catch(e){ return {}; } }
+  function annee(){ return new Date().getFullYear(); }
+  function mil(){ return window.baremeMillesime?baremeMillesime():annee(); }
+  function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function eur0(n){ return (Math.round(+n||0)).toLocaleString('fr-FR').replace(/ | /g,' ')+' €'; }
+  function frD(ts){ try{ return new Date(ts).toLocaleDateString('fr-FR'); }catch(e){ return ''; } }
+
+  /* formatage commun : seuilEur('franchiseServices') → montant du barème en euros */
+  window.seuilEur=function(k,y){ return eur0(window.barGet?barGet('seuil.'+k,y):0); };
+
+  /* les repères des Conseils suivent le barème (plus de copie figée à 2025) */
+  var _cs=window.conseilsSeuils;
+  if(typeof _cs==='function'&&!_cs.__bar){
+    window.conseilsSeuils=function(){ var c=_cs.apply(this,arguments)||{};
+      try{ if(window.barGet){ c.tvaServices=barGet('seuil.franchiseServices'); c.tvaVentes=barGet('seuil.franchiseVentes');
+        c.isReduitPlafond=barGet('fisc.isSeuil'); c.isReduitTaux=barGet('fisc.isReduit'); c.isTaux=barGet('fisc.isNormal'); c.maj=''+mil(); } }catch(e){}
+      return c; };
+    window.conseilsSeuils.__bar=1; }
+
+  /* revue annuelle */
+  function revus(){ var p=DBp(); return p.baremeRevu=p.baremeRevu||{}; }
+  window.baremeRevu=function(y){ return revus()[''+(y||mil())]||null; };
+  window.baremeEtat=function(){ var a=annee(), m=mil(), r=baremeRevu(a);
+    return {annee:a, millesime:m, decale:m!==a, revu:r, aJour:m===a&&!!r}; };
+  window.baremeMarquerRevu=function(y){ y=+(y||mil());
+    revus()[''+y]={ts:Date.now(),par:(typeof auditUser==='function'?auditUser():'')};
+    try{ logAudit('Barème vérifié','Valeurs '+y+' contrôlées (seuils, taux, SMIC)'); }catch(e){}
+    try{ save(); }catch(e){} try{ render(); }catch(e){} try{ toast('Barème '+y+' marqué comme vérifié'); }catch(e){} };
+  window.baremeAnnulerRevu=function(y){ y=+(y||mil()); delete revus()[''+y];
+    try{ logAudit('Barème : vérification retirée','Valeurs '+y); }catch(e){} try{ save(); }catch(e){} try{ render(); }catch(e){} };
+  window.baremeAligner=function(){ var a=annee(); if(window.baremeSetYear) baremeSetYear(a);
+    try{ logAudit('Barème : millésime aligné',''+a); }catch(e){} try{ save(); }catch(e){} };
+  window.baremeOuvrir=function(){ try{ state.page='params'; }catch(e){} try{ render(); }catch(e){}
+    try{ if(window.spGo) spGo('cab/bar'); }catch(e){} };
+
+  function bandeau(){ var E=baremeEtat(), y=E.millesime, r=baremeRevu(y), h='';
+    if(E.decale) h+='<div class="bsr-l bsr-warn"><span>Le millésime appliqué aux documents est '+y+', l’année en cours est '+E.annee+'.</span><button class="btn btn-sm" onclick="baremeAligner()">Appliquer '+E.annee+'</button></div>';
+    if(r) h+='<div class="bsr-l bsr-ok"><span>Valeurs '+y+' vérifiées le '+esc(frD(r.ts))+(r.par?(' par '+esc(r.par)):'')+'.</span><button class="btn btn-ghost btn-sm" onclick="baremeAnnulerRevu('+y+')">Retirer</button></div>';
+    else h+='<div class="bsr-l bsr-todo"><span>Valeurs '+y+' non vérifiées. Contrôlez les seuils et taux ci-dessous (URSSAF, impots.gouv.fr, service-public.fr), puis confirmez.</span><button class="btn btn-sm" onclick="baremeMarquerRevu('+y+')">J’ai vérifié les valeurs '+y+'</button></div>';
+    return '<div class="bsr">'+h+'</div>'; }
+  window.baremeBandeau=bandeau;
+  var _bc=window.baremesCard;
+  if(typeof _bc==='function'&&!_bc.__revu){
+    window.baremesCard=function(){ var h=_bc.apply(this,arguments);
+      try{ var i=h.indexOf('<div class="bar-note">'); if(i>0) h=h.slice(0,i)+bandeau()+h.slice(i); }catch(e){} return h; };
+    window.baremesCard.__revu=1; }
+
+  /* Prévoyance : rappel tant que le barème de l'année n'est pas vérifié */
+  var _pi=window.prevItems;
+  if(typeof _pi==='function'&&!_pi.__bar730){
+    window.prevItems=function(){ var res=_pi.apply(this,arguments)||[];
+      try{ var pc=DBp().prevoyance||{}; if((pc.sources||{}).sys===false) return res;
+        var E=baremeEtat(); if(E.aJour) return res;
+        var o={key:'sys:bareme:'+E.annee,src:'sys',niveau:'warn',cat:'systeme',quand:new Date().toISOString().slice(0,10),
+          titre:'Barème '+E.annee+' à vérifier',
+          detail:E.decale?('Les documents appliquent encore les valeurs '+E.millesime+' : passez au millésime '+E.annee+', vérifiez les seuils et taux, puis confirmez.')
+                         :('Seuils de franchise en base, micro, impôt sur les sociétés, SMIC : contrôlez les valeurs '+E.annee+' puis confirmez-les.'),
+          page:'params',open:function(){ baremeOuvrir(); }};
+        if(!res.some(function(x){ return x.key===o.key; })){ var sn=(pc.snooze||{})[o.key];
+          if(!(sn&&sn>Date.now())){ o.vu=!!((pc.vus||{})[o.key]); o.nouveau=!((pc.seen||{})[o.key]); res.push(o); } }
+      }catch(e){} return res; };
+    Object.keys(_pi).forEach(function(k){ window.prevItems[k]=_pi[k]; }); window.prevItems.__bar730=1; }
+
+  try{ if(!document.getElementById('bsr-css')){ var st=document.createElement('style'); st.id='bsr-css'; st.textContent=
+    '.bsr{display:flex;flex-direction:column;gap:6px;margin:4px 0 10px}'
+    +'.bsr-l{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;line-height:1.45;border-radius:8px;padding:8px 12px;border:1px solid var(--line,#2a2f38)}'
+    +'.bsr-l span{flex:1;min-width:220px}'
+    +'.bsr-ok{border-color:rgba(76,175,80,.45);background:rgba(76,175,80,.08)}'
+    +'.bsr-todo{border-color:rgba(255,193,7,.45);background:rgba(255,193,7,.08)}'
+    +'.bsr-warn{border-color:rgba(229,115,115,.5);background:rgba(229,115,115,.08)}';
+    document.head.appendChild(st); } }catch(e){}
 })();
 </script>
 </body>
