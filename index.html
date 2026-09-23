@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=730;
+var LAST_VER=731;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -11188,7 +11188,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     var head='<div class="card-h"><h2>🔔 Journal d\'activité</h2><span class="sub" style="margin-left:auto">'+L.length+' événement(s)</span></div>';
     if(!L.length)return '<div class="card" style="margin-top:16px">'+head+'<div class="card-b"><div class="tk-empty">Aucun événement récent.</div></div></div>';
     var rows=L.map(function(x){var dt=(typeof frDate==='function'&&x.date)?frDate(x.date):(x.date||'');
-      return '<div class="jact-row"><span class="jact-date">'+E(dt)+'</span><div class="jact-main"><b>'+E(nom(x.d))+'</b><span class="jact-txt">'+E(x.t)+'</span></div></div>';}).join('');
+      return '<div class="jact-row"><span class="jact-date">'+E(dt)+'</span><div class="jact-main"><b>'+E(nom(x.d))+'</b><span class="jact-txt" title="'+(typeof esc==='function'?esc(x.t):E(x.t))+'">'+E(x.t)+'</span></div></div>';}).join('');
     return '<div class="card" style="margin-top:16px">'+head+'<div class="card-b">'+rows+'</div></div>';
   };
 
@@ -43413,7 +43413,7 @@ function testLienSignature() {
   window.prevAutosHTML=function(){ var rows=AUTOS.map(function(a){ var o=autoObj(a.obj,false); var on=o&&o[a.k]!=null?!!o[a.k]:false; return '<label class="pv-auto"><input type="checkbox" '+(on?'checked':'')+' onchange="prevAutoSet(\''+a.obj+'\',\''+a.k+'\',this.checked)"><span class="pv-auto-l"><b>'+E(a.lbl)+'</b><span>'+E(a.txt)+(o&&o[a.k]!=null?'':' · <i>réglage par défaut</i>')+'</span></span><button class="btn btn-sm btn-ghost" onclick="go(\''+a.page+'\')">Ouvrir</button></label>'; }).join(''); return '<div class="pv-autos">'+rows+'</div>'; };
   /* ---------- rendu ---------- */
   var CAT={retard:'En retard',aujourdhui:'Aujourd\'hui',semaine:'Sous 7 jours',mois:'Sous 30 jours',systeme:'Système'};
-  function row(o,i){ return '<div class="pv-row niv-'+o.niveau+(o.vu?' vu':'')+(o.nouveau?' nouveau':'')+'"><span class="pv-dot"></span><span class="pv-main"><b>'+E(o.titre)+'</b><span class="pv-det"><span class="pv-dt">'+E(o.detail)+'</span>'+(o.nouveau?'<em>nouveau</em>':'')+'</span></span><span class="pv-when">'+(o.cat==='systeme'?E(SRC[o.src]||''):(o.quand?E(frD(o.quand)):''))+'<small>'+E(SRC[o.src]||'')+'</small></span><span class="pv-act"><button class="btn btn-sm btn-pri" onclick="prevOuvrir('+i+')">Ouvrir</button>'+(o.vu?'':'<button class="btn btn-sm btn-ghost" onclick="prevVu(\''+E(o.key)+'\')">Vu</button>')+'<button class="btn btn-sm btn-ghost" title="Reporter de 7 jours" onclick="prevReporter(\''+E(o.key)+'\',7)">+7 j</button></span></div>'; }
+  function row(o,i){ return '<div class="pv-row niv-'+o.niveau+(o.vu?' vu':'')+(o.nouveau?' nouveau':'')+'"><span class="pv-dot"></span><span class="pv-main"><b>'+E(o.titre)+'</b><span class="pv-det"><span class="pv-dt" title="'+E(o.detail)+'">'+E(o.detail)+'</span>'+(o.nouveau?'<em>nouveau</em>':'')+'</span></span><span class="pv-when">'+(o.cat==='systeme'?E(SRC[o.src]||''):(o.quand?E(frD(o.quand)):''))+'<small>'+E(SRC[o.src]||'')+'</small></span><span class="pv-act"><button class="btn btn-sm btn-pri" onclick="prevOuvrir('+i+')">Ouvrir</button>'+(o.vu?'':'<button class="btn btn-sm btn-ghost" onclick="prevVu(\''+E(o.key)+'\')">Vu</button>')+'<button class="btn btn-sm btn-ghost" title="Reporter de 7 jours" onclick="prevReporter(\''+E(o.key)+'\',7)">+7 j</button></span></div>'; }
   window.prevCard=function(){ var b=prevBilan(), c=b.cfg; var L=prevItems(); window.__prevList=L; var idx={}; L.forEach(function(o,i){ idx[o.key]=i; });
     var head='<div class="card-h"><h2>Prévoyance — ce qu\'il faut prévoir</h2><div class="pv-hb"><span class="pv-gw">'+b.total+' point(s) · '+b.nouveaux+' nouveau(x) · '+b.crit+' critique(s)</span><button class="btn btn-sm btn-ghost" onclick="prevToggle()">'+(c.reduit?'Déplier':'Réduire')+'</button><button class="btn btn-sm btn-ghost" onclick="prevToutVu()"'+(b.nonVus?'':' disabled')+'>Tout marquer vu</button><button class="btn btn-sm btn-pri" onclick="prevScan(false)">Analyser maintenant</button></div></div>';
     if(c.reduit) return '<div class="card pv-card">'+head+'</div>';
@@ -51283,7 +51283,7 @@ function testLienSignature() {
     '.mq-ch-lab{display:block;font-size:12px;margin-bottom:5px;color:#c9c9d2}',
     '.mq-ch-card textarea{width:100%;box-sizing:border-box}',
     '.mq-st-list{display:flex;flex-direction:column}',
-    '.mq-st-row{display:grid;grid-template-columns:170px 96px 1fr;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid #1c1c1f;font-size:12.5px}',
+    '.mq-st-row{display:grid;grid-template-columns:1fr 96px;column-gap:10px;row-gap:3px;align-items:center;padding:8px 2px;border-bottom:1px solid #1c1c1f;font-size:12.5px}',
     '.mq-st-row:last-child{border-bottom:0}',
     '.mq-st-v{font-weight:700;text-align:center;border-radius:999px;padding:2px 0;border:1px solid #2a2a2e}',
     '.mq-st-oui .mq-st-v{color:#a9dcbc;border-color:rgba(84,150,104,.55)}',
@@ -51291,8 +51291,8 @@ function testLienSignature() {
     '.mq-st-corriger .mq-st-v{color:#f0b8b0;border-color:rgba(200,110,100,.6)}',
     '.mq-st-na{opacity:.55}',
     '.mq-st-na .mq-st-v{border-style:dashed}',
-    '.mq-st-d{color:#9a9aa3;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '@media(max-width:700px){.mq-st-row{grid-template-columns:1fr 80px}.mq-st-d{grid-column:1/-1}}'
+    '.mq-st-d{grid-column:1/-1;color:#9a9aa3;font-size:11.5px;min-width:0;line-height:1.4;overflow-wrap:break-word}',
+    '@media(max-width:700px){.mq-st-row{grid-template-columns:1fr 80px}}'
   ].join(''); document.head.appendChild(st); }catch(e){}
 })();
 </script>
@@ -53651,7 +53651,7 @@ function testLienSignature() {
     '.mq-pd-r{position:sticky;top:0;border:1px solid var(--line,#2a2a2e);border-radius:12px;padding:14px 16px;max-height:72vh;overflow:auto}',
     '.mq-pd-rh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}',
     '.mq-pd-rh b{display:block;font-size:17px}',
-    '.mq-pd-k{display:block;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3,#8a8a93);font-weight:600}',
+    '.mq-pd-k{display:block;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3,#8a8a93);font-weight:600}',
     '.mq-pd-cx{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line,#3a3a40);white-space:nowrap}',
     '.mq-pd-cx.cx{border-color:#b98029;color:#d9a55a}',
     '.mq-pd-manq{font-size:12px;color:#d9a55a;margin:0 0 10px}',
@@ -53669,7 +53669,7 @@ function testLienSignature() {
     '.mq-pd-rq,.mq-pd-cs,.mq-pd-docs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}',
     '.mq-pd-rq li{display:flex;gap:9px;align-items:flex-start}.mq-pd-rq b,.mq-pd-cs b,.mq-pd-docs b{display:block;font-size:12.5px}',
     '.mq-pd-rq span,.mq-pd-cs span,.mq-pd-docs span{display:block;font-size:12px;color:var(--ink3,#8a8a93)}',
-    '.mq-pd-rq .mq-pd-niv{flex:none;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;border:1px solid;min-width:58px;text-align:center;margin-top:1px;color:inherit}',
+    '.mq-pd-rq .mq-pd-niv{flex:none;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;border:1px solid;min-width:58px;text-align:center;margin-top:1px;color:inherit}',
     '.mq-pd-niv.critique{border-color:#c0523f;color:#e07a6b}.mq-pd-niv.majeure{border-color:#b98029;color:#d9a55a}.mq-pd-niv.mineure{border-color:#5d6470;color:#9aa0aa}',
     '.mq-pd-vide{font-size:12.5px;margin:0}',
     '.mq-pd-obl{margin-top:12px;font-size:12px;color:var(--ink3,#8a8a93)}',
@@ -54131,6 +54131,18 @@ function testLienSignature() {
     +'.bsr-ok{border-color:rgba(76,175,80,.45);background:rgba(76,175,80,.08)}'
     +'.bsr-todo{border-color:rgba(255,193,7,.45);background:rgba(255,193,7,.08)}'
     +'.bsr-warn{border-color:rgba(229,115,115,.5);background:rgba(229,115,115,.08)}';
+    document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script id="mq-lisible-731">
+/* v731 — Rien d'utile n'est coupé à l'écran.
+   Les sous-titres des cartes du Traitement (pastille à droite du titre) restaient sur
+   une ligne et masquaient la fin : le total TTC du devis disparaissait. Ils passent à
+   la ligne quand la place manque. */
+(function(){ if(window.__mqLis731) return; window.__mqLis731=1;
+  try{ if(!document.getElementById('lis731-css')){ var st=document.createElement('style'); st.id='lis731-css'; st.textContent=
+    'html body .esp-main .card-h{flex-wrap:wrap;row-gap:6px}'
+    +'html body .esp-main .card-h>.sub,html body.dark .esp-main .card-h>.sub{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;max-width:100%!important;min-width:0;text-align:right;border-radius:12px!important;line-height:1.45}';
     document.head.appendChild(st); } }catch(e){}
 })();
 </script>
