@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=756;
+var LAST_VER=757;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -57747,6 +57747,304 @@ function testLienSignature() {
     '@media (max-width:620px){.ft-form{grid-template-columns:1fr}.ft-form .ft-rep{grid-column:1}}'].join('');
   document.head.appendChild(st);
   window.__admFtPrintCSS=FT_PRINT;
+})();
+</script>
+<script id="mq-admin-757">
+/* ============================================================================
+   v757 — Formulaire : fiche technique de la future société
+
+   À la fin de la saisie du Formulaire (bouton « Fiche technique » de la barre
+   d'actions, et automatiquement à l'enregistrement du dossier), une fiche
+   technique complète et développée de la société en création :
+   synthèse et verdict, identité du projet, dirigeant, associés et capital,
+   profil et projet, analyse approfondie par domaine avec les orientations
+   possibles, comparatif des structures, repères fiscaux, activité
+   réglementée, obligations par organisme, échéancier de la première année,
+   points de vigilance, conseils, informations complémentaires à recueillir,
+   directions d'accompagnement après la création, checklist de création.
+   Tout est déduit de la saisie par les moteurs existants (recommandation du
+   Formulaire, pré-diagnostic, moteur de connaissances, contrôle 360°, pièces
+   selon l'activité, services post-création, conseils). Version client et
+   version cabinet ; impression / PDF ; la fiche est conservée sur le dossier
+   créé et réouvrable depuis l'Administration.
+   ============================================================================ */
+(function(){
+  if(window.__mqFormFT) return; window.__mqFormFT=1;
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return S(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function T(m){ try{ if(typeof toast==='function') toast(m); }catch(e){} }
+  function get(o,p){ return p.split('.').reduce(function(a,k){ return (a&&a[k]!=null)?a[k]:''; },o||{}); }
+  function vide(v){ return v==null||S(v).trim()===''; }
+  function num(v){ var n=parseFloat(S(v).replace(/\s/g,'').replace(',','.')); return isFinite(n)?n:null; }
+  function eur(v){ var n=num(v); if(n==null) return '—'; try{ return n.toLocaleString('fr-FR',{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2})+' €'; }catch(e){ return n+' €'; } }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function dOf(v){ if(!v) return null; if(v instanceof Date) return v; var m=S(v).match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]); m=S(v).match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1]); return null; }
+  function frd(v){ var d=dOf(v); return d?pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear():S(v); }
+  function t0(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+  function addM(d,n){ var x=new Date(d.getFullYear(),d.getMonth()+n,d.getDate()); if(x.getDate()!==d.getDate()) x=new Date(d.getFullYear(),d.getMonth()+n+1,0); return x; }
+  function plat(s){ return S(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  function copie(o){ try{ return JSON.parse(JSON.stringify(o||{})); }catch(e){ return o||{}; } }
+
+  var FORMES={sas:'SAS',sasu:'SASU',sarl:'SARL',eurl:'EURL',sci:'SCI',micro:'Micro-entreprise',ei:'Entreprise individuelle'};
+  var FT={sas:'creation_sas',sasu:'creation_sas',sarl:'creation_sarl',eurl:'creation_sarl',sci:'creation_sci',micro:'creation_micro',ei:'creation_micro'};
+  var LBL={
+    objectif:{remuneration:'Se rémunérer dès maintenant',capitalisation:'Capitaliser / réinvestir dans la société',transmission:'Transmettre le patrimoine',patrimoine:'Protéger son patrimoine personnel',investisseurs:'Accueillir des investisseurs'},
+    remun:{salaire:'Salaire régulier',dividendes:'Plutôt des dividendes',mixte:'Mixte (salaire + dividendes)'},
+    protection:{forte:'Forte — couverture maximale',moyenne:'Moyenne — équilibrée',faible:'Faible — optimiser les charges'},
+    autreActivite:{aucune:'Aucune — activité principale',salarie:'Salarié par ailleurs',tns:'Indépendant par ailleurs',retraite:'Retraité',demandeur:'Demandeur d’emploi',etudiant:'Étudiant'},
+    famille:{celibataire:'Célibataire',marie:'Marié(e)',pacse:'Pacsé(e)',divorce:'Divorcé(e)',veuf:'Veuf(ve)'},
+    matrimonial:{communaute:'Communauté réduite aux acquêts',separation:'Séparation de biens',universelle:'Communauté universelle',participation:'Participation aux acquêts'},
+    horizon:{court:'Court terme (moins de 3 ans)',moyen:'Moyen terme (3 à 8 ans)',long:'Long terme (plus de 8 ans)'},
+    activiteType:{commerciale:'Commerciale (achat-vente, négoce)',artisanale:'Artisanale',liberale:'Libérale / prestations intellectuelles',immobiliere:'Immobilière — location civile',agricole:'Agricole'},
+    chargesPatronales:{faible:'Faible — minimiser le coût employeur',moyen:'Moyen — équilibré',eleve:'Élevé accepté — protection maximale'}
+  };
+  function lb(k,v){ return (LBL[k]&&LBL[k][v])||S(v); }
+  var UE=/fran|allemand|belge|espagnol|italien|portugais|neerland|hollandais|luxembourg|irland|autrich|polonais|roumain|bulgare|grec|croate|slovene|slovaque|tcheque|hongrois|lituan|letton|eston|finland|suedois|danois|maltais|chypri|norveg|islandais|liechtenstein|suisse/;
+  var DOMS={juridique:'Juridique',fiscal:'Fiscal',social:'Social',chiffres:'Chiffres',aides:'Aides',gestion:'Gestion',demarches:'Démarches'};
+
+  /* ---------- champs pris en compte dans la complétude ---------- */
+  var CLES=[
+    ['societe.denomination','Dénomination'],['societe.capital','Capital social'],['societe.objet','Objet social'],['societe.debut','Date de début d’activité'],['societe.regime','Régime fiscal'],
+    ['siege.rue','Adresse du siège'],['siege.cp','Code postal du siège'],['siege.ville','Ville du siège'],['siege.type','Type de local'],
+    ['direction.prenom','Prénom du dirigeant'],['direction.nom','Nom du dirigeant'],['direction.naissance','Date de naissance du dirigeant'],['direction.lieuNaissance','Lieu de naissance du dirigeant'],['direction.nationalite','Nationalité du dirigeant'],['direction.adresse','Adresse du dirigeant'],
+    ['dirx.typePiece','Pièce d’identité du dirigeant'],['dirx.pereNom','Nom du père (filiation)'],['dirx.mereNom','Nom de la mère (filiation)'],
+    ['titres.nominal','Valeur nominale des titres'],['titres.nbTitres','Nombre de titres'],
+    ['dates.dateActe','Date de signature des statuts'],['dates.villeSignature','Lieu de signature'],['dates.finExo','Clôture du premier exercice'],['dates.duree','Durée de la société'],
+    ['depot.banque','Établissement du dépôt de capital'],['depot.montant','Montant déposé'],
+    ['apports.tva','Option de TVA'],['apports.regimeSocial','Régime social du dirigeant'],
+    ['contact.email','E-mail de contact'],['contact.tel','Téléphone de contact'],
+    ['profil.caPrev','Chiffre d’affaires prévisionnel'],['profil.objectif','Objectif du dirigeant']
+  ];
+
+  /* ---------- données du prédiagnostic déduites du formulaire ---------- */
+  function versPrediag(F){ var p=F.profil||{}, s=F.societe||{}, ap=F.apports||{}, si=F.siege||{};
+    var n=(F.associes||[]).filter(function(a){ return !vide(a.nom)||!vide(a.prenom); }).length||num(p.nbAssocies)||1;
+    var ca=num(p.caPrev), sal=num(p.nbSalaries)||0, obj=S(p.objectif);
+    var o={patrimoine:'protection',transmission:'transmission',investisseurs:'levee',capitalisation:'dividendes'}[obj]||(S(p.remun)==='dividendes'?'dividendes':'cout');
+    if(S(p.activiteType)==='immobiliere') o='immobilier';
+    var nat=plat(get(F,'direction.nationalite'));
+    return {activite:S(s.objet),reglementee:S(p.reglementee)==='oui'?'oui':'non',associes:n>=3?'3':String(n),holding:'non',capital:S(s.capital),
+      nature:num(ap.nature)>0?'oui':'non',
+      local:/domicil/i.test(si.type)?'domiciliation':(/domicile/i.test(si.type)?'domicile':(/local|bail/i.test(si.type)?'bail':'')),
+      ca:ca==null?'':(ca<35000?'faible':(ca<=85000?'moyen':'eleve')),clientele:'',
+      tva:/franchise/i.test(ap.tva)?'franchise':(vide(ap.tva)?'nsp':'facturer'),
+      embauche:sal>=3?'3':(sal>0?'1':'non'),objectif:o,
+      situation:{salarie:'salarie',demandeur:'demandeur',tns:'independant'}[S(p.autreActivite)]||'autre',
+      nationalite:nat&&!UE.test(nat)?'hors':'ue',debut:S(s.debut)}; }
+
+  /* ---------- calcul de la fiche ---------- */
+  window.formFicheCalcul=function(src){
+    var F=copie(src||window.__formData||{}); F.nature=F.nature||'creation';
+    var ty=S(F.type||'sas').toLowerCase(), forme=FORMES[ty]||ty.toUpperCase(), X={F:F,type:ty,forme:forme};
+    var sav=window.__formData;
+    try{ window.__formData=F;
+      try{ X.reco=window.formReco?window.formReco():null; }catch(e){ X.reco=null; }
+      try{ X.manques=window.formManques?window.formManques():[]; }catch(e){ X.manques=[]; }
+      try{ X.coh=window.formCoherence?window.formCoherence():[]; }catch(e){ X.coh=[]; }
+    } finally { window.__formData=sav; }
+    var D={intake:F,formalite:ty,forme:/^(sas|sasu|sarl|eurl|sci)$/.test(ty)?ty.toUpperCase():''};
+    try{ X.kn=window.connaissancesPour?window.connaissancesPour(copie(D)):null; }catch(e){ X.kn=null; }
+    try{ X.c360=window.controle360?window.controle360(copie(D),{sansDepot:true}):null; }catch(e){ X.c360=null; }
+    try{ X.onb=window.onbBilan?window.onbBilan(copie(D)):null; }catch(e){ X.onb=null; }
+    X.R=versPrediag(F);
+    try{ X.pd=window.prediagCalc?window.prediagCalc(X.R):null; }catch(e){ X.pd=null; }
+    var obj=plat(get(F,'societe.objet'));
+    X.regl=(window.ACTIVITES_REGLEMENTEES||[]).filter(function(f){ try{ return obj&&f.rx&&f.rx.test(obj); }catch(e){ return false; } });
+    var cap=num(get(F,'societe.capital'));
+    var Sx={identite:{forme:forme,regime:S(get(F,'societe.regime')),capital:cap,effectif:num(get(F,'profil.nbSalaries'))||0},fiscal:{tva:S(get(F,'apports.tva')),obligations:[]},
+      dossiers:[{formalite:'Création '+forme,terminee:false,pieces:{manquantes:[]}}],factures:{}};
+    try{ X.cs=window.conseilsSociete?window.conseilsSociete(Sx)||[]:[]; }catch(e){ X.cs=[]; }
+    function sb(k){ try{ return window.barGet?window.barGet('seuil.'+k):null; }catch(e){ return null; } }
+    X.seuils={franchiseServices:sb('franchiseServices'),franchiseVentes:sb('franchiseVentes'),franchiseServicesMaj:sb('franchiseServicesMaj'),franchiseVentesMaj:sb('franchiseVentesMaj'),microBIC:sb('microBIC'),microBNC:sb('microBNC')};
+    var ok=CLES.filter(function(c){ return !vide(get(F,c[0])); }).length; X.pct=Math.round(100*ok/CLES.length); X.aCompleter=CLES.filter(function(c){ return vide(get(F,c[0])); }).map(function(c){ return c[1]; });
+    X.ts=Date.now(); return X; };
+
+  /* ---------- rendu ---------- */
+  function sec(t,h,cl){ return '<div class="sy-sec'+(cl?' '+cl:'')+'"><div class="sy-h">'+E(t)+'</div>'+h+'</div>'; }
+  function kv(rows){ rows=rows.filter(function(r){ return r&&!vide(r[1]); }); if(!rows.length) return '<p class="sy-p">Non renseigné.</p>'; return '<table class="sy-t fft-kv"><tbody>'+rows.map(function(r){ return '<tr><td>'+E(r[0])+'</td><td>'+(r[2]?r[1]:E(r[1]))+'</td></tr>'; }).join('')+'</tbody></table>'; }
+  function ul(a,fn){ return a.length?'<ul class="sy-ul">'+a.map(fn).join('')+'</ul>':''; }
+  function masque(v){ v=S(v).replace(/\s/g,''); return v.length>4?'•••• '+v.slice(-4):(v?'••••':''); }
+
+  window.formFicheHTML=function(X,mode){ if(!X) return ''; var F=X.F, cl=mode!=='cabinet', r=X.reco||{}, pd=X.pd||{}, s=F.societe||{}, si=F.siege||{}, dir=F.direction||{}, dx=F.dirx||{}, tt=F.titres||{}, dt=F.dates||{}, dep=F.depot||{}, ap=F.apports||{}, cj=F.conjoint||{}, cac=F.cac||{}, p=F.profil||{}, h='';
+    var nomSoc=S(s.denomination)||'Société en création', cap=num(s.capital);
+    var nomDir=[dir.civilite,dir.prenom,S(dir.nom).toUpperCase()].filter(Boolean).join(' ');
+    h+='<div class="sy-top"><div><div class="sy-kick">Fiche technique de création</div><div class="sy-nom">'+E(nomSoc)+'</div><div class="sy-sub">'+E([X.forme,cap!=null?'capital '+eur(cap):'',[si.cp,si.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · '))+'</div></div>'
+      +'<div class="sy-per"><b>Formulaire renseigné à '+X.pct+' %</b><span>Établie le '+E(frd(new Date(X.ts)))+'</span>'+(F.numeroDossier?'<span>Dossier '+E(F.numeroDossier)+'</span>':'')+(cl?'':'<span>Version cabinet</span>')+'</div></div>';
+
+    /* 1. synthèse */
+    var reco=S(r.forme), choisie=X.forme, diff=reco&&plat(reco).replace(/[^a-z]/g,'')!==plat(choisie).replace(/[^a-z]/g,'')&&!(/sasu?/.test(plat(reco))&&/sasu?/.test(plat(choisie))&&plat(reco).slice(0,3)===plat(choisie).slice(0,3));
+    var regCh=S(s.regime).toUpperCase(), regRe=S(r.regime);
+    var c360=X.c360, sc=c360&&isFinite(c360.score)?Math.round(c360.score):null;
+    var syn=[['Forme choisie',choisie],['Structure recommandée',reco?reco+(diff?' — différente de la forme choisie, à arbitrer avec le client':' — conforme au choix'):''],
+      ['Régime fiscal',[regCh?'choisi : '+regCh:'',regRe?'recommandé : '+regRe:''].filter(Boolean).join(' · ')],['Statut social du dirigeant',S(r.social)||S(ap.regimeSocial)],
+      ['TVA',S(ap.tva)||(pd.reco&&pd.reco.tvaLbl)||''],['Synthèse',S(r.synthese)],['Contrôle de cohérence',sc!=null?sc+' / 100'+(c360.anomalies?' · '+(c360.anomalies.length||c360.anomalies)+' point(s) à reprendre':''):''],
+      ['Délai estimé de création',pd.delai&&pd.delai.min?('de '+pd.delai.min+' à '+pd.delai.max+' jours ouvrés'):''],['Informations à compléter',X.aCompleter.length?X.aCompleter.length+' sur '+CLES.length:'aucune — formulaire complet']];
+    h+=sec('Synthèse',kv(syn)+(r.why&&r.why.length?'<p class="sy-p"><b>Pourquoi cette structure :</b></p>'+ul(r.why,function(x){ return '<li>'+E(x)+'</li>'; }):''));
+
+    /* 2. identité */
+    var adr=[si.rue,[si.cp,si.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    h+=sec('Identité juridique du projet',kv([['Dénomination',s.denomination],['Sigle',s.sigle],['Enseigne',s.enseigne],['Forme',choisie],['Capital social',cap!=null?eur(cap)+(ap.liberation?' — libération : '+ap.liberation:''):''],
+      ['Titres',(tt.nbTitres||tt.nominal)?[tt.nbTitres?tt.nbTitres+' titres':'',tt.nominal?'de '+eur(tt.nominal)+' de nominal':''].filter(Boolean).join(' '):''],['Objet social',s.objet],['Siège social',adr],
+      ['Occupation du siège',[si.type,si.bailleur?'bailleur : '+si.bailleur:'',si.domiciliataire?'domiciliataire : '+si.domiciliataire:''].filter(Boolean).join(' · ')],
+      ['Début d’activité',s.debut?frd(s.debut):''],['Durée',dt.duree?dt.duree+' ans':''],['Clôture annuelle',dt.clotureAnnuelle],['Premier exercice',[dt.anneeExo,dt.finExo?'clos le '+frd(dt.finExo):''].filter(Boolean).join(' · ')],
+      ['Greffe (RCS)',dt.rcsVille||si.ville],['Signature des statuts',[dt.dateActe?frd(dt.dateActe):'',dt.villeSignature?'à '+dt.villeSignature:''].filter(Boolean).join(' ')],['SIREN','attribué à l’immatriculation']]));
+
+    /* 3. dirigeant */
+    h+=sec('Dirigeant',kv([['Identité',nomDir],['Fonction',dir.fonction],['Naissance',[dir.naissance?'le '+frd(dir.naissance):'',dir.lieuNaissance?'à '+dir.lieuNaissance:'',dir.pays?'('+dir.pays+')':''].filter(Boolean).join(' ')],['Nationalité',dir.nationalite],
+      ['Adresse personnelle',[dir.adresse,[dx.cp,dx.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')],['Pièce d’identité',[dx.typePiece,cl?masque(dx.numPiece):S(dx.numPiece)].filter(Boolean).join(' · ')],
+      ['Filiation',cl?'':[dx.pereNom?'père : '+dx.pereNom:'',dx.mereNom?'mère : '+dx.mereNom:''].filter(Boolean).join(' · ')],
+      ['Situation familiale',[lb('famille',p.famille),p.matrimonial?lb('matrimonial',p.matrimonial):'',num(p.charge)?p.charge+' personne(s) à charge':''].filter(Boolean).join(' · ')],
+      ['Autre activité',p.autreActivite?lb('autreActivite',p.autreActivite):''],['Conjoint',[cj.nom,cj.statut,cj.regime].filter(Boolean).join(' · ')],
+      ['Commissaire aux comptes',[cac.nom,cac.adresse,cac.dureeMandat?'mandat '+cac.dureeMandat:''].filter(Boolean).join(' · ')],['Contact',[get(F,'contact.email'),get(F,'contact.tel')].filter(Boolean).join(' · ')]]));
+
+    /* 4. associés & capital */
+    var ass=(F.associes||[]).filter(function(a){ return !vide(a.nom)||!vide(a.prenom); }), totP=ass.reduce(function(t,a){ return t+(num(a.parts)||0); },0);
+    var hA=ass.length?'<table class="sy-t"><thead><tr><th>Associé</th><th class="r">Apport</th><th class="r">Titres</th><th class="r">Part</th><th>Rôle</th></tr></thead><tbody>'+ass.map(function(a){ var pp=num(a.parts); return '<tr><td>'+E([a.civilite,a.prenom,S(a.nom).toUpperCase()].filter(Boolean).join(' '))+'</td><td class="r">'+E(a.apport?eur(a.apport):'—')+'</td><td class="r">'+E(pp!=null?pp:'—')+'</td><td class="r">'+(pp!=null&&totP?Math.round(1000*pp/totP)/10+' %':'—')+'</td><td>'+E(a.role||'')+'</td></tr>'; }).join('')+'</tbody></table>':'<p class="sy-p">Associé unique : le dirigeant'+(nomDir?' ('+E(nomDir)+')':'')+'.</p>';
+    var nomTot=num(tt.nominal)&&num(tt.nbTitres)?num(tt.nominal)*num(tt.nbTitres):null;
+    var ctl=[]; if(nomTot!=null&&cap!=null) ctl.push(Math.abs(nomTot-cap)<0.01?'Nominal × nombre de titres = capital ('+eur(cap)+') : cohérent.':'Nominal × nombre de titres = '+eur(nomTot)+', différent du capital déclaré ('+eur(cap)+') : à corriger.');
+    if(num(dep.montant)!=null&&cap!=null) ctl.push(num(dep.montant)>=cap?'Montant déposé ('+eur(dep.montant)+') : couvre le capital en numéraire.':'Montant déposé ('+eur(dep.montant)+') inférieur au capital : vérifier la libération partielle prévue aux statuts.');
+    var ben=(F.beneficiaires||[]).filter(function(b){ return !vide(b.nom); });
+    h+=sec('Associés, capital et bénéficiaires effectifs',hA+kv([['Apports en numéraire',ap.numeraire?eur(ap.numeraire):''],['Apports en nature',ap.nature&&num(ap.nature)?eur(ap.nature)+(ap.natureDesc?' — '+ap.natureDesc:''):''],
+      ['Dépôt des fonds',[dep.type,dep.banque,dep.montant?eur(dep.montant):'',dep.date?'le '+frd(dep.date):'',cl?'':(dep.iban?'IBAN '+dep.iban:'')].filter(Boolean).join(' · ')]])+ul(ctl,function(x){ return '<li>'+E(x)+'</li>'; })
+      +(ben.length?'<p class="sy-p"><b>Bénéficiaires effectifs</b> (plus de 25 % du capital ou des droits de vote, ou contrôle) :</p>'+ul(ben,function(b){ return '<li>'+E(b.nom)+[b.detention?' — détention '+b.detention+' %':'',b.vote?' · votes '+b.vote+' %':'',b.controle?' · '+b.controle:''].join('')+'</li>'; }):'<p class="sy-p">Bénéficiaires effectifs : à déclarer lors de l’immatriculation.</p>'));
+
+    /* 5. projet */
+    h+=sec('Profil du dirigeant et projet',kv([['Nature de l’activité',p.activiteType?lb('activiteType',p.activiteType):''],['Chiffre d’affaires prévisionnel',num(p.caPrev)!=null?eur(p.caPrev):''],['Résultat prévisionnel',num(p.beneficePrev)!=null?eur(p.beneficePrev):''],
+      ['Salariés envisagés',num(p.nbSalaries)!=null?S(num(p.nbSalaries)):''],['Objectif principal',p.objectif?lb('objectif',p.objectif):''],['Rémunération souhaitée',p.remun?lb('remun',p.remun):''],['Protection sociale',p.protection?lb('protection',p.protection):''],
+      ['Charges patronales',p.chargesPatronales?lb('chargesPatronales',p.chargesPatronales):''],['Horizon',p.horizon?lb('horizon',p.horizon):''],['Investisseurs',p.investisseurs==='oui'?'ouverture du capital prévue':''],['Innovation / R&D',p.innovation==='oui'?'oui':''],
+      ['Investissements importants',p.tvaInvest==='oui'?'oui — récupération de TVA à prévoir':''],['Vision du projet',p.vision]])+(r.deductions&&r.deductions.length?'<p class="sy-p"><b>Déduit de la vision du projet :</b></p>'+ul(r.deductions,function(x){ return '<li>'+E(x)+'</li>'; }):''));
+
+    /* 6. analyse approfondie */
+    var doms=(r.domaines||[]).filter(function(g){ return g.items&&g.items.length; });
+    if(doms.length) h+=sec('Analyse approfondie et orientations possibles',doms.map(function(g){ return '<div class="fft-dom"><div class="fft-dt">'+E(g.t||DOMS[g.k]||g.k)+'</div>'+g.items.map(function(it){ return '<div class="fft-dec"><b>'+E(it.d)+'</b><div class="fft-p">'+E(it.p)+'</div>'+(it.alts&&it.alts.length?'<div class="fft-alt">Orientations possibles :</div><ul class="sy-ul">'+it.alts.map(function(a){ return '<li>'+E(a)+'</li>'; }).join('')+'</ul>':'')+'</div>'; }).join('')+'</div>'; }).join(''));
+
+    /* 7. comparatif */
+    var scs=r.scores?Object.keys(r.scores).map(function(k){ return [k,+r.scores[k]||0]; }).sort(function(a,b){ return b[1]-a[1]; }):[];
+    if(scs.length){ var mx=Math.max.apply(null,scs.map(function(x){ return x[1]; }).concat([1]));
+      var al=pd.reco&&pd.reco.alt, alt=al&&(al.pourquoi||al.forme)?'<p class="sy-p"><b>Autre structure envisageable'+(al.forme?' : '+E(S(al.forme).toUpperCase()):'')+'</b> — '+E(al.pourquoi||'')+'</p>':'';
+      h+=sec('Comparatif des structures','<table class="sy-t"><tbody>'+scs.map(function(x){ return '<tr'+(plat(x[0])===plat(choisie)?' class="fft-sel"':'')+'><td>'+E(x[0])+(plat(x[0])===plat(choisie)?' (choisie)':'')+'</td><td><span class="fft-bar"><i style="width:'+Math.max(4,Math.round(100*x[1]/mx))+'%"></i></span></td><td class="r">'+E(x[1])+'</td></tr>'; }).join('')+'</tbody></table><p class="sy-p fft-n">Score d’adéquation au profil saisi (plus il est élevé, plus la structure répond aux objectifs).</p>'+alt); }
+
+    /* 8. repères fiscaux */
+    var sv=X.seuils, rep=[];
+    if(sv.franchiseServices) rep.push(['Franchise en base de TVA — services',eur(sv.franchiseServices)+(sv.franchiseServicesMaj?' (seuil majoré '+eur(sv.franchiseServicesMaj)+')':'')]);
+    if(sv.franchiseVentes) rep.push(['Franchise en base de TVA — ventes',eur(sv.franchiseVentes)+(sv.franchiseVentesMaj?' (seuil majoré '+eur(sv.franchiseVentesMaj)+')':'')]);
+    if(/micro|ei/.test(X.type)){ if(sv.microBIC) rep.push(['Micro-entreprise — ventes (BIC)',eur(sv.microBIC)]); if(sv.microBNC) rep.push(['Micro-entreprise — services (BNC)',eur(sv.microBNC)]); }
+    var caP=num(p.caPrev); if(caP!=null&&sv.franchiseServices) rep.push(['Position du prévisionnel',caP>(sv.franchiseVentes||sv.franchiseServices)?'au-dessus des seuils de franchise : TVA à facturer':(caP>sv.franchiseServices?'entre les seuils services et ventes : dépend de la nature de l’activité':'sous les seuils : franchise possible si le client n’a pas intérêt à récupérer la TVA')]);
+    if(pd.reco){ if(pd.reco.fiscalLbl||pd.reco.fiscal) rep.push(['Imposition des bénéfices (pré-diagnostic)',pd.reco.fiscalLbl||pd.reco.fiscal]); if(pd.reco.tvaLbl||pd.reco.tva) rep.push(['TVA (pré-diagnostic)',pd.reco.tvaLbl||pd.reco.tva]); if(pd.reco.social) rep.push(['Statut social (pré-diagnostic)',pd.reco.social]); }
+    if(rep.length) h+=sec('Repères fiscaux et sociaux',kv(rep)+'<p class="sy-p fft-n">Seuils du barème en vigueur dans le logiciel (Paramètres › Barème annuel).</p>');
+
+    /* 9. activité réglementée */
+    if(X.regl.length) h+=sec('Activité réglementée',X.regl.map(function(f){ return '<p class="sy-p"><b>'+E(f.lbl)+'</b></p>'+ul(f.pieces||[],function(pc){ return '<li>'+E(pc.label)+(pc.note?' — <i>'+E(pc.note)+'</i>':'')+'</li>'; }); }).join(''));
+    else if(p.reglementee==='oui') h+=sec('Activité réglementée','<p class="sy-p">Le dirigeant indique une activité réglementée que l’objet social ne permet pas d’identifier : préciser la profession, le diplôme ou l’agrément requis avant le dépôt.</p>');
+
+    /* 10. obligations par organisme */
+    var kn=(X.kn&&X.kn.items)||[];
+    if(kn.length){ var byO={}; kn.forEach(function(i){ (byO[i.orgLbl||i.org]=byO[i.orgLbl||i.org]||[]).push(i); });
+      h+=sec('Obligations et formalités par organisme ('+kn.length+')',Object.keys(byO).map(function(o){ return '<p class="sy-p"><b>'+E(o)+'</b></p>'+ul(byO[o],function(i){ return '<li><b>'+E(i.titre)+'</b>'+(i.txt?' — '+E(i.txt):'')+'</li>'; }); }).join('')); }
+
+    /* 11. échéancier de la première année */
+    var ech=[], deb=dOf(s.debut)||dOf(dt.dateActe), soc=!/micro|ei/.test(X.type), fin=dOf(dt.finExo), IS=/IS/.test(S(s.regime).toUpperCase())||(!S(s.regime)&&/sas|sarl/.test(X.type));
+    function isoK(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+    ech.push(['0-0','Avant la signature','Dépôt des fonds sur un compte bloqué au nom de la société en formation et obtention de l’attestation de dépôt.']);
+    ech.push(['0-1','Avant l’immatriculation','Publication de l’avis de constitution dans un support d’annonces légales.']);
+    ech.push(['0-2','Immatriculation','Dépôt du dossier sur le guichet unique de l’INPI'+(soc?', avec la déclaration des bénéficiaires effectifs':'')+'.']);
+    ech.push(['0-3','Dès l’immatriculation','Ouverture de l’espace professionnel sur impots.gouv.fr, du compte bancaire professionnel et des adhésions (assurance, retraite complémentaire, prévoyance selon le statut).']);
+    if(/simplifi|\brs\b/.test(plat(ap.tva))) ech.push(['0-5','Juillet et décembre','Acomptes de TVA (régime réel simplifié), puis déclaration annuelle CA12 au mois de mai.']);
+    else if(/normal|ca3/.test(plat(ap.tva))) ech.push(['0-5','Chaque mois','Déclaration de TVA CA3.']);
+    if(num(p.nbSalaries)>0) ech.push(['0-6','À chaque embauche','Déclaration préalable à l’embauche (DPAE) avant la prise de poste ; déclaration sociale nominative (DSN) chaque mois.']);
+    ech.push(['2026-09-01','1er septembre 2026','Réception des factures électroniques obligatoire pour toutes les entreprises : choisir une plateforme agréée.']);
+    ech.push(['2027-09-01','1er septembre 2027','Émission des factures électroniques et e-reporting obligatoires pour les PME et micro-entreprises.']);
+    if(deb) ech.push([deb.getFullYear()+'-12-31','Avant le 31/12/'+deb.getFullYear(),'Déclaration initiale de CFE (formulaire 1447-C-SD) ; pas de CFE due pour l’année de création.']);
+    if(fin){ ech.push([isoK(fin),'Le '+frd(fin),'Clôture du premier exercice.']);
+      if(soc&&IS&&X.type!=='sci'){ var dec31=fin.getMonth()===11&&fin.getDate()===31, sol=dec31?new Date(fin.getFullYear()+1,4,15):new Date(fin.getFullYear(),fin.getMonth()+4,15);
+        ech.push([isoK(sol),'Le '+frd(sol),'Solde de l’impôt sur les sociétés (le 15 du quatrième mois suivant la clôture, le 15 mai pour une clôture au 31 décembre) ; acomptes trimestriels à partir du deuxième exercice.']);
+        ech.push([isoK(addM(fin,3))+'b','Dans les trois mois de la clôture','Déclaration de résultats (liasse fiscale) ; en mai pour un exercice clos le 31 décembre.']); }
+      if(soc&&X.type!=='sci') ech.push([isoK(addM(fin,6)),'Au plus tard le '+frd(addM(fin,6)),'Approbation des comptes par les associés (dans les six mois de la clôture), puis dépôt des comptes au greffe dans le mois qui suit (deux mois par voie électronique).']);
+      else if(X.type==='sci') ech.push([isoK(addM(fin,4)),'Après la clôture','Approbation des comptes selon les statuts ; déclaration de résultats de la SCI.']); }
+    ech.sort(function(a,b){ return a[0]<b[0]?-1:(a[0]>b[0]?1:0); }); ech=ech.map(function(x){ return [x[1],x[2]]; });
+    h+=sec('Échéancier de la première année','<table class="sy-t"><tbody>'+ech.map(function(x){ return '<tr><td class="fft-w">'+E(x[0])+'</td><td>'+E(x[1])+'</td></tr>'; }).join('')+'</tbody></table>');
+
+    /* 12. vigilance */
+    var vig=[]; (r.vigilance||[]).forEach(function(v){ vig.push({n:'o',t:v}); });
+    (pd.risques||[]).forEach(function(v){ vig.push({n:v.niv==='critique'?'r':'o',t:v.titre,d:v.txt}); });
+    (X.coh||[]).filter(function(c){ return !c.ok; }).forEach(function(c){ vig.push({n:'r',t:'Incohérence : '+c.label,d:(c.got!=null?'saisi : '+c.got:'')+(c.exp!=null?' · attendu : '+c.exp:'')}); });
+    if(c360&&c360.blocs) c360.blocs.forEach(function(b){ if(/piece|pièce|depot|dépôt/i.test(b.k+' '+b.titre)) return; (b.points||[]).forEach(function(pt){ if(pt.etat==='ko'||(pt.etat==='warn'&&!cl)) vig.push({n:pt.etat==='ko'?'r':'o',t:b.titre+' — '+pt.lbl,d:pt.detail}); }); });
+    var vu={}; vig=vig.filter(function(v){ var k=plat(v.t); if(vu[k]) return false; vu[k]=1; return true; });
+    h+=sec('Points de vigilance et risques',vig.length?'<ul class="sy-ul sy-vig">'+vig.map(function(v){ return '<li class="sy-'+v.n+'"><b>'+E(v.t)+'</b>'+(v.d?'<br><span>'+E(v.d)+'</span>':'')+'</li>'; }).join('')+'</ul>':'<p class="sy-p">Aucun point de vigilance relevé.</p>');
+
+    /* 13. conseils */
+    var cs=[]; (pd.conseils||[]).forEach(function(c){ cs.push([c.titre,c.txt]); }); (X.cs||[]).filter(function(c){ return !cl||c.pub; }).forEach(function(c){ cs.push([c.titre,c.txt]); });
+    var vc={}; cs=cs.filter(function(c){ var k=plat(c[0]); if(vc[k]) return false; vc[k]=1; return true; });
+    if(cs.length) h+=sec('Conseils',ul(cs,function(c){ return '<li><b>'+E(c[0])+'</b> — '+E(c[1])+'</li>'; }));
+
+    /* 14. informations complémentaires */
+    var sup=[];
+    X.manques.forEach(function(m){ sup.push(['Formulaire',m]); });
+    X.aCompleter.forEach(function(m){ if(!X.manques.some(function(x){ return plat(x)===plat(m); })) sup.push(['Formulaire',m]); });
+    ['Établissements secondaires éventuels et lieux d’exercice','Coordonnées bancaires du compte professionnel définitif','Assurance responsabilité civile professionnelle (et décennale si l’activité l’impose)','Adhésions : retraite complémentaire, prévoyance, mutuelle (dès le premier salarié)','Accès à l’espace professionnel impots.gouv.fr et au compte URSSAF','Plateforme agréée retenue pour la facturation électronique','Logiciel de facturation et de tenue comptable, conservation des pièces','Protection du nom commercial et de la marque (recherche d’antériorité, dépôt à l’INPI)','Nom de domaine et identité numérique']
+      .forEach(function(x){ sup.push(['À recueillir',x]); });
+    if(ass.length>1) sup.push(['À recueillir','Pacte d’associés : gouvernance, sortie, agrément, non-concurrence']);
+    if(/domicile/i.test(si.type)) sup.push(['À recueillir','Autorisation du bailleur ou du règlement de copropriété pour la domiciliation au domicile']);
+    (pd.documents||[]).forEach(function(d){ sup.push(['Pièce',d.label+(d.pourquoi?' — '+d.pourquoi:'')]); });
+    var vs={}; sup=sup.filter(function(x){ var k=plat(x[1]); if(vs[k]) return false; vs[k]=1; return true; });
+    h+=sec('Informations complémentaires à recueillir','<table class="sy-t"><tbody>'+sup.map(function(x){ return '<tr><td class="fft-w">'+E(x[0])+'</td><td>'+E(x[1])+'</td></tr>'; }).join('')+'</tbody></table>');
+
+    /* 15. directions d'accompagnement */
+    var ob=((X.onb&&X.onb.items)||[]).filter(function(i){ return i.pertinent; });
+    if(ob.length) h+=sec('Directions d’accompagnement après la création',ul(ob,function(i){ return '<li><b>'+E(i.titre)+'</b>'+(i.pourquoi?' — '+E(i.pourquoi):'')+(!cl&&i.prix&&(i.prix.lbl||typeof i.prix!=='object')?' <i>('+E(typeof i.prix==='object'?i.prix.lbl:(typeof i.prix==='number'?eur(i.prix):i.prix))+')</i>':'')+'</li>'; }));
+
+    /* 16. checklist */
+    var ck=[['Statuts rédigés et signés',!vide(dt.dateActe)],['Capital déposé et attestation de dépôt',!vide(dep.date)||!vide(dep.montant)],['Justificatif d’occupation du siège',!vide(si.type)],['Pièce d’identité du dirigeant',!vide(dx.typePiece)],
+      ['Déclaration de non-condamnation et filiation',!vide(dx.pereNom)&&!vide(dx.mereNom)],['Avis de constitution publié',false],['Déclaration des bénéficiaires effectifs',!soc||ben.length>0],['Dossier déposé au guichet unique',false],['K-bis reçu',false],
+      ['Compte bancaire professionnel ouvert',false],['Espace professionnel impots.gouv.fr ouvert',false],['Assurance souscrite',false],['Plateforme de facturation électronique choisie',false]];
+    if(X.regl.length) ck.splice(4,0,['Diplôme, carte ou agrément de l’activité réglementée',false]);
+    h+=sec('Checklist de création','<table class="sy-t fft-ck"><tbody>'+ck.map(function(c){ return '<tr><td>'+E(c[0])+'</td><td class="r">'+(c[1]?'renseigné':'à faire')+'</td></tr>'; }).join('')+'</tbody></table>');
+
+    /* 17. cabinet */
+    if(!cl){ var cab=[]; if(pd.prix) cab.push(['Honoraires estimés (pré-diagnostic)',typeof pd.prix==='object'?(pd.prix.total!=null?eur(pd.prix.total):(pd.prix.ht!=null?eur(pd.prix.ht)+' HT':'')):eur(pd.prix)]);
+      if(get(F,'extra.notes')) cab.push(['Notes internes',get(F,'extra.notes')]); if(c360&&c360.compte) cab.push(['Contrôle 360°',Object.keys(c360.compte).map(function(k){ return k+' : '+c360.compte[k]; }).join(' · ')]);
+      if(cab.length) h+=sec('Éléments internes au cabinet',kv(cab)); }
+
+    h+='<div class="sy-foot">'+(cl?'Cette fiche est établie à partir des informations recueillies lors de la saisie du dossier de création. Les orientations proposées sont à confirmer avec le cabinet au regard de votre situation complète ; les seuils sont ceux en vigueur à la date d’établissement.':'Version cabinet : comprend la filiation, les coordonnées bancaires, les points de contrôle internes et les honoraires — à ne pas transmettre au client.')+'</div>';
+    return '<div class="sy-doc sy-'+(cl?'client':'cabinet')+' adm-fiche fft-doc">'+h+'</div>'; };
+
+  /* ---------- fenêtre ---------- */
+  var FS={X:null,mode:'client',did:null};
+  function peindre(){ var box=document.getElementById('fi-ft-body'); if(!box) return; box.innerHTML=window.formFicheHTML(FS.X,FS.mode);
+    try{ setTimeout(function(){ window.syAjuster&&window.syAjuster('fi-ft-body'); },0); }catch(e){}
+    document.querySelectorAll('.fi-ft-m').forEach(function(b){ b.classList.toggle('btn-pri',b.getAttribute('data-m')===FS.mode); }); }
+  function ouvrir(X,did){ if(typeof openModal!=='function') return; FS.X=X; FS.mode='client'; FS.did=did||null; var nm=S(get(X.F,'societe.denomination'))||'société en création';
+    openModal('Fiche technique de création — '+E(nm),'<div class="sy-bar" data-no-kebab><button type="button" class="btn btn-sm fi-ft-m" data-m="client" onclick="formFicheMode(&quot;client&quot;)">Version client</button><button type="button" class="btn btn-sm fi-ft-m" data-m="cabinet" onclick="formFicheMode(&quot;cabinet&quot;)">Version cabinet</button><span class="hint">La version client ne contient ni la filiation, ni les coordonnées bancaires, ni les points internes.</span></div><div id="fi-ft-body"></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-pri" onclick="formFicheImprimer()">Imprimer / PDF</button>');
+    peindre(); }
+  window.formFicheMode=function(m){ FS.mode=m==='cabinet'?'cabinet':'client'; peindre(); };
+  window.formFicheOuvrir=function(){ var F=window.__formData||{}; if(F.nature==='modification') return T('La fiche technique de création concerne les créations de société.'); ouvrir(window.formFicheCalcul(F)); };
+  window.formFicheDossier=function(did){ var d=((typeof DB!=='undefined'&&DB.dossiers)||[]).filter(function(x){ return x.id===did; })[0]; if(!d) return T('Dossier introuvable.');
+    var src=(d.ficheCreation&&d.ficheCreation.data)||d.intake; if(!src) return T('Aucune saisie de formulaire sur ce dossier.'); var X=window.formFicheCalcul(Object.assign({},src,{numeroDossier:src.numeroDossier||d.numeroDossier||d.ref||''})); if(d.ficheCreation&&d.ficheCreation.ts) X.ts=d.ficheCreation.ts; ouvrir(X,did); };
+  var PCSS='.fft-kv td:first-child{width:34%;color:#555}.fft-w{width:26%;white-space:nowrap;vertical-align:top;color:#555}.fft-dom{margin:0 0 10px;page-break-inside:avoid}.fft-dt{font-weight:700;font-size:12.5px;margin:6px 0 4px;border-left:3px solid #333;padding-left:6px}.fft-dec{margin:0 0 7px 9px}.fft-p{font-size:12px;color:#333}.fft-alt{font-size:11px;color:#666;margin-top:2px}.fft-bar{display:block;height:7px;background:#eee;border-radius:4px;overflow:hidden;min-width:120px}.fft-bar i{display:block;height:100%;background:#555}.fft-sel td{font-weight:700}.fft-n{font-size:11px;color:#666}.fft-ck td.r{white-space:nowrap}.sy-foot{margin-top:14px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:6px}';
+  window.formFicheImprimer=function(){ if(!FS.X) return; var html=window.formFicheHTML(FS.X,FS.mode), w=null; try{ w=window.open('','_blank'); }catch(e){} if(!w) return T('Autorisez les fenêtres pour imprimer la fiche.');
+    w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche technique de création · '+E(get(FS.X.F,'societe.denomination')||'Société en création')+'</title><style>'+(window.__syPrintCSS||'')+(window.__admFichePrintCSS||'')+PCSS+'</style></head><body>'+html+'<script>setTimeout(function(){window.print();},250);<\/script></body></html>'); w.document.close(); };
+  try{ var st=document.createElement('style'); st.id='mq-admin-757-css'; st.textContent='#fi-ft-body{max-height:68vh;overflow:auto;background:#3a3a41;border-radius:8px;padding:14px}'+PCSS.replace(/(^|\})\./g,'$1#ov-b .'); document.head.appendChild(st); }catch(e){}
+
+  /* ---------- bouton dans la barre d'actions du Formulaire ---------- */
+  function decorer(){ try{ if(typeof state==='undefined'||state.page!=='formulaire') return; var F=window.__formData||{}; if(F.nature==='modification') return;
+      var bar=document.querySelector('.fi-actions-r'); if(!bar||bar.querySelector('#fi-ft')) return; var b=document.createElement('button'); b.type='button'; b.id='fi-ft'; b.className='btn'; b.textContent='Fiche technique';
+      b.title='Fiche technique complète de la future société : analyse, conseils, orientations, informations à recueillir'; b.onclick=function(){ window.formFicheOuvrir(); }; bar.insertBefore(b,bar.firstChild); }catch(e){} }
+  try{ var _r=window.render; if(typeof _r==='function'&&!_r.__fft){ window.render=function(){ var o=_r.apply(this,arguments); decorer(); return o; }; window.render.__fft=1; } }catch(e){}
+  setTimeout(decorer,400);
+
+  /* ---------- à l'enregistrement du dossier : fiche conservée et présentée ---------- */
+  try{ var _fdc=window.formDoCreate; if(typeof _fdc==='function'&&!_fdc.__fft){ window.formDoCreate=function(ouvrirDocs){ var snap=copie(window.__formData||{}), avant={}; ((typeof DB!=='undefined'&&DB.dossiers)||[]).forEach(function(x){ avant[x.id]=1; });
+      var res=_fdc.apply(this,arguments);
+      try{ var dos=(DB.dossiers||[]).filter(function(x){ return !avant[x.id]; })[0]; if(dos&&snap&&snap.nature!=='modification'){ snap.numeroDossier=snap.numeroDossier||dos.numeroDossier||dos.ref||''; dos.ficheCreation={ts:Date.now(),data:snap};
+          (dos.historique=dos.historique||[]).unshift({d:(typeof today==='function'?today():''),t:'Fiche technique de création établie (analyse, conseils, orientations)'}); try{ save(); }catch(e){}
+          if(!ouvrirDocs) window.formFicheDossier(dos.id); else T('Fiche technique de création conservée sur le dossier '+(dos.numeroDossier||dos.ref||'')+'.'); } }catch(e){}
+      return res; }; window.formDoCreate.__fft=1; } }catch(e){}
+
+  /* ---------- reprise dans l'Administration ---------- */
+  try{ var _ex=window.admEntExtra; if(typeof _ex==='function'&&!_ex.__fft){ window.admEntExtra=function(c){ var h=_ex.apply(this,arguments)||''; try{ var K=window.__admKit;
+        var d=((DB&&DB.dossiers)||[]).filter(function(x){ return (x.clientIds||[]).indexOf(c.id)>=0&&x.ficheCreation; })[0];
+        if(d&&K) h+=K.card('Fiche technique de création','établie le '+frd(new Date(d.ficheCreation.ts)),'<div class="adm-list"><div class="adm-v"><span class="adm-vk">Dossier</span><span class="adm-tx"><b>'+E(d.numeroDossier||d.ref||'')+'</b><i>analyse, conseils et orientations de la création</i></span>'+K.btn('Ouvrir','formFicheDossier(&quot;'+d.id+'&quot;)',1)+'</div></div>'); }catch(e){} return h; }; window.admEntExtra.__fft=1; } }catch(e){}
 })();
 </script>
 </body>
