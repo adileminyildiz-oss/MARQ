@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=736;
+var LAST_VER=737;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -54945,6 +54945,318 @@ function testLienSignature() {
       +'@media(max-width:860px){html body aside#side.open .mqx-navx{display:flex!important;position:absolute;top:10px;right:10px;z-index:6;width:44px;height:44px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #2c2c30;background:#111114;color:#f4f6fa;-webkit-text-fill-color:#f4f6fa;font:400 24px/1 Inter,Arial,sans-serif;cursor:pointer;padding:0}html body aside#side.open .brand{padding-right:58px!important}}'
       +'@media(pointer:coarse){.mqx-close{width:44px!important;height:44px!important}}';
     document.head.appendChild(st); }catch(e){}
+})();
+</script>
+<script id="mq-admin-737">
+/* v737 — Administration d'entreprise : socle, Page Entreprise, module MARQ LEGAL.
+   Pour chaque entreprise cliente (fiches « Entreprise » du module Clients) :
+   - Page Entreprise : bandeau d'identité, échéances et alertes, chiffres clés
+     (saisie mensuelle), validations en attente, score de conformité, tuiles des
+     11 modules MARQ (ceux qui ne sont pas encore livrés sont signalés).
+   - MARQ LEGAL : registres (décisions, mouvements de titres, personnel et
+     sécurité), assemblée annuelle d'approbation des comptes, bénéficiaires
+     effectifs, statuts et actes, K-bis. Ses échéances et son score alimentent
+     la Page Entreprise.
+   Données : DB.admin[idClient]. 100 % additif (greffe sur render / la barre). */
+(function(){
+  if(window.__admin737) return; window.__admin737=1;
+  function E(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function q(s){ return '&quot;'+E(s)+'&quot;'; }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function iso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function today0(){ var t=new Date(); t.setHours(0,0,0,0); return t; }
+  function dOf(s){ if(!s) return null; var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]); m=String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m?new Date(+m[3],+m[2]-1,+m[1]):null; }
+  function fr(s){ var d=(s instanceof Date)?s:dOf(s); return d?pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear():'—'; }
+  function frc(d){ return pad(d.getDate())+'/'+pad(d.getMonth()+1); }
+  function jours(d){ return Math.round((d-today0())/86400000); }
+  function addM(d,n){ var x=new Date(d); x.setMonth(x.getMonth()+n); return x; }
+  function num(v){ var n=parseFloat(String(v==null?'':v).replace(/\s/g,'').replace(',','.')); return isFinite(n)?n:0; }
+  function money(n){ try{ return eur(n); }catch(e){ return Math.round(n)+' €'; } }
+  function nid(p){ return (p||'a')+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+  function sv(){ try{ save(); }catch(e){} }
+  function rr(){ try{ render(); }catch(e){} }
+  function T(m){ try{ toast(m); }catch(e){} }
+  function val(id){ var e=document.getElementById(id); return e?String(e.value||'').trim():''; }
+
+  var MODS=[
+    ['mlegal','MARQ LEGAL','Juridique & secrétariat','Registres, assemblée annuelle, bénéficiaires effectifs, statuts, K-bis','scale',1],
+    ['mcrm','MARQ CRM','Clients, ventes & achats','Clients, devis, demandes d’achat, marchés publics','users',0],
+    ['mfiscal','MARQ FISCAL','Fiscalité','TVA, CA3/CA12, liasse, CVAE, CFE, calendrier','percent',0],
+    ['mrh','MARQ RH','Ressources humaines','Salariés, absences, visites médicales, DUERP','idcard',0],
+    ['mpaye','MARQ PAYE','Paie & DSN','Bulletins, DSN NEODeS, charges sociales','card',0],
+    ['mdoc','MARQ DOC','Documents & modèles','Modèles pré-remplis, signature, coffre','doc',0],
+    ['mworkflow','MARQ WORKFLOW','Circuits & validations','Validations client / cabinet, seuils, relances','bolt',0],
+    ['mia','MARQ IA','Assistant','Rédaction, lecture des pièces, analyse d’appels d’offres','spark',0],
+    ['mcontrol','MARQ CONTROL','Conformité & risques','KYC / LCB-FT, assurances, qualité','shield',0],
+    ['mreporting','MARQ REPORTING','Pilotage dirigeant','Chiffres clés, tableaux de bord, FEC','trend',0],
+    ['marchive','MARQ ARCHIVE','Archivage légal','Durées légales, purge guidée tracée','box',0]
+  ];
+  var ICO={scale:'<path d="M12 3v18M5 7h14M5 7l-3 7a4 4 0 0 0 6 0zM19 7l-3 7a4 4 0 0 0 6 0zM8 21h8"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.5a3 3 0 0 1 0 6M21 20c0-2.6-1.6-4.6-4-5.3"/>',percent:'<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',idcard:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2M14 10h4M14 13h3"/>',card:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>',bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',shield:'<path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',building:'<path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M8 7h4M8 11h4M8 15h4M3 21h18"/>'};
+  function ic(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(ICO[k]||'')+'</svg>'; }
+  try{ IC.building=IC.building||ICO.building; IC.scale=IC.scale||ICO.scale; }catch(e){}
+
+  /* ---------------- données ---------------- */
+  function ents(){ return (DB.clients||[]).filter(function(c){ return c&&c.clientType!=='particulier'; }).sort(function(a,b){ return nom(a).localeCompare(nom(b),'fr'); }); }
+  function nom(c){ return (c&&(c.denomination||((c.prenom?c.prenom+' ':'')+(c.nom||''))))||'(sans nom)'; }
+  function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
+  function curId(){ var L=ents(), id=P().adminEnt; if(id&&L.some(function(c){ return c.id===id; })) return id; return L[0]?L[0].id:null; }
+  function cur(){ var id=curId(); return id?(DB.clients||[]).filter(function(c){ return c.id===id; })[0]:null; }
+  function R(id){ DB.admin=DB.admin||{}; var r=DB.admin[id]=DB.admin[id]||{}; var L=r.legal=r.legal||{};
+    L.decisions=L.decisions||[]; L.titres=L.titres||[]; L.be=L.be||[]; L.actes=L.actes||[]; L.ag=L.ag||{}; L.registres=L.registres||{}; L.kbis=L.kbis||{};
+    r.reporting=r.reporting||{}; r.reporting.mois=r.reporting.mois||{}; r.workflow=r.workflow||{}; r.workflow.queue=r.workflow.queue||[]; return r; }
+  window.admEntChoisir=function(id){ P().adminEnt=id; sv(); rr(); };
+  window.admEntFiche=function(){ var c=cur(); if(!c) return; try{ state.cliSel=c.id; }catch(e){} try{ go('clients'); }catch(e){} };
+  window.admEntCreer=function(){ try{ go('clients'); }catch(e){} try{ cliNew('entreprise'); }catch(e){} };
+
+  /* ---------------- exercice & assemblée ---------------- */
+  function cloture(c){ var s=String(c.clotureExercice||c.cloture||c.dateCloture||'31/12'), m=s.match(/(\d{1,2})\/(\d{1,2})/); if(m) return {j:+m[1],m:+m[2]}; m=s.match(/(\d{2})-(\d{2})$/); if(m) return {j:+m[2],m:+m[1]}; return {j:31,m:12}; }
+  function creation(c){ return dOf(c.dateCreation||c.dateImmat||c.dateImmatriculation||''); }
+  /* dernier exercice clos (fin d'exercice passée), null si la société n'en a pas encore clos */
+  function exerciceClos(c){ var k=cloture(c), t=today0(), fin=new Date(t.getFullYear(),k.m-1,k.j); if(fin>=t) fin=new Date(t.getFullYear()-1,k.m-1,k.j); var cr=creation(c); if(cr&&cr>fin) return null; return fin; }
+  var AG_ETAPES=[['comptes','Comptes arrêtés'],['rapport','Rapport de gestion'],['convoc','Convocation envoyée'],['tenue','Assemblée tenue'],['pv','Procès-verbal signé'],['depot','Comptes déposés au greffe']];
+  function agOf(r,fin){ var k=String(fin.getFullYear()); return r.legal.ag[k]=r.legal.ag[k]||{etapes:{}}; }
+
+  /* ---------------- titres : détention ---------------- */
+  function detention(r){ var h={}; r.legal.titres.slice().sort(function(a,b){ return (a.date||'')>(b.date||'')?1:-1; }).forEach(function(t){ var n=num(t.nb); if(t.de&&t.de!=='—'){ h[t.de]=(h[t.de]||0)-n; } if(t.a&&t.type!=='Annulation'){ h[t.a]=(h[t.a]||0)+n; } });
+    var tot=0; Object.keys(h).forEach(function(k){ if(h[k]<=0) delete h[k]; else tot+=h[k]; });
+    return {tot:tot,L:Object.keys(h).map(function(k){ return {nom:k,nb:h[k],pct:tot?h[k]*100/tot:0}; }).sort(function(a,b){ return b.nb-a.nb; })}; }
+
+  /* ---------------- contrôles LEGAL : échéances + score ---------------- */
+  function legalBilan(c){ var r=R(c.id), L=r.legal, t=today0(), al=[], ch=[];
+    function A(niv,d,titre,detail){ al.push({niv:niv,date:d,titre:titre,detail:detail,mod:'mlegal'}); }
+    /* registre des décisions */
+    ch.push(['Registre des décisions tenu',L.decisions.length>0]);
+    /* assemblée */
+    var fin=exerciceClos(c);
+    if(fin){ var ag=agOf(r,fin), lim=addM(fin,6), et=ag.etapes, ex=fin.getFullYear();
+      if(!et.tenue){ var dj=jours(lim); A(dj<0?'r':(dj<=45?'o':'g'),lim,'Assemblée d’approbation des comptes '+ex,dj<0?('délai dépassé depuis '+(-dj)+' j'):('à tenir avant le '+fr(lim))); ch.push(['Comptes '+ex+' approuvés dans les 6 mois',dj>=0]); }
+      else if(!et.depot){ var ld=addM(dOf(et.tenue)||t,1), d2=jours(ld); A(d2<0?'r':'o',ld,'Dépôt des comptes '+ex+' au greffe',d2<0?('délai dépassé depuis '+(-d2)+' j'):('avant le '+fr(ld))); ch.push(['Comptes '+ex+' approuvés dans les 6 mois',true]); ch.push(['Comptes '+ex+' déposés au greffe',d2>=0]); }
+      else { ch.push(['Comptes '+ex+' approuvés et déposés',true]); } }
+    /* K-bis */
+    var kd=dOf(L.kbis.date);
+    if(!kd){ A('o',t,'K-bis','aucun extrait enregistré'); ch.push(['K-bis de moins de 3 mois',false]); }
+    else { var age=-jours(kd), lim3=addM(kd,3); if(t>lim3) A('o',lim3,'K-bis de plus de 3 mois','daté du '+fr(kd)); ch.push(['K-bis de moins de 3 mois',t<=lim3]); }
+    /* bénéficiaires effectifs */
+    var det=detention(r), noms=L.be.map(function(b){ return (b.nom||'').toLowerCase().trim(); });
+    var manquants=det.L.filter(function(h){ return h.pct>=25&&noms.indexOf(h.nom.toLowerCase().trim())<0; });
+    if(manquants.length) A('r',t,'Bénéficiaires effectifs à déclarer',manquants.map(function(h){ return h.nom+' ('+Math.round(h.pct)+' %)'; }).join(', '));
+    var pieces=L.be.filter(function(b){ var v=dOf(b.validite); return !v||jours(v)<90; });
+    pieces.forEach(function(b){ var v=dOf(b.validite); A(v&&jours(v)<0?'r':'o',v||t,'Pièce d’identité — '+(b.nom||'bénéficiaire'),v?(jours(v)<0?'expirée le '+fr(v):'expire le '+fr(v)):'validité non renseignée'); });
+    ch.push(['Bénéficiaires effectifs déclarés',L.be.length>0&&!manquants.length]);
+    if(L.be.length) ch.push(['Pièces d’identité des bénéficiaires valides',!pieces.length]);
+    /* titres */
+    ch.push(['Registre des mouvements de titres tenu',L.titres.length>0]);
+    /* statuts */
+    ch.push(['Statuts à jour enregistrés',L.actes.some(function(a){ return /statut/i.test(a.titre||'')&&a.statut!=='Archivé'; })]);
+    /* DUERP si salariés */
+    var nbSal=(c.salaries||[]).length;
+    if(nbSal>0){ var du=dOf((L.registres.duerp||{}).date); var lim12=du?addM(du,12):null; if(!du||t>lim12) A(du?'o':'r',lim12||t,'DUERP à mettre à jour',du?('dernière mise à jour le '+fr(du)):'aucune mise à jour enregistrée'); ch.push(['DUERP de moins de 12 mois',!!du&&t<=lim12]); }
+    var ok=ch.filter(function(x){ return x[1]; }).length;
+    return {alertes:al,checks:ch,score:ch.length?Math.round(ok*100/ch.length):null}; }
+  window.admLegalBilan=function(id){ var c=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return c?legalBilan(c):null; };
+
+  /* ---------------- composants ---------------- */
+  function pill(t,k){ return '<span class="adm-p adm-'+(k||'n')+'">'+E(t)+'</span>'; }
+  function tbl(h,rows,vide){ if(!rows.length) return '<div class="adm-vide">'+(vide||'Aucune donnée.')+'</div>'; return '<div class="adm-tw"><table class="adm-t"><thead><tr>'+h.map(function(x){ return '<th>'+x+'</th>'; }).join('')+'</tr></thead><tbody>'+rows.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+c+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>'; }
+  function card(t,sub,body,act){ return '<div class="card adm-card"><div class="card-h"><h2>'+t+'</h2>'+(sub?'<span class="sub">'+sub+'</span>':'')+'<span class="adm-sp"></span>'+(act||'')+'</div><div class="card-b">'+body+'</div></div>'; }
+  function btn(t,fn,ghost){ return '<button type="button" class="btn btn-sm'+(ghost?' btn-ghost':'')+'" onclick="'+fn+'">'+t+'</button>'; }
+  function spark(v){ if(v.length<2) return ''; var mx=Math.max.apply(null,v), mn=Math.min.apply(null,v), w=84, h=22, n=v.length-1; var pts=v.map(function(x,i){ return (i*w/n).toFixed(1)+','+(h-2-((x-mn)/((mx-mn)||1))*(h-4)).toFixed(1); }).join(' '); return '<svg class="adm-spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'; }
+  function selecteur(c){ var L=ents(); return '<div class="adm-sel"><span class="adm-sel-ic">'+ic('building')+'</span><select id="adm-ent" aria-label="Entreprise" onchange="admEntChoisir(this.value)">'+L.map(function(x){ return '<option value="'+E(x.id)+'"'+(x.id===c.id?' selected':'')+'>'+E(nom(x))+'</option>'; }).join('')+'</select></div>'; }
+  function vide(){ return '<div class="adm-wrap"><div class="card"><div class="card-h"><h2>Aucune entreprise cliente</h2></div><div class="card-b"><p class="adm-p0">L’administration se tient pour chaque fiche « Entreprise » du module Clients. Créez ou importez d’abord la fiche de la société.</p>'+btn('Créer une fiche entreprise','admEntCreer()')+'</div></div></div>'; }
+  window.__admTab=window.__admTab||{};
+  window.admTab=function(m,t){ window.__admTab[m]=t; rr(); };
+  function tabs(m,L){ var cur=window.__admTab[m]; if(!L.some(function(t){ return t[0]===cur; })) cur=L[0][0]; return {cur:cur,html:'<div class="adm-tabs" role="tablist" data-no-kebab>'+L.map(function(t){ return '<button type="button" role="tab" aria-selected="'+(t[0]===cur)+'" class="adm-tab'+(t[0]===cur?' on':'')+'" onclick="admTab('+q(m)+','+q(t[0])+')">'+t[1]+(t[2]?'<span class="adm-c">'+t[2]+'</span>':'')+'</button>'; }).join('')+'</div>'}; }
+
+  /* ---------------- Page Entreprise ---------------- */
+  function bilanGlobal(c){ var lb=legalBilan(c); return {alertes:lb.alertes.slice().sort(function(a,b){ var o={r:0,o:1,g:2}; return (a.date-b.date)||(o[a.niv]-o[b.niv]); }),dom:[['Juridique',lb.score]]}; }
+  var DOMS=['Juridique','Fiscal','Social','Assurances','KYC / LCB-FT','Qualité','Archivage'];
+  function pageEntreprise(){ var c=cur(); if(!c) return vide(); var r=R(c.id), b=bilanGlobal(c);
+    var cp=((c.cp||'')+' '+(c.ville||'')).trim(), siege=[c.siege,cp].filter(Boolean).join(', ');
+    var sal=(c.salaries||[]).length;
+    var champs=[['Dirigeant',c.president||''],['Siège',siege],['Activité',(c.activites||[]).join(', ')],['Capital',c.capital?money(num(c.capital)):''],['Effectif',sal?sal+' salarié'+(sal>1?'s':''):''],['Régime',c.regime||''],['Clôture',(function(){ var k=cloture(c); return pad(k.j)+'/'+pad(k.m); })()]];
+    var id='<div class="adm-id"><div class="adm-id-h"><div><div class="adm-nom">'+E(nom(c))+'</div><div class="adm-sub">'+E(String(c.forme||'').toUpperCase()||'—')+(c.siren?' · SIREN '+E(String(c.siren).replace(/(\d{3})(?=\d)/g,'$1 ')):' · SIREN non renseigné')+'</div></div></div>'
+      +'<div class="adm-id-g">'+champs.map(function(k){ return '<div><span>'+k[0]+'</span>'+(k[1]?'<b>'+E(k[1])+'</b>':'<button type="button" class="adm-lk" onclick="admEntFiche()">à compléter</button>')+'</div>'; }).join('')+'</div></div>';
+    var al=b.alertes;
+    var ech=card('Échéances & alertes',String(al.length),al.length?'<div class="adm-list" data-no-kebab>'+al.map(function(x){ return '<button type="button" class="adm-row" onclick="admGo('+q(x.mod)+')"><span class="adm-dot adm-d-'+x.niv+'"></span><span class="adm-dd">'+frc(x.date)+'</span><span class="adm-tx"><b>'+E(x.titre)+'</b><i>'+E(x.detail)+'</i></span></button>'; }).join('')+'</div>':'<div class="adm-vide">Aucune échéance ni alerte.</div>');
+    var M=r.reporting.mois, an=String(today0().getFullYear()), ks=Object.keys(M).filter(function(k){ return k.slice(0,4)===an; }).sort();
+    var kpi;
+    if(!ks.length) kpi='<div class="adm-vide">Aucun chiffre saisi pour '+an+'.</div>'+btn('Saisir les chiffres du mois','admChiffres()');
+    else { var sum=function(f){ return ks.reduce(function(s,k){ return s+num(M[k][f]); },0); }; var ca=sum('ca'), chg=sum('ch'), last=M[ks[ks.length-1]];
+      var serie=function(f){ return ks.map(function(k){ return num(M[k][f]); }); };
+      var K=[['Chiffre d’affaires '+an,money(ca),ks.length+' mois saisi'+(ks.length>1?'s':''),serie('ca')],['Marge',ca?(Math.round((ca-chg)*1000/ca)/10).toString().replace('.',',')+' %':'—','CA − charges : '+money(ca-chg),ks.map(function(k){ var a=num(M[k].ca); return a?(a-num(M[k].ch))/a:0; })],['Masse salariale',money(sum('ms')),'cumul '+an,serie('ms')],['Encours clients',money(num(last.enc)),'à fin '+ks[ks.length-1].slice(5)+'/'+an,serie('enc')]];
+      kpi='<div class="adm-kpis">'+K.map(function(k){ return '<div class="adm-k"><span>'+k[0]+'</span><b>'+k[1]+'</b><i>'+E(k[2])+'</i>'+spark(k[3])+'</div>'; }).join('')+'</div>'; }
+    var kc=card('Chiffres clés','saisie mensuelle',kpi,ks.length?btn('Saisir un mois','admChiffres()',1):'');
+    var Q=r.workflow.queue.filter(function(x){ return x.statut==='attente'; });
+    var val=card('Validations en attente',String(Q.length),Q.length?'<div class="adm-list">'+Q.map(function(x){ return '<div class="adm-v"><span class="adm-vk">'+E(x.type)+'</span><span class="adm-tx"><b>'+E(x.libelle)+'</b><i>'+E(x.detail||'')+'</i></span></div>'; }).join('')+'</div>':'<div class="adm-vide">Rien à valider. Les demandes déposées par le client (absence, achat, embauche, sinistre) arriveront ici.</div>');
+    var ev=b.dom.filter(function(d){ return d[1]!=null; }), sc=ev.length?Math.round(ev.reduce(function(s,d){ return s+d[1]; },0)/ev.length):null;
+    var col=function(v){ return v>=80?'var(--adm-g)':v>=65?'var(--adm-o)':'var(--adm-r)'; };
+    var score=card('Score de conformité',ev.length+' domaine'+(ev.length>1?'s':'')+' évalué'+(ev.length>1?'s':''),'<div class="adm-sc">'+(sc==null?'<div class="adm-gauge" style="--v:0;--c:var(--line-soft)"><b>—</b></div>':'<div class="adm-gauge" style="--v:'+sc+';--c:'+col(sc)+'"><b>'+sc+'</b><span>/ 100</span></div>')
+      +'<div class="adm-dom">'+DOMS.map(function(n){ var d=b.dom.filter(function(x){ return x[0]===n; })[0], v=d&&d[1]; return '<div><span>'+n+'</span>'+(v==null?'<em>non évalué</em>':'<i><u style="width:'+v+'%;background:'+col(v)+'"></u></i><b>'+v+'</b>')+'</div>'; }).join('')+'</div></div>');
+    var nb={mlegal:legalBilan(c).alertes.length};
+    var tiles=card('Modules',E(nom(c)),'<div class="adm-tiles" data-no-kebab>'+MODS.map(function(m){ var n=nb[m[0]]||0;
+      if(!m[5]) return '<div class="adm-tile off" aria-disabled="true"><span class="adm-ti">'+ic(m[4])+'</span><span class="adm-tt"><b>'+m[1]+'</b><i>'+m[3]+'</i><em>En préparation</em></span></div>';
+      return '<button type="button" class="adm-tile" onclick="admGo('+q(m[0])+')"><span class="adm-ti">'+ic(m[4])+'</span><span class="adm-tt"><b>'+m[1]+'</b><i>'+m[3]+'</i></span>'+(n?'<span class="adm-n">'+n+'</span>':'')+'</button>'; }).join('')+'</div>');
+    return '<div class="adm-wrap"><div class="adm-top" data-no-kebab>'+selecteur(c)+'<span class="adm-sp"></span>'+btn('Fiche société','admEntFiche()',1)+'</div>'+id+'<div class="adm-grid">'+ech+kc+val+score+'</div>'+tiles+'</div>'; }
+  window.admGo=function(p){ try{ go(p); }catch(e){ state.page=p; rr(); } try{ var v=document.getElementById('view'); if(v) v.scrollTop=0; window.scrollTo(0,0); }catch(e){} };
+
+  /* saisie mensuelle des chiffres */
+  window.admChiffres=function(mois){ var c=cur(); if(!c) return; var r=R(c.id), t=today0(), m=mois||(t.getFullYear()+'-'+pad(t.getMonth()+1)), v=r.reporting.mois[m]||{};
+    openModal('Chiffres du mois — '+E(nom(c)),'<div class="frow"><div><label for="adm-cm">Mois</label><input id="adm-cm" type="month" value="'+m+'" onchange="admChiffres(this.value)"></div><div><label for="adm-cca">Chiffre d’affaires HT (€)</label><input id="adm-cca" inputmode="decimal" value="'+E(v.ca||'')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-cch">Charges (€)</label><input id="adm-cch" inputmode="decimal" value="'+E(v.ch||'')+'"></div><div><label for="adm-cms">Masse salariale (€)</label><input id="adm-cms" inputmode="decimal" value="'+E(v.ms||'')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-cen">Encours clients en fin de mois (€)</label><input id="adm-cen" inputmode="decimal" value="'+E(v.enc||'')+'"></div><div></div></div><p class="adm-p0">Ces chiffres seront recalés sur le FEC quand il sera disponible.</p>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admChiffresOk()">Enregistrer</button>'); };
+  window.admChiffresOk=function(){ var c=cur(); if(!c) return; var m=val('adm-cm'); if(!/^\d{4}-\d{2}$/.test(m)) return T('Choisissez le mois.'); var r=R(c.id); r.reporting.mois[m]={ca:num(val('adm-cca')),ch:num(val('adm-cch')),ms:num(val('adm-cms')),enc:num(val('adm-cen')),ts:Date.now()}; sv(); closeModal(); T('Chiffres de '+m.slice(5)+'/'+m.slice(0,4)+' enregistrés.'); rr(); };
+
+  /* ---------------- MARQ LEGAL ---------------- */
+  var ORGANES=['AGO','AGE','Associé unique','Président','Gérant','Conseil d’administration'];
+  var STATD=['Brouillon','Signé','Déposé'];
+  function sel(id,L,v){ return '<select id="'+id+'">'+L.map(function(x){ return '<option'+(x===v?' selected':'')+'>'+E(x)+'</option>'; }).join('')+'</select>'; }
+  function kst(s){ return s==='Brouillon'?'o':(s==='Archivé'?'n':'g'); }
+  function pageLegal(){ var c=cur(); if(!c) return vide(); var r=R(c.id), L=r.legal, lb=legalBilan(c);
+    var nbBE=lb.alertes.filter(function(a){ return /Bénéficiaires|Pièce d/.test(a.titre); }).length;
+    var fin=exerciceClos(c), agA=fin&&!agOf(r,fin).etapes.depot?1:0;
+    var t=tabs('mlegal',[['reg','Registres'],['ag','Assemblée annuelle',agA?'1':''],['be','Bénéficiaires effectifs',nbBE?String(nbBE):''],['actes','Statuts & actes'],['kbis','K-bis',lb.alertes.some(function(a){ return /K-bis/.test(a.titre); })?'1':'']]), h='';
+    if(t.cur==='reg'){
+      var dec=L.decisions.slice().sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; });
+      var det=detention(r), tit=L.titres.slice().sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; });
+      var reprise=(!L.titres.length&&(c.associes||[]).some(function(a){ return a&&a.nom&&num(a.parts)>0; }))?btn('Reprendre les associés de la fiche','admTitresReprendre()',1):'';
+      h=card('Registre des décisions',dec.length+' inscription'+(dec.length>1?'s':''),tbl(['Date','Organe','Objet','Statut',''],dec.map(function(d){ return [fr(d.date),E(d.organe),E(d.objet),pill(d.statut,kst(d.statut)),btn('Modifier','admDecision('+q(d.id)+')',1)+btn('Supprimer','admSuppr('+q('decisions')+','+q(d.id)+')',1)]; }),'Aucune décision inscrite.'),btn('Nouvelle décision','admDecision()'))
+        +card('Registre des mouvements de titres',det.tot?det.tot+' titres':'',tbl(['Date','Mouvement','De','À','Nombre',''],tit.map(function(x){ return [fr(x.date),E(x.type),E(x.de||'—'),E(x.a||'—'),E(x.nb),btn('Supprimer','admSuppr('+q('titres')+','+q(x.id)+')',1)]; }),'Aucun mouvement inscrit.')+(det.L.length?'<div class="adm-note">Détention : '+det.L.map(function(x){ return E(x.nom)+' '+(Math.round(x.pct*10)/10).toString().replace('.',',')+' %'; }).join(' · ')+'</div>':''),reprise+btn('Inscrire un mouvement','admTitre()'))
+        +card('Registres du personnel & de sécurité','',tbl(['Registre','Dernière mise à jour','État',''],[['personnel','Registre unique du personnel',0],['duerp','Document unique d’évaluation des risques (DUERP)',12],['securite','Registre de sécurité',12],['accidents','Registre des accidents bénins',0]].map(function(g){ var o=L.registres[g[0]]||{}, d=dOf(o.date), st;
+            if(!d) st=pill('Non renseigné','o'); else if(g[2]&&today0()>addM(d,g[2])) st=pill('À mettre à jour','r'); else st=pill('À jour','g');
+            return [g[1],'<input type="date" class="adm-in" aria-label="Date de mise à jour — '+E(g[1])+'" value="'+(d?iso(d):'')+'" onchange="admRegistre('+q(g[0])+',this.value)">',st,btn('Mis à jour aujourd’hui','admRegistre('+q(g[0])+','+q(iso(today0()))+')',1)]; })));
+    }
+    if(t.cur==='ag'){
+      if(!fin) h=card('Assemblée annuelle','','<div class="adm-vide">Aucun exercice clos pour l’instant (clôture au '+(function(){ var k=cloture(c); return pad(k.j)+'/'+pad(k.m); })()+').</div>');
+      else { var ag=agOf(r,fin), ex=fin.getFullYear(), lim=addM(fin,6), et=ag.etapes;
+        var steps='<div class="adm-steps">'+AG_ETAPES.map(function(s,i){ var d=et[s[0]]; return '<button type="button" class="adm-st'+(d?' ok':'')+'" onclick="admAgEtape('+ex+','+q(s[0])+')" aria-pressed="'+(!!d)+'"><span class="adm-sn">'+(d?'✓':(i+1))+'</span><span>'+s[1]+(d?'<small>'+fr(d)+'</small>':'')+'</span></button>'; }).join('')+'</div>';
+        var dl=et.tenue?('Dépôt au greffe avant le '+fr(addM(dOf(et.tenue),1))):('Assemblée à tenir avant le '+fr(lim));
+        h=card('Approbation des comptes '+ex,'exercice clos le '+fr(fin)+' · '+dl,steps+'<p class="adm-p0">Cliquez une étape quand elle est faite (cliquez à nouveau pour l’annuler). Le procès-verbal signé est inscrit au registre des décisions.</p><div class="adm-row">'+btn('Préparer la convocation','admAgDoc('+ex+','+q('convoc')+')')+btn('Préparer le procès-verbal','admAgDoc('+ex+','+q('pv')+')',1)+'</div>'); }
+    }
+    if(t.cur==='be'){
+      var det2=detention(r), sug=det2.L.filter(function(x){ return x.pct>=25&&!L.be.some(function(b){ return (b.nom||'').toLowerCase().trim()===x.nom.toLowerCase().trim(); }); });
+      h=card('Bénéficiaires effectifs','seuil : 25 % du capital ou des droits de vote',tbl(['Personne','Détention','Nature du contrôle','Pièce d’identité','',''],L.be.map(function(b){ var v=dOf(b.validite), st=!v?pill('Validité à renseigner','o'):(jours(v)<0?pill('Pièce expirée','r'):(jours(v)<90?pill('Expire bientôt','o'):pill(b.verifie?'Vérifié':'À vérifier',b.verifie?'g':'o'))); return [E(b.nom),E(b.pct?b.pct+' %':'—'),E(b.nature||'—'),v?'valable jusqu’au '+fr(v):'—',st,btn('Modifier','admBe('+q(b.id)+')',1)+btn('Supprimer','admSuppr('+q('be')+','+q(b.id)+')',1)]; }),'Aucun bénéficiaire déclaré.')
+          +(sug.length?'<div class="adm-alert">À déclarer d’après le registre des titres : '+sug.map(function(x){ return E(x.nom)+' ('+Math.round(x.pct)+' %)'; }).join(', ')+' '+btn('Ajouter','admBeProposer()')+'</div>':''),btn('Ajouter un bénéficiaire','admBe()'));
+    }
+    if(t.cur==='actes'){
+      var A=L.actes.slice().sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; });
+      h=card('Statuts & actes',A.length+' document'+(A.length>1?'s':''),tbl(['Document','Version','Date','Statut',''],A.map(function(a){ return [E(a.titre),E(a.version||'—'),fr(a.date),pill(a.statut,kst(a.statut)),btn('Modifier','admActe('+q(a.id)+')',1)+btn('Supprimer','admSuppr('+q('actes')+','+q(a.id)+')',1)]; }),'Aucun document enregistré.'),btn('Ajouter un document','admActe()'));
+    }
+    if(t.cur==='kbis'){
+      var kd=dOf(L.kbis.date), st2=!kd?pill('Aucun extrait','o'):(today0()>addM(kd,3)?pill('Plus de 3 mois','o'):pill('Valable','g'));
+      h=card('Extrait K-bis','un K-bis est généralement exigé de moins de 3 mois','<div class="frow"><div><label for="adm-kbis">Date du dernier extrait</label><input id="adm-kbis" type="date" value="'+(kd?iso(kd):'')+'" onchange="admKbis(this.value)"></div><div><label>État</label><div class="adm-state">'+st2+(kd?' <span class="adm-note">daté du '+fr(kd)+'</span>':'')+'</div></div></div><div class="adm-row">'+btn('Nouvel extrait reçu aujourd’hui','admKbis('+q(iso(today0()))+')')+'<a class="btn btn-sm btn-ghost" href="https://www.infogreffe.fr" target="_blank" rel="noopener">Commander sur Infogreffe</a></div>');
+    }
+    return '<div class="adm-wrap"><div class="adm-top" data-no-kebab>'+selecteur(c)+'<span class="adm-sp"></span>'+btn('Page Entreprise','admGo('+q('entreprise')+')',1)+'</div>'
+      +'<div class="adm-head"><span class="adm-hi">'+ic('scale')+'</span><div><b>MARQ LEGAL</b><span>Juridique & secrétariat · '+E(nom(c))+(lb.score!=null?' · conformité '+lb.score+' / 100':'')+'</span></div></div>'+t.html+h+'</div>'; }
+
+  /* actions LEGAL */
+  function L_(){ var c=cur(); return c?R(c.id).legal:null; }
+  function find(arr,id){ return arr.filter(function(x){ return x.id===id; })[0]; }
+  window.admSuppr=function(k,id){ var L=L_(); if(!L) return; var go_=function(){ L[k]=L[k].filter(function(x){ return x.id!==id; }); sv(); rr(); T('Supprimé.'); };
+    if(typeof uiConfirm==='function') uiConfirm('Supprimer cette ligne du registre ?',go_); else go_(); };
+  window.admDecision=function(id){ var L=L_(); if(!L) return; var d=id?find(L.decisions,id):{date:iso(today0()),organe:'AGO',objet:'',statut:'Brouillon'};
+    openModal(id?'Modifier la décision':'Nouvelle décision','<div class="frow"><div><label for="adm-dd">Date</label><input id="adm-dd" type="date" value="'+E(d.date)+'"></div><div><label for="adm-do">Organe</label>'+sel('adm-do',ORGANES,d.organe)+'</div></div><label for="adm-dx">Objet</label><input id="adm-dx" value="'+E(d.objet)+'" placeholder="Ex. Approbation des comptes, transfert du siège…"><label for="adm-ds">Statut</label>'+sel('adm-ds',STATD,d.statut),
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admDecisionOk('+(id?q(id):'')+')">Enregistrer</button>'); };
+  window.admDecisionOk=function(id){ var L=L_(); if(!L) return; var o={date:val('adm-dd'),organe:val('adm-do'),objet:val('adm-dx'),statut:val('adm-ds')}; if(!o.date||!o.objet) return T('Indiquez la date et l’objet.');
+    if(id){ Object.assign(find(L.decisions,id),o); } else { o.id=nid('dec'); L.decisions.push(o); } sv(); closeModal(); T('Décision inscrite au registre.'); rr(); };
+  window.admTitre=function(){ var L=L_(); if(!L) return; var r=R(curId()), det=detention(r);
+    openModal('Inscrire un mouvement de titres','<div class="frow"><div><label for="adm-td">Date</label><input id="adm-td" type="date" value="'+iso(today0())+'"></div><div><label for="adm-tt">Mouvement</label>'+sel('adm-tt',['Souscription','Cession','Transmission','Annulation'],'Cession')+'</div></div>'
+      +'<div class="frow"><div><label for="adm-tde">De (cédant)</label><select id="adm-tde"><option value="">— (émission de titres)</option>'+det.L.map(function(x){ return '<option>'+E(x.nom)+'</option>'; }).join('')+'</select></div><div><label for="adm-ta">À (bénéficiaire)</label><input id="adm-ta" placeholder="Prénom Nom ou société"></div></div>'
+      +'<label for="adm-tn">Nombre de titres</label><input id="adm-tn" inputmode="numeric">',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admTitreOk()">Inscrire</button>'); };
+  window.admTitreOk=function(){ var L=L_(); if(!L) return; var o={id:nid('tit'),date:val('adm-td'),type:val('adm-tt'),de:val('adm-tde'),a:val('adm-ta'),nb:num(val('adm-tn'))};
+    if(!o.date||!o.nb) return T('Indiquez la date et le nombre de titres.'); if(o.type!=='Annulation'&&!o.a) return T('Indiquez le bénéficiaire.'); if((o.type==='Cession'||o.type==='Annulation')&&!o.de) return T('Indiquez le cédant.');
+    if(o.de){ var h=detention(R(curId())).L.filter(function(x){ return x.nom===o.de; })[0]; if(!h||h.nb<o.nb) return T(o.de+' ne détient pas assez de titres ('+(h?h.nb:0)+').'); }
+    L.titres.push(o); sv(); closeModal(); T('Mouvement inscrit.'); rr(); };
+  window.admTitresReprendre=function(){ var c=cur(); if(!c) return; var L=R(c.id).legal; (c.associes||[]).forEach(function(a){ var n=num(a.parts); if(a&&a.nom&&n>0) L.titres.push({id:nid('tit'),date:iso(creation(c)||today0()),type:'Souscription',de:'',a:String(a.nom).trim(),nb:n}); }); sv(); T('Associés repris dans le registre des titres.'); rr(); };
+  window.admRegistre=function(k,v){ var L=L_(); if(!L) return; L.registres[k]={date:v||''}; sv(); rr(); };
+  window.admKbis=function(v){ var L=L_(); if(!L) return; L.kbis={date:v||''}; sv(); if(v) T('K-bis du '+fr(v)+' enregistré.'); rr(); };
+  window.admBe=function(id){ var L=L_(); if(!L) return; var b=id?find(L.be,id):(window.__admBeDraft||{nom:'',pct:'',nature:'Détention du capital et des droits de vote',validite:'',verifie:false}); window.__admBeDraft=null;
+    openModal(id?'Modifier le bénéficiaire':'Ajouter un bénéficiaire effectif','<div class="frow"><div><label for="adm-bn">Personne</label><input id="adm-bn" value="'+E(b.nom)+'"></div><div><label for="adm-bp">Détention (%)</label><input id="adm-bp" inputmode="decimal" value="'+E(b.pct)+'"></div></div>'
+      +'<label for="adm-bx">Nature du contrôle</label><input id="adm-bx" value="'+E(b.nature)+'"><div class="frow"><div><label for="adm-bv">Pièce d’identité valable jusqu’au</label><input id="adm-bv" type="date" value="'+E(b.validite)+'"></div><div><label style="display:flex;align-items:center;gap:8px;margin-top:24px"><input type="checkbox" id="adm-bk" style="width:auto"'+(b.verifie?' checked':'')+'> Pièce vérifiée</label></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admBeOk('+(id?q(id):'')+')">Enregistrer</button>'); };
+  window.admBeOk=function(id){ var L=L_(); if(!L) return; var k=document.getElementById('adm-bk'); var o={nom:val('adm-bn'),pct:val('adm-bp'),nature:val('adm-bx'),validite:val('adm-bv'),verifie:!!(k&&k.checked)}; if(!o.nom) return T('Indiquez la personne.');
+    if(id) Object.assign(find(L.be,id),o); else { o.id=nid('be'); L.be.push(o); } sv(); closeModal(); T('Bénéficiaire enregistré.'); rr(); };
+  window.admBeProposer=function(){ var L=L_(); if(!L) return; var det=detention(R(curId())); det.L.filter(function(x){ return x.pct>=25&&!L.be.some(function(b){ return (b.nom||'').toLowerCase().trim()===x.nom.toLowerCase().trim(); }); }).forEach(function(x){ L.be.push({id:nid('be'),nom:x.nom,pct:String(Math.round(x.pct*10)/10).replace('.',','),nature:'Détention du capital et des droits de vote',validite:'',verifie:false}); }); sv(); T('Bénéficiaires ajoutés : renseignez leurs pièces d’identité.'); rr(); };
+  window.admActe=function(id){ var L=L_(); if(!L) return; var a=id?find(L.actes,id):{titre:'Statuts',version:'',date:iso(today0()),statut:'Signé'};
+    openModal(id?'Modifier le document':'Ajouter un document','<div class="frow"><div><label for="adm-at">Document</label><input id="adm-at" list="adm-atl" value="'+E(a.titre)+'"><datalist id="adm-atl"><option>Statuts</option><option>Pacte d’associés</option><option>Procès-verbal d’assemblée</option><option>Décision du président</option><option>Règlement intérieur</option></datalist></div><div><label for="adm-av">Version</label><input id="adm-av" value="'+E(a.version)+'" placeholder="Ex. v3"></div></div>'
+      +'<div class="frow"><div><label for="adm-ad">Date</label><input id="adm-ad" type="date" value="'+E(a.date)+'"></div><div><label for="adm-as">Statut</label>'+sel('adm-as',['Brouillon','Signé','Déposé','Archivé'],a.statut)+'</div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admActeOk('+(id?q(id):'')+')">Enregistrer</button>'); };
+  window.admActeOk=function(id){ var L=L_(); if(!L) return; var o={titre:val('adm-at'),version:val('adm-av'),date:val('adm-ad'),statut:val('adm-as')}; if(!o.titre||!o.date) return T('Indiquez le document et la date.');
+    if(!id&&/statut/i.test(o.titre)&&o.statut!=='Brouillon') L.actes.forEach(function(x){ if(/statut/i.test(x.titre||'')&&x.statut!=='Brouillon') x.statut='Archivé'; });
+    if(id) Object.assign(find(L.actes,id),o); else { o.id=nid('acte'); L.actes.push(o); } sv(); closeModal(); T('Document enregistré.'); rr(); };
+  window.admAgEtape=function(ex,k){ var c=cur(); if(!c) return; var r=R(c.id), fin=exerciceClos(c); if(!fin) return; var ag=agOf(r,fin), et=ag.etapes;
+    if(et[k]){ delete et[k]; sv(); rr(); return; }
+    et[k]=iso(today0());
+    if(k==='pv'&&!r.legal.decisions.some(function(d){ return d.agEx===ex; })) { r.legal.decisions.push({id:nid('dec'),date:et.tenue||et.pv,organe:'AGO',objet:'Approbation des comptes de l’exercice clos le '+fr(fin)+' et affectation du résultat',statut:'Signé',agEx:ex}); T('Procès-verbal inscrit au registre des décisions.'); }
+    sv(); rr(); };
+  window.admAgDoc=function(ex,k){ var c=cur(); if(!c) return; var fin=exerciceClos(c); if(!fin) return; var r=R(c.id), ag=agOf(r,fin), d=dOf(ag.etapes.tenue)||addM(fin,5);
+    var soc=nom(c)+(c.forme?' '+String(c.forme).toUpperCase():'')+(c.capital?' au capital de '+money(num(c.capital)):'')+(c.siege?', siège : '+c.siege+' '+((c.cp||'')+' '+(c.ville||'')).trim():'')+(c.siren?', SIREN '+c.siren:'');
+    var odj='1. Approbation des comptes de l’exercice clos le '+fr(fin)+'\n2. Affectation du résultat\n3. Approbation des conventions réglementées\n4. Quitus au dirigeant\n5. Pouvoirs pour les formalités';
+    var txt=k==='convoc'?('CONVOCATION À L’ASSEMBLÉE GÉNÉRALE ORDINAIRE\n\n'+soc+'\n\nMesdames, Messieurs les associés,\n\nVous êtes convoqués en assemblée générale ordinaire le '+fr(d)+' au siège social, à l’effet de délibérer sur l’ordre du jour suivant :\n\n'+odj+'\n\nLes comptes annuels et le rapport de gestion sont tenus à votre disposition au siège social.\n\nLe '+(c.presidentFonction||'Président')+', '+(c.president||'……'))
+      :('PROCÈS-VERBAL DES DÉCISIONS DE L’ASSEMBLÉE GÉNÉRALE ORDINAIRE DU '+fr(d)+'\n\n'+soc+'\n\nOrdre du jour :\n'+odj+'\n\nPREMIÈRE RÉSOLUTION — L’assemblée approuve les comptes de l’exercice clos le '+fr(fin)+' tels qu’ils lui ont été présentés.\n\nDEUXIÈME RÉSOLUTION — L’assemblée décide d’affecter le résultat de l’exercice de la manière suivante : ……\n\nTROISIÈME RÉSOLUTION — L’assemblée donne quitus au dirigeant pour l’exercice écoulé.\n\nQUATRIÈME RÉSOLUTION — Tous pouvoirs sont donnés au porteur d’une copie du présent procès-verbal pour accomplir les formalités.\n\nSignature : '+(c.president||'……'));
+    window.__admDocTxt=txt;
+    openModal(k==='convoc'?'Convocation à l’assemblée':'Procès-verbal d’assemblée','<textarea id="adm-doc" class="adm-doc" rows="18" aria-label="Texte du document">'+E(txt)+'</textarea><p class="adm-p0">Texte pré-rempli avec la fiche de la société : relisez et complétez les parties marquées « …… ».</p>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-pri" onclick="admDocCopier()">Copier le texte</button>'); };
+  window.admDocCopier=function(){ var t=document.getElementById('adm-doc'); var s=t?t.value:(window.__admDocTxt||''); try{ navigator.clipboard.writeText(s).then(function(){ T('Texte copié.'); },function(){ if(t){ t.select(); } T('Sélectionnez le texte puis copiez-le.'); }); }catch(e){ if(t) t.select(); T('Sélectionnez le texte puis copiez-le.'); } };
+
+  /* ---------------- routage & barre latérale ---------------- */
+  var PG={entreprise:{lbl:'Entreprises',sub:'Tableau de bord du dirigeant',fn:pageEntreprise},mlegal:{lbl:'Legal',sub:'Juridique & secrétariat',fn:pageLegal}};
+  try{ var ip=PAGES.findIndex(function(p){ return p.id==='pilotage'; }); [{id:'entreprise',lbl:'Entreprises',ic:'building',sub:PG.entreprise.sub},{id:'mlegal',lbl:'Legal',ic:'scale',sub:PG.mlegal.sub}].forEach(function(p,i){ if(!PAGES.some(function(x){ return x.id===p.id; })) PAGES.splice(ip>=0?ip+i:PAGES.length,0,p); }); }catch(e){}
+  function navGroupe(){ try{ var G=window.__navFlatDebug&&window.__navFlatDebug.GROUPS; if(!G||G.some(function(g){ return g.lbl==='Administration'; })) return; var k=G.findIndex(function(g){ return g.lbl==='Documents'; }); G.splice(k>=0?k+1:G.length-1,0,{lbl:'Administration',items:['entreprise','mlegal']}); window.__navFlatDebug.rebuild&&window.__navFlatDebug.rebuild(); }catch(e){} }
+  navGroupe(); setTimeout(navGroupe,400);
+  /* Les pages de l'administration passent par la chaîne de rendu normale (traitements communs
+     d'après rendu : cartes repliables, menus « ⋮ », animation) : le rendu de base affiche, pour une
+     page qu'il ne connaît pas, la fonction pageDemandes ; elle est prêtée le temps du rendu. */
+  function pageSure(fn){ return function(){ try{ return fn(); }catch(e){ try{ window.__admErr=e; }catch(_){} return '<div class="card"><div class="card-b">Affichage impossible : '+E(e&&e.message)+'</div></div>'; } }; }
+  var _r=window.render; window.render=function(){ var p=(typeof state!=='undefined')&&state.page; if(PG[p]&&typeof window.pageDemandes==='function'){
+      var orig=window.pageDemandes; window.pageDemandes=pageSure(PG[p].fn);
+      try{ return _r.apply(this,arguments); } finally { window.pageDemandes=orig; } }
+    return _r.apply(this,arguments); };
+
+  var css=document.createElement('style'); css.id='mq-admin-737-css'; css.textContent=[
+    '.adm-wrap{--adm-g:#3fb27f;--adm-o:#d9a441;--adm-r:#e05d5d;display:flex;flex-direction:column;gap:10px}',
+    '.adm-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.adm-sp{flex:1}',
+    '.adm-sel{display:flex;align-items:center;gap:6px;border:1px solid var(--line-soft);border-radius:8px;padding:0 8px;background:var(--card);height:32px}.adm-sel-ic svg{width:16px;height:16px}.adm-sel select{border:0!important;background:transparent!important;color:inherit;font:600 13px var(--sans);min-width:220px;height:30px;box-shadow:none!important}',
+    '.adm-id{background:var(--card);border:1px solid var(--line-soft);border-radius:var(--radius,12px);padding:10px 13px}',
+    '.adm-nom{font:700 17px var(--sans)}.adm-sub{font-size:12px;opacity:.8;margin-top:2px}',
+    '.adm-id-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-soft)}',
+    '.adm-id-g div{display:flex;flex-direction:column;align-items:flex-start;min-width:0}.adm-id-g span{font-size:11px;opacity:.8}.adm-id-g b{font-size:12.5px;font-weight:600;overflow-wrap:anywhere}',
+    'html body .adm-wrap button.adm-lk{all:unset;cursor:pointer;font-size:12px;text-decoration:underline;opacity:.85}html body .adm-wrap button.adm-lk:focus-visible{outline:2px solid #8a8a93}',
+    '.adm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media(min-width:1900px){.adm-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:760px){.adm-grid{grid-template-columns:1fr}}',
+    '.adm-card{min-width:0}.adm-card .card-h{flex-wrap:wrap}',
+    '.adm-list{display:flex;flex-direction:column;gap:2px}',
+    'html body .adm-wrap button.adm-row{all:unset;box-sizing:border-box;display:flex;align-items:flex-start;gap:8px;padding:6px;border-radius:7px;cursor:pointer;width:100%;background:transparent!important;box-shadow:none!important}html body .adm-wrap button.adm-row:hover{background:rgba(255,255,255,.04)!important}html body .adm-wrap button.adm-row:focus-visible{outline:2px solid #8a8a93}',
+    '.adm-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}.adm-d-r{background:var(--adm-r)}.adm-d-o{background:var(--adm-o)}.adm-d-g{background:var(--adm-g)}',
+    '.adm-dd{font:600 12px var(--sans);width:40px;flex:none;margin-top:1px;font-variant-numeric:tabular-nums}',
+    '.adm-tx{display:flex;flex-direction:column;min-width:0;flex:1}.adm-tx b{font-size:12.5px;font-weight:600}.adm-tx i{font-style:normal;font-size:11.5px;opacity:.8}',
+    '.adm-vide{font-size:12.5px;opacity:.85;padding:8px 2px}.adm-p0{font-size:12px;opacity:.85;margin:8px 0}.adm-note{font-size:11.5px;opacity:.85;margin-top:8px}',
+    '.adm-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.adm-k{display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:8px;padding:7px 9px;min-width:0}.adm-k span{font-size:11px;opacity:.8}.adm-k b{font:700 16px var(--sans);font-variant-numeric:tabular-nums}.adm-k i{font-style:normal;font-size:11px;opacity:.8}.adm-spark{width:100%;height:22px;margin-top:4px;opacity:.7}',
+    '.adm-v{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-bottom:1px solid var(--line-soft)}.adm-vk{font-size:11px;font-weight:600;border:1px solid var(--line-soft);border-radius:6px;padding:1px 6px;min-width:74px;text-align:center}',
+    '.adm-sc{display:flex;gap:14px;align-items:center}.adm-gauge{--v:0;width:96px;height:96px;flex:none;border-radius:50%;display:grid;place-items:center;align-content:center;background:radial-gradient(closest-side,#0b0b0b 76%,transparent 77%),conic-gradient(var(--c) calc(var(--v)*1%),#26262b 0)}.adm-gauge b{font:700 24px var(--sans);line-height:1}.adm-gauge span{font-size:11px;opacity:.8}',
+    '.adm-dom{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}.adm-dom div{display:grid;grid-template-columns:92px 1fr 26px;align-items:center;gap:6px}.adm-dom span{font-size:11.5px}.adm-dom i{height:6px;border-radius:4px;background:#26262b;overflow:hidden}.adm-dom u{display:block;height:100%;text-decoration:none}.adm-dom b{font-size:11.5px;text-align:right;font-variant-numeric:tabular-nums}.adm-dom em{grid-column:2/4;font-style:normal;font-size:11px;opacity:.6}',
+    '.adm-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}',
+    'html body .adm-wrap .adm-tile{all:unset;box-sizing:border-box;display:flex;align-items:flex-start;gap:9px;border:1px solid var(--line-soft);border-radius:9px;padding:9px 10px;cursor:pointer;position:relative;min-width:0;background:transparent!important;box-shadow:none!important}html body .adm-wrap button.adm-tile:hover{border-color:#3a3a40;background:rgba(255,255,255,.03)!important}html body .adm-wrap .adm-tile:focus-visible{outline:2px solid #8a8a93}',
+    'html body .adm-wrap .adm-tile.off{cursor:default;opacity:.55}.adm-tt em{font-style:normal;font-size:11px;margin-top:3px;opacity:.9}',
+    '.adm-ti{width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--line-soft);display:grid;place-items:center}.adm-ti svg{width:17px;height:17px}',
+    '.adm-tt{display:flex;flex-direction:column;min-width:0;padding-right:18px}.adm-tt b{font:700 12.5px var(--sans);letter-spacing:.2px}.adm-tt i{font-style:normal;font-size:11.5px;opacity:.8;line-height:1.35}',
+    '.adm-n{position:absolute;top:8px;right:8px;min-width:18px;height:18px;border-radius:9px;background:#f4f6fa;color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important;font:700 11px/18px var(--sans);text-align:center;padding:0 5px}',
+    '.adm-head{display:flex;align-items:center;gap:10px}.adm-hi{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-soft);display:grid;place-items:center}.adm-hi svg{width:18px;height:18px}.adm-head b{display:block;font:700 14px var(--sans)}.adm-head span{font-size:11.5px;opacity:.85}',
+    '.adm-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line-soft);padding-bottom:6px}',
+    'html body .adm-wrap button.adm-tab{height:30px;padding:0 11px;border-radius:7px;border:1px solid transparent!important;background:transparent!important;box-shadow:none!important;color:inherit;font:600 12px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px}html body .adm-wrap button.adm-tab:hover{background:rgba(255,255,255,.05)!important}',
+    'html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-tab.on,html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-tab.on *{background:#f4f6fa!important;color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important}html body .adm-wrap button.adm-tab:focus-visible{outline:2px solid #8a8a93}',
+    '.adm-c{min-width:17px;height:17px;border-radius:9px;background:#f4f6fa;color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important;font:700 11px/17px var(--sans);text-align:center;padding:0 4px}html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-tab.on .adm-c{background:#0b0b0c!important;color:#fff!important;-webkit-text-fill-color:#fff!important}',
+    '.adm-tw{overflow-x:auto}.adm-t{width:100%;border-collapse:collapse;font-size:12px}.adm-t th{text-align:left;font:600 11px var(--sans);opacity:.75;padding:5px 8px;border-bottom:1px solid var(--line-soft);white-space:nowrap}.adm-t td{padding:6px 8px;border-bottom:1px solid var(--line-soft);vertical-align:middle}.adm-t tr:last-child td{border-bottom:0}.adm-t td:last-child{white-space:nowrap;text-align:right}.adm-t td .btn{margin-left:4px}',
+    '.adm-p{display:inline-block;font:600 11px var(--sans);border-radius:20px;padding:1px 8px;border:1px solid;white-space:nowrap}',
+    'html body .adm-p.adm-g{color:#3fb27f!important;-webkit-text-fill-color:#3fb27f!important;border-color:rgba(63,178,127,.45)}html body .adm-p.adm-o{color:#d9a441!important;-webkit-text-fill-color:#d9a441!important;border-color:rgba(217,164,65,.45)}html body .adm-p.adm-r{color:#e05d5d!important;-webkit-text-fill-color:#e05d5d!important;border-color:rgba(224,93,93,.45)}.adm-p.adm-n{border-color:#34343a}',
+    '.adm-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.adm-in{height:28px;max-width:160px}.adm-state{display:flex;align-items:center;gap:8px;min-height:32px}',
+    '.adm-alert{margin-top:10px;border:1px solid rgba(224,93,93,.45);border-radius:8px;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}',
+    '.adm-steps{display:flex;gap:6px;flex-wrap:wrap}',
+    'html body .adm-wrap button.adm-st{display:flex;align-items:center;gap:7px;border:1px solid var(--line-soft)!important;border-radius:8px;padding:6px 10px;font:500 12px var(--sans);background:transparent!important;box-shadow:none!important;color:inherit;cursor:pointer;text-align:left}html body .adm-wrap button.adm-st small{display:block;font-size:11px;opacity:.8}',
+    '.adm-sn{width:20px;height:20px;border-radius:50%;border:1px solid #4a4a52;display:grid;place-items:center;font:700 11px var(--sans);flex:none}html body .adm-wrap button.adm-st.ok .adm-sn{background:#3fb27f;border-color:#3fb27f;color:#04110a;-webkit-text-fill-color:#04110a}',
+    '.adm-doc{width:100%;box-sizing:border-box;font:12.5px/1.5 var(--sans);white-space:pre-wrap}',
+    '@media(max-width:760px){.adm-sel{flex:1 1 100%}.adm-sel select{min-width:0;width:100%}.adm-sc{flex-direction:column;align-items:stretch}.adm-gauge{margin:0 auto}.adm-t td:last-child{white-space:normal}}'
+  ].join('\n'); document.head.appendChild(css);
 })();
 </script>
 </body>
