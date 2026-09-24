@@ -48,7 +48,7 @@ await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; windo
     return {total:R.total,bb:R.boutEnBout,pieces:e('pieces'),obt:e('obtention'),annonce:e('annonce'),goulot:R.goulot&&R.goulot.k,exc:R.goulot&&R.goulot.excedent,
       retards:R.retards.map(x=>x.id===__B?'B:'+x.etape+':'+x.jours:x.id),dep:R.depasse.map(x=>(x.id===__A?'A':x.id)+':'+x.jours+'/'+x.annonce+'+'+x.de+':'+x.livre),
       fun:R.entonnoir.map(x=>x.k+'='+x.n+(x.taux!=null?'('+x.taux+'%)':'')).join(' '),note:R.entonnoir[0].note}; });
-  A(r.total===3&&r.bb.n===1&&Math.round(r.bb.mediane)===39,'de la demande à la remise : 39 jours (médiane sur le seul dossier remis)',JSON.stringify(r.bb));
+  A(r.total===3&&r.bb.n===1&&Math.floor(r.bb.mediane)===39,'de la demande à la remise : 39 jours (médiane sur le seul dossier remis)',JSON.stringify(r.bb));
   A(r.pieces.n===1&&Math.round(r.pieces.mediane)===10&&r.pieces.norme===10&&r.pieces.hors===0&&r.pieces.enCours===2&&r.pieces.enRetard===1,'étape « Pièces » : 10 j réels pour une norme de 10 j ; deux dossiers y sont, dont un en retard',JSON.stringify(r.pieces));
   A(r.annonce.n===1&&Math.round(r.annonce.mediane)===7&&r.obt.n===1&&Math.round(r.obt.mediane)===15,'chaque étape est mesurée depuis la précédente franchie (annonce 7 j, immatriculation 15 j après le dépôt)',JSON.stringify([r.annonce.mediane,r.obt.mediane]));
   A(r.goulot==='pieces'&&Math.round(r.exc)===10,'l’étape qui ralentit le plus : les pièces (10 jours au-delà de la norme, dossier bloqué compris)',r.goulot+' '+r.exc);

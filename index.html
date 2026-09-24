@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=735;
+var LAST_VER=736;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -54845,6 +54845,106 @@ function testLienSignature() {
     P+' .pt-btab .pt-badge{position:absolute;top:3px;left:calc(50% + 5px);min-width:17px;height:17px;font-size:10px}',
     P+' .pt-doc{flex-wrap:wrap}'+P+' .pt-doc-a{width:100%}'+P+' .pt-doc-a .pt-btn{flex:1}}'
   ].concat(finition()).join('\n'); document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script id="mq-fenetres-736">
+/* v736 — Toute fenêtre ouverte se referme.
+   Filet commun à tout le logiciel (ordinateur et téléphone) :
+   - l'attribut « hidden » cache vraiment l'élément, même quand une règle
+     d'affichage le contredit (le panneau des notifications restait affiché) ;
+   - la touche Échap referme la fenêtre du dessus quand aucun module ne l'a fait ;
+   - une fenêtre sans bouton de fermeture en reçoit un (croix en haut à droite) ;
+   - un menu déroulant se referme d'un clic à l'extérieur.
+   L'espace client ouvert par son lien reste ouvert (Échap n'y déconnecte pas) ;
+   son aperçu depuis le cabinet, lui, se referme. */
+(function(){ if(window.__mqWin736) return; window.__mqWin736=1;
+  var CLOSE=/(^|\s)(×|✕|✖|fermer|annuler|close|retour|terminer|compris|ok|non merci|plus tard|ignorer|quitter|refermer)($|\s|[.!…:])/i;
+  var CHROME='#toast,.toast,#skip-link,.skip-link,#ambient,#pf-bar,.topbar,#nav,.fi-actions,.nav-scrim,#mq-boot';
+  var MENUS='#fb-menu,#cli-docmenu,.fb-menu,.cli-docmenu,[role=menu],.dropdown,.drop-menu,#de-act-drop,#word-menu';
+  function S(v){ return v==null?'':String(v); }
+  function vis(e){ if(!e||!e.isConnected) return false; var cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity<0.05) return false; var r=e.getBoundingClientRect(); return r.width>1&&r.height>1&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth; }
+  function estMenu(w){ try{ return w.matches(MENUS)||/(^|[\s-])menu($|[\s-])|dropdown|popover/i.test(S(w.className)+' '+S(w.id)); }catch(e){ return false; } }
+  /* fenêtres visibles, la plus haute d'abord */
+  function fenetres(){ var A=innerWidth*innerHeight, out=[];
+    var L=[].slice.call(document.body.children).concat([].slice.call(document.querySelectorAll('[role=dialog],[aria-modal=true],.overlay,.modal,[id$="-ov"],[class*="-ov "],[class$="-ov"],[id$="-menu"],[class*="drawer"],[class*="popover"],aside#side.open')));
+    var vu=new Set();
+    for(var i=0;i<L.length;i++){ var e=L[i]; if(vu.has(e)) continue; vu.add(e); if(e.closest(CHROME)||e.id==='scrim') continue; var cs=getComputedStyle(e);
+      var dlg=e.getAttribute('role')==='dialog'||e.getAttribute('aria-modal')==='true';
+      if(cs.position!=='fixed'&&!dlg) continue; if(e.id==='ov'&&!e.classList.contains('show')) continue; if(!vis(e)) continue;
+      var r=e.getBoundingClientRect(); if(r.width*r.height<A*0.02&&!dlg&&!estMenu(e)) continue;
+      var p=e.parentElement, dedans=false; while(p&&p!==document.body){ if(getComputedStyle(p).position==='fixed'&&vis(p)){ dedans=true; break; } p=p.parentElement; } if(dedans) continue;
+      out.push(e); }
+    out.sort(function(a,b){ var d=(+getComputedStyle(b).zIndex||0)-(+getComputedStyle(a).zIndex||0); if(d) return d; return (a.compareDocumentPosition(b)&4)?1:-1; });
+    return out; }
+  function controle(w){ var L=w.querySelectorAll('button,[onclick],a,[role=button]');
+    for(var i=0;i<L.length;i++){ var e=L[i]; if(!vis(e)) continue; var t=((e.innerText||'')+' '+(e.getAttribute('aria-label')||'')+' '+(e.title||'')).trim();
+      if(CLOSE.test(t)||/closeModal|Close\(|Fermer\(|fermer\(|annuler|cancel/i.test(e.getAttribute('onclick')||'')) return e; }
+    return null; }
+  function fermer(w){ try{
+      if(w.id==='ov'){ closeModal(); return true; }
+      if(w.id==='side'||w.id==='scrim'){ if(window.toggleNav) toggleNav(false); return true; }
+      if(w.id==='portail-ov'){ if(w.classList.contains('pt-nav-open')) return false; if(window.__portApercu){ closePortail(); return true; } return false; }
+      if(w.id==='nt-panel'&&window.ntClose){ ntClose(); return true; }
+      if(w.id==='edk-ov'&&window.edkClose){ edkClose(); return true; }
+      var c=controle(w); if(c&&!c.classList.contains('mqx-close')){ c.click(); return true; }
+      w.remove(); return true; }catch(e){ try{ w.remove(); }catch(_){} return true; } }
+  window.mqFenetres=fenetres; window.mqFermerFenetre=function(el){ var L=fenetres(); if(el){ for(var i=0;i<L.length;i++){ if(L[i].contains(el)) return fermer(L[i]); } } return L.length?fermer(L[0]):false; };
+  /* Échap : seulement si aucun module n'a déjà refermé sa fenêtre */
+  /* Échap : plusieurs fenêtres ouvertes → seule celle du dessus se referme ;
+     une seule → le module la referme lui-même, sinon ce filet s'en charge */
+  window.addEventListener('keydown',function(e){ if(e.key!=='Escape') return; var L=fenetres(); if(!L.length) return;
+    if(L.length>1&&!estMenu(L[0])){ if(fermer(L[0])){ e.preventDefault(); e.stopImmediatePropagation(); } return; }
+    setTimeout(function(){ if(e.defaultPrevented&&!vis(L[0])) return; for(var i=0;i<L.length;i++){ if(!vis(L[i])) return; } fermer(L[0]); },0); },true);
+  /* menu déroulant : un clic à l'extérieur le referme */
+  document.addEventListener('mousedown',function(e){ var L=fenetres().filter(estMenu); L.forEach(function(m){ if(!m.contains(e.target)&&!(e.target.closest&&e.target.closest('[aria-haspopup],[aria-expanded]'))){ setTimeout(function(){ if(vis(m)&&!m.contains(document.activeElement)) fermer(m); },0); } }); },true);
+  /* croix de fermeture pour toute fenêtre qui n'en a pas */
+  function croix(){ fenetres().forEach(function(w){ if(estMenu(w)||w.id==='portail-ov'||w.id==='side'||w.querySelector('.mqx-close')||controle(w)) return;
+      var cible=w, r=w.getBoundingClientRect(), k=w.firstElementChild;
+      if(k&&w.children.length===1){ var rk=k.getBoundingClientRect(); if(rk.width<r.width-40||rk.height<r.height-40) cible=k; }
+      if(getComputedStyle(cible).position==='static') cible.style.position='relative';
+      var b=document.createElement('button'); b.type='button'; b.className='mqx-close'; b.setAttribute('aria-label','Fermer'); b.title='Fermer (Échap)'; b.textContent='×';
+      b.setAttribute('onclick','event.stopPropagation();mqFermerFenetre(this)');
+      cible.appendChild(b); }); }
+  var att=0; function planifier(){ if(att) return; att=requestAnimationFrame(function(){ att=0; try{ croix(); }catch(e){} }); }
+  try{ new MutationObserver(planifier).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','style']}); }catch(e){}
+  /* menu latéral du téléphone : une croix, Échap (ci-dessus) et un glissement vers la gauche le referment */
+  function navCroix(){ var sd=document.getElementById('side'); if(!sd||sd.querySelector('.mqx-navx')) return;
+    var b=document.createElement('button'); b.type='button'; b.className='mqx-navx'; b.setAttribute('aria-label','Fermer le menu'); b.title='Fermer le menu (Échap)'; b.textContent='×';
+    b.setAttribute('onclick','event.stopPropagation();toggleNav(false)'); sd.appendChild(b);
+    var x0=null,y0=0; sd.addEventListener('touchstart',function(e){ if(!sd.classList.contains('open')) return; var t=e.touches[0]; x0=t.clientX; y0=t.clientY; },{passive:true});
+    sd.addEventListener('touchend',function(e){ if(x0==null) return; var t=e.changedTouches[0], dx=t.clientX-x0, dy=Math.abs(t.clientY-y0); x0=null; if(dx<-60&&dy<50&&window.toggleNav) toggleNav(false); },{passive:true}); }
+  try{ navCroix(); document.addEventListener('DOMContentLoaded',navCroix); }catch(e){}
+  /* aperçu de l'espace client depuis le cabinet : refermable par Échap */
+  try{ var _pv=window.svcPortPreview; if(_pv) window.svcPortPreview=function(){ var r=_pv.apply(this,arguments); window.__portApercu=true; return r; };
+    var _cp=window.closePortail; if(_cp) window.closePortail=function(){ window.__portApercu=false; return _cp.apply(this,arguments); }; }catch(e){}
+  /* suggestion de fusion de fiches : « Plus tard » la range jusqu'à une nouvelle suggestion */
+  try{ var _mp=window.cliMergeNotifPaint; if(_mp){ window.cliMergeNotifPaint=function(){ var r=_mp.apply(this,arguments); var box=document.getElementById('cli-merge-notif'); if(!box) return r;
+      var sig=''; try{ sig=(window.cliMergeCandidates()||[]).map(function(c){ return c.pid+'>'+c.sid; }).join(','); }catch(e){}
+      if(window.__cmnPlusTard===sig){ box.remove(); return r; }
+      var h=box.querySelector('.cmn-head'); if(h&&!h.querySelector('.cmn-x')){ var x=document.createElement('button'); x.type='button'; x.className='cmn-x'; x.setAttribute('aria-label','Fermer — plus tard'); x.title='Plus tard (Échap)'; x.textContent='×';
+        x.addEventListener('click',function(){ window.__cmnPlusTard=sig; var b=document.getElementById('cli-merge-notif'); if(b) b.remove(); }); h.appendChild(x); }
+      return r; }; } }catch(e){}
+  try{ var st=document.createElement('style'); st.id='mq-fenetres-736-css'; st.textContent='[hidden]{display:none!important}'
+      /* pastille de la cloche : chiffre lisible */
+      +'html body .nt-badge{color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important}'
+      /* lisibilité : 11 px au minimum pour les libellés de l\'interface */
+      +'html body .cs-n,html body .edk-glabel,html body .fb-mi-sep,html body .dp-h,html body .ps-rh{font-size:11px!important}'
+      +'html body .brand-sub{font-size:11px!important;letter-spacing:.9px!important}'
+      /* documents sur fond blanc (Synthèse, cadre du QR code) : le texte suit sa couleur, jamais le blanc forcé */
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) #ov-b .sy-doc,html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) #ov-b .sy-doc *,html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .pl-r,html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .pl-r *{-webkit-text-fill-color:currentColor!important}'
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .pl-r .hint{color:#555!important}html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .pl-r .btn{color:#111!important;background:#fff!important;border-color:#c9c9cf!important}html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .pl-r .btn:hover{background:#f1f1f4!important}'
+      +'html body label small{font-size:max(11px,.9em)!important}'
+      /* thème toujours nuit (v672) : le bouton de bascule ne faisait rien, il est retiré */
+      +'html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) button[onclick*="darkToggle"],html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .topbar .topbar-theme{display:none!important}'
+      +'.cmn-head{display:flex!important;align-items:center;justify-content:space-between;gap:8px}'
+      +'.cmn-x{width:30px;height:30px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #2c2c30;background:transparent;color:#f4f6fa;-webkit-text-fill-color:#f4f6fa;font:400 20px/1 Inter,Arial,sans-serif;cursor:pointer;padding:0}'
+      +'.cmn-x:hover{background:#1c1c20}'
+      +'.mqx-close{position:absolute!important;top:8px!important;right:8px!important;z-index:5!important;width:34px!important;height:34px!important;min-width:0!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important;border-radius:9px!important;border:1px solid #2c2c30!important;background:#111114!important;color:#f4f6fa!important;-webkit-text-fill-color:#f4f6fa!important;font:400 22px/1 Inter,Arial,sans-serif!important;cursor:pointer;box-shadow:none!important}'
+      +'.mqx-close:hover{background:#1c1c20!important;border-color:#8a8a93!important}'
+      +'.mqx-navx{display:none}'
+      +'@media(max-width:860px){html body aside#side.open .mqx-navx{display:flex!important;position:absolute;top:10px;right:10px;z-index:6;width:44px;height:44px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #2c2c30;background:#111114;color:#f4f6fa;-webkit-text-fill-color:#f4f6fa;font:400 24px/1 Inter,Arial,sans-serif;cursor:pointer;padding:0}html body aside#side.open .brand{padding-right:58px!important}}'
+      +'@media(pointer:coarse){.mqx-close{width:44px!important;height:44px!important}}';
+    document.head.appendChild(st); }catch(e){}
 })();
 </script>
 </body>
