@@ -3,7 +3,8 @@
  * store.js — Couche de stockage sur disque, simple et portable (aucun service tiers).
  *
  * Arborescence sous DATA_DIR :
- *   clients.json   → { "<ckey>": { name, codeHash } }        (codes HASHÉS, jamais en clair)
+ *   clients.json   → { "<ckey>": { name, codeHash, message?, suivi? } }  (codes HASHÉS, jamais en clair ;
+ *                    suivi = avancement public des dossiers, voir nettoyerSuivi)
  *   docs.json      → { "<ckey>": [ { id, nom, cat, date, type, size } ] }  (docs PARTAGÉS)
  *   meta.json      → { cabinet: "AEM CONSEIL" }               (paramètres d'affichage)
  *   files/<id>     → contenu binaire du fichier
@@ -203,6 +204,24 @@ function supprimerUpload(id) {
  * }
  * mode = 'replace' (défaut, remplace tout l'état) | 'merge' (fusionne/complète)
  * ------------------------------------------------------------------------- */
+/* Avancement des dossiers visible par le client : uniquement des libellés
+ * publics, nettoyés et bornés (le serveur ne garde rien d'autre). */
+function nettoyerSuivi(L) {
+  const txt = function (v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').slice(0, n); };
+  const ETATS = { fait: 1, encours: 1, avenir: 1 };
+  return (L || []).slice(0, 10).filter(function (x) { return x && typeof x === 'object'; }).map(function (x) {
+    return {
+      ref: txt(x.ref, 40), formalite: txt(x.formalite, 80), phrase: txt(x.phrase, 160), enCours: txt(x.enCours, 60),
+      maj: /^\d{4}-\d{2}-\d{2}$/.test(String(x.maj || '')) ? String(x.maj) : '',
+      fait: Math.max(0, Math.min(20, parseInt(x.fait, 10) || 0)), total: Math.max(0, Math.min(20, parseInt(x.total, 10) || 0)),
+      termine: !!x.termine,
+      etapes: (Array.isArray(x.etapes) ? x.etapes : []).slice(0, 15).map(function (e) {
+        return { lbl: txt(e && e.lbl, 60), etat: ETATS[e && e.etat] ? e.etat : 'avenir' }; }),
+      attendu: (Array.isArray(x.attendu) ? x.attendu : []).slice(0, 8).map(function (a) { return txt(a, 120); }),
+    };
+  });
+}
+
 function syncCabinet(payload, mode) {
   mode = mode || 'replace';
   payload = payload || {};
@@ -220,6 +239,7 @@ function syncCabinet(payload, mode) {
     // sans changer le code existant en mode merge).
     if (c.code) entree.codeHash = hasherCode(c.code);
     if (typeof c.message === 'string') entree.message = c.message.slice(0, 600);
+    if (Array.isArray(c.suivi)) entree.suivi = nettoyerSuivi(c.suivi);
     if (entree.codeHash) clientsOut[k] = entree;
   });
   ecrireJSON('clients.json', clientsOut);
@@ -366,7 +386,7 @@ function supprimerSauvegarde(id) {
 module.exports = {
   init, ckey,
   getMeta, setMeta,
-  getClient, docsClient, docAppartientAuClient,
+  getClient, docsClient, docAppartientAuClient, nettoyerSuivi,
   lireFichier, enregistrerFichier,
   syncCabinet,
   logEvent, getEvents,

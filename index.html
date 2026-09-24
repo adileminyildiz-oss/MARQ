@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=732;
+var LAST_VER=733;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -25895,7 +25895,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'<div id="port-up-status" class="port-up-status"></div></div>') : '';
     ov.innerHTML='<div class="port-shell"><div class="port-top">'+portBrand('sm')+'<div class="port-top-r"><span class="port-who">'+E(client)+'</span><button class="port-out" onclick="closePortail()">Se déconnecter</button></div></div>'
       +'<div class="port-welcome"><div class="port-welcome-h">Bonjour, '+E(client)+'</div><div class="port-welcome-s">'+docs.length+' document'+(docs.length>1?'s':'')+' à votre disposition'+(window.__portNewCount?(' <span class="port-welcome-new">· '+window.__portNewCount+' nouveau'+(window.__portNewCount>1?'x':'')+'</span>'):'')+'</div></div>'
-      +msgBar+toolbar+'<div class="port-docs-wrap" id="port-docs-wrap">'+body+'</div>'+up+portFoot()+'</div>';
+      +msgBar+(window.portSuiviHTML?window.portSuiviHTML(client,remote):'')+toolbar+'<div class="port-docs-wrap" id="port-docs-wrap">'+body+'</div>'+up+portFoot()+'</div>';
   }
   window.svcPortUploadPick=function(){ var inp=document.getElementById('port-up-file'); if(inp)inp.click(); };
   window.svcPortUpload=function(inp){ var base=portApiBase(), tok=window.__portTok; var files=Array.prototype.slice.call((inp&&inp.files)||[]); if(inp)inp.value=''; if(!base||!tok||!files.length)return;
@@ -25911,7 +25911,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
     fetch(base+'/portal/docs',{headers:{'Authorization':'Bearer '+token}}).then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); }).then(function(x){
       if(!x.ok){ portailRenderLogin(ov, client); try{ portErr((x.j&&x.j.error)||'Session expirée.'); }catch(e){} return; }
       var docs=(x.j.docs||[]).map(function(d){ return {rid:d.id, nom:d.nom, cat:d.cat, date:d.date}; });
-      window.__portMsg=x.j.message||'';
+      window.__portMsg=x.j.message||''; window.__portSuivi=Array.isArray(x.j.suivi)?x.j.suivi:[];
       portDocsRender(ov, x.j.client||client, docs, true);
     }).catch(function(){ portailRenderLogin(ov, client); try{ portErr('Serveur injoignable.'); }catch(e){} });
   }
@@ -25934,7 +25934,8 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   window.svcPortSrvTest=function(){ svcPortSrvSave(); var base=portApiBase(); if(!base){ poStatus('Renseignez l’adresse du serveur.'); return; } poStatus('Test en cours…'); fetch(base+'/health').then(function(r){ return r.json(); }).then(function(j){ poStatus(j&&j.ok?'✓ Serveur joignable.':'Réponse inattendue.'); }).catch(function(){ poStatus('✗ Serveur injoignable (vérifiez l’adresse et le CORS).'); }); };
   function portAutoSync(){ var cfg=portSrvCfg(); if(cfg.auto===false)return; if(!portApiBase()||!cfg.token)return; if(window.__portAutoT)clearTimeout(window.__portAutoT); window.__portAutoT=setTimeout(function(){ window.__portAutoT=0; try{ window.svcPortSyncNow(true); }catch(e){} }, 2500); }
   window.svcPortSyncNow=function(silent){ if(!silent)svcPortSrvSave(); var cfg=portSrvCfg(); var base=portApiBase(); if(!base||!cfg.token){ if(!silent)poStatus('Adresse du serveur + secret cabinet requis.'); return; }
-    var st=coffreState(); var files=cofFiles(); var dis=portDisabledMap(); var msgs=portMsgMap(); var clients=cofClients().filter(function(n){ return !dis[ckey(n)]; }).map(function(n){ return {name:n, code:portailCode(n), message:msgs[ckey(n)]||''}; }); var docs=[], fmap={};
+    var st=coffreState(); var files=cofFiles(); var dis=portDisabledMap(); var msgs=portMsgMap(); var noms=cofClients(); try{ if(window.suiviClientsNoms) window.suiviClientsNoms().forEach(function(n){ if(!noms.some(function(x){ return ckey(x)===ckey(n); })) noms.push(n); }); }catch(e){}
+    var clients=noms.filter(function(n){ return !dis[ckey(n)]; }).map(function(n){ return {name:n, code:portailCode(n), message:msgs[ckey(n)]||'', suivi:(window.suiviClient?window.suiviClient(n):[])}; }); var docs=[], fmap={};
     st.items.forEach(function(it){ if(it.shared&&it.fileId&&!dis[ckey(it.client)]){ docs.push({id:it.fileId, client:it.client, nom:it.nom, cat:it.cat, date:it.date, type:it.ftype, size:it.fsize, shared:true}); var f=files[it.fileId]; if(f&&f.data)fmap[it.fileId]={name:f.name||it.nom, type:f.type||it.ftype||'application/octet-stream', data:f.data}; } });
     poStatus('Synchronisation… ('+docs.length+' document'+(docs.length>1?'s':'')+')');
     fetch(base+'/admin/sync',{method:'POST',headers:{'Content-Type':'application/json','X-Cabinet-Token':cfg.token},body:JSON.stringify({cabinet:cabName(), mode:'replace', clients:clients, docs:docs, files:fmap})})
@@ -54317,6 +54318,103 @@ function testLienSignature() {
     +'.mq-pr-lk{font:inherit;font-weight:600;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}'
     +'.mq-pr-vide,.mq-pr-plus{font-size:12.5px;color:#9a9aa3;margin:4px 0}.mq-pr-act{margin-top:14px;display:flex;justify-content:flex-end}'
     +'@media(max-width:760px){.mq-pr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mq-pr-fr{grid-template-columns:1fr 40px 50px}.mq-pr-fr .mq-pr-bar{grid-column:1/-1;order:5}.mq-pr-chips{margin-left:0}}';
+    document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script id="mq-suivi-client-733">
+/* v733 — Le client voit où en est son dossier.
+   Dans son portail (en local ou en ligne), un bloc « Où en est mon dossier »
+   montre les étapes franchies, celle en cours dite en clair, ce que le cabinet
+   attend de lui, et la date de la dernière avancée. Seules des étapes publiques
+   sortent du cabinet : ni honoraires, ni notes, ni contrôles internes.
+   Côté cabinet, l'onglet Demande montre exactement ce que voit le client. */
+(function(){ if(window.__mqSuivi733) return; window.__mqSuivi733=1;
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return S(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function ck(c){ return S(c).trim().toLowerCase(); }
+  function frD(t){ try{ return t?new Date(t).toLocaleDateString('fr-FR'):''; }catch(e){ return ''; } }
+  /* étapes visibles par le client, dans ses mots */
+  var PUB={recue:['Demande reçue','Nous avons bien reçu votre demande.'],
+    devis:['Devis envoyé','Nous préparons votre devis.'],
+    accord:['Votre accord','Nous attendons votre accord sur le devis.'],
+    dossier:['Dossier ouvert','Nous ouvrons votre dossier.'],
+    pieces:['Pièces réunies','Nous vérifions vos pièces.'],
+    actes:['Actes rédigés','Nous rédigeons vos actes.'],
+    signature:['Actes signés','Vos actes sont prêts à être signés.'],
+    annonce:['Annonce légale publiée','Nous publions l’annonce légale.'],
+    depot:['Dossier déposé','Nous déposons votre dossier au guichet unique.'],
+    obtention:['Immatriculation obtenue','Le greffe instruit votre dossier.'],
+    livraison:['Dossier remis','Nous préparons la remise de votre dossier.']};
+  var ATTENDU={formulaire:'compléter le questionnaire en ligne',pieces:'nous transmettre les pièces demandées',signature:'signer les actes',capital:'déposer le capital et nous envoyer l’attestation'};
+  function dossierDe(id){ try{ return (DB.dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }catch(e){ return null; } }
+
+  window.suiviClientDossier=function(p){ if(!p) return null;
+    var d=p.dosId?dossierDe(p.dosId):null;
+    var et=p.jalons.filter(function(x){ return PUB[x.k]&&x.etat!=='sansobjet'&&x.etat!=='depasse'; }).map(function(x){
+      return {k:x.k,lbl:PUB[x.k][0],etat:x.etat==='fait'?'fait':(x.etat==='encours'?'encours':'avenir')}; });
+    var cur=et.filter(function(x){ return x.etat==='encours'; })[0]||null;
+    var att=[]; try{ if(d&&typeof window.relancesAttentes==='function') (window.relancesAttentes(d)||[]).forEach(function(a){ if(a.etat==='attente'&&ATTENDU[a.k]) att.push(ATTENDU[a.k]); }); }catch(e){}
+    var fini=!cur&&et.length&&et.every(function(x){ return x.etat==='fait'; });
+    var phrase=cur?PUB[cur.k][1]:(fini?'Votre dossier est terminé.':'');
+    if(cur&&cur.k==='pieces'&&att.indexOf(ATTENDU.pieces)>=0) phrase='Nous attendons vos pièces.';
+    if(cur&&cur.k==='signature'&&att.indexOf(ATTENDU.signature)>=0) phrase='Vos actes vous attendent pour signature.';
+    var fo=S(p.formalite).trim(), FO={sas:'SAS',sasu:'SASU',sarl:'SARL',eurl:'EURL',sci:'SCI',snc:'SNC',sa:'SA',ei:'entreprise individuelle',micro:'micro-entreprise'};
+    if(FO[fo.toLowerCase()]) fo='Création de votre '+FO[fo.toLowerCase()]; else if(fo) fo=fo.charAt(0).toUpperCase()+fo.slice(1);
+    return {ref:S(p.ref),formalite:fo.slice(0,80),etapes:et,enCours:cur?cur.lbl:'',phrase:phrase,attendu:att,
+      maj:p.depuis?new Date(p.depuis).toISOString().slice(0,10):'',fait:et.filter(function(x){ return x.etat==='fait'; }).length,total:et.length,termine:!!fini}; };
+  window.suiviClient=function(client){ var k=ck(client); if(!k) return [];
+    var L=(typeof window.parcoursTous==='function')?(window.parcoursTous()||[]):[];
+    return L.filter(function(p){ return p.dosId&&ck(p.nom)===k; }).map(window.suiviClientDossier).filter(Boolean)
+      .sort(function(a,b){ return (a.termine===b.termine)?0:(a.termine?1:-1); }).slice(0,10); };
+
+  /* rendu commun : portail du client et aperçu du cabinet */
+  window.suiviClientsNoms=function(){ var L=(typeof window.parcoursTous==='function')?(window.parcoursTous()||[]):[], vus={}, out=[];
+    L.forEach(function(p){ if(!p.dosId||p.fini||!p.nom||p.nom==='client non rattaché') return; var k=ck(p.nom); if(vus[k]) return; vus[k]=1; out.push(p.nom); }); return out; };
+  window.suiviClientHTML=function(L){ if(!L||!L.length) return '';
+    return '<div class="sc-wrap"><div class="sc-h">Où en est mon dossier</div>'+L.map(function(x){
+      var pct=x.total?Math.round(x.fait*100/x.total):0;
+      return '<div class="sc-dos'+(x.termine?' fini':'')+'"><div class="sc-top"><b>'+E(x.formalite||'Votre dossier')+'</b>'+(x.ref?'<span class="sc-ref">'+E(x.ref)+'</span>':'')+'</div>'
+        +'<div class="sc-phrase">'+E(x.phrase)+'</div>'
+        +'<div class="sc-bar" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100"><i style="width:'+pct+'%"></i></div>'
+        +'<ol class="sc-steps">'+x.etapes.map(function(s){ return '<li class="'+s.etat+'"><span class="sc-dot"></span>'+E(s.lbl)+'</li>'; }).join('')+'</ol>'
+        +(x.attendu.length?('<div class="sc-att"><b>Ce que nous attendons de vous :</b> '+E(x.attendu.join(' ; '))+'.</div>'):'')
+        +(x.maj?('<div class="sc-maj">Dernière avancée le '+E(frD(x.maj))+'</div>'):'')+'</div>'; }).join('')+'</div>'; };
+  window.portSuiviHTML=function(client,remote){ try{ var L=remote?(window.__portSuivi||[]):window.suiviClient(client); return window.suiviClientHTML(L); }catch(e){ return ''; } };
+
+  /* côté cabinet : ce que voit le client, dans l'onglet Demande */
+  function nomClient(d){ try{ var c=(typeof clientById==='function')?clientById((d.clientIds||[])[0]):null; if(!c) return '';
+      return S(c.denomination).trim()||S((c.prenom||'')+' '+(c.nom||'')).trim(); }catch(e){ return ''; } }
+  window.suiviClientCarte=function(id){ var d=dossierDe(id); if(!d) return '';
+    var nom=nomClient(d); if(!nom) return '<div class="card sc-card"><div class="card-h"><h2>Ce que voit le client</h2></div><div class="card-b"><p class="sc-vide">Rattachez ce dossier à un client pour qu’il suive son avancement dans son portail.</p></div></div>';
+    var p=(typeof window.parcours==='function')?window.parcours(d.id):null, x=window.suiviClientDossier(p);
+    return '<div class="card sc-card"><div class="card-h"><h2>Ce que voit le client</h2><span class="sub">portail de '+E(nom)+'</span></div><div class="card-b">'
+      +window.suiviClientHTML(x?[x]:[])
+      +'<div class="sc-act"><button type="button" class="btn btn-ghost btn-sm" onclick="suiviClientApercu(\''+jq(d.id)+'\')">Aperçu du portail</button>'
+      +'<button type="button" class="btn btn-ghost btn-sm" onclick="suiviClientAcces(\''+jq(d.id)+'\')">Copier l’accès du client</button></div></div></div>'; };
+  window.suiviClientApercu=function(id){ var d=dossierDe(id), n=d?nomClient(d):''; if(!n) return false; try{ if(typeof window.svcPortPreview==='function') window.svcPortPreview(n); }catch(e){ return false; } return true; };
+  window.suiviClientAcces=function(id){ var d=dossierDe(id), n=d?nomClient(d):''; if(!n) return false;
+    try{ if(typeof window.svcPortCopyCreds==='function') window.svcPortCopyCreds(n); }catch(e){}
+    try{ logAudit('Suivi client','Accès au portail copié — '+n); }catch(e){} return true; };
+
+  /* greffe dans l'onglet Demande (après rendu) */
+  function greffe(){ try{ if(!(typeof state!=='undefined'&&state.page==='espace'&&state.espaceDossier)) return;
+      var pan=document.querySelector('#view .esp-tabpanel[data-tab="demande"]'); if(!pan||pan.querySelector('.sc-card')) return;
+      var w=document.createElement('div'); w.innerHTML=window.suiviClientCarte(state.espaceDossier); var c=w.firstElementChild; if(c) pan.appendChild(c); }catch(e){} }
+  var _r=window.render; if(typeof _r==='function'&&!_r.__sc733){ window.render=function(){ var r=_r.apply(this,arguments); try{ greffe(); }catch(e){} return r; }; Object.keys(_r).forEach(function(k){ window.render[k]=_r[k]; }); window.render.__sc733=1; }
+
+  try{ if(!document.getElementById('sc-css')){ var st=document.createElement('style'); st.id='sc-css'; st.textContent=
+    '.sc-wrap{margin:0 0 16px}.sc-h{font-weight:700;font-size:15px;margin:0 0 10px}'
+    +'.sc-dos{border:1px solid rgba(127,127,127,.28);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:rgba(127,127,127,.05)}'
+    +'.sc-top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.sc-ref{font-size:12px;opacity:.7}'
+    +'.sc-phrase{font-size:14px;margin:6px 0 10px}'
+    +'.sc-bar{height:6px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden}.sc-bar i{display:block;height:100%;background:var(--pa,#2f8fff);border-radius:3px}'
+    +'.sc-steps{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}'
+    +'.sc-steps li{font-size:12.5px;display:flex;align-items:center;gap:6px;opacity:.55}.sc-steps li.fait{opacity:1}.sc-steps li.encours{opacity:1;font-weight:700}'
+    +'.sc-dot{width:9px;height:9px;border-radius:50%;border:2px solid currentColor;flex:none}.sc-steps li.fait .sc-dot{background:currentColor}.sc-steps li.encours .sc-dot{background:var(--pa,#2f8fff);border-color:var(--pa,#2f8fff)}'
+    +'.sc-att{margin-top:10px;font-size:13px;line-height:1.45;padding:8px 10px;border-radius:8px;background:rgba(229,160,80,.1);border:1px solid rgba(229,160,80,.4)}'
+    +'.sc-maj{margin-top:8px;font-size:12px;opacity:.7}.sc-dos.fini{opacity:.8}'
+    +'.sc-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.sc-vide{font-size:12.5px;color:#9a9aa3;margin:0}';
     document.head.appendChild(st); } }catch(e){}
 })();
 </script>

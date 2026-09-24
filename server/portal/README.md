@@ -134,7 +134,7 @@ openssl rand -hex 32        # pour CABINET_TOKEN et JWT_SECRET
 | Méthode | Route | Corps / Auth | Réponse |
 |--------|-------|--------------|---------|
 | `POST` | `/portal/login` | `{ client, code }` | `{ token, expiresIn, client, cabinet }` |
-| `GET`  | `/portal/docs` | `Authorization: Bearer <token>` | `{ client, cabinet, docs:[{id,nom,cat,date,type,size}] }` |
+| `GET`  | `/portal/docs` | `Authorization: Bearer <token>` | `{ client, cabinet, message, suivi:[{ref,formalite,phrase,etapes,attendu,maj}], docs:[{id,nom,cat,date,type,size}] }` |
 | `GET`  | `/portal/file/:id` | `Authorization: Bearer <token>` | octets du fichier (`Content-Type` d'origine) |
 
 - `/portal/file/:id` vérifie que le fichier est bien un **document partagé du

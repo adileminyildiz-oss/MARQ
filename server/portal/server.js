@@ -9,7 +9,7 @@
  *
  * Endpoints publics (portail client) :
  *   POST /portal/login      { client, code }  -> { token, expiresIn, cabinet }
- *   GET  /portal/docs                          -> { client, cabinet, docs:[...] }   (auth Bearer)
+ *   GET  /portal/docs                          -> { client, cabinet, message, suivi:[...], docs:[...] }   (auth Bearer)
  *   GET  /portal/file/:id                      -> octets du fichier                 (auth Bearer)
  *
  * Endpoints cabinet (protégés par le secret CABINET_TOKEN) :
@@ -138,6 +138,7 @@ function portalDocs(req, res) {
     client: fiche ? fiche.name : k,
     cabinet: store.getMeta().cabinet || '',
     message: (fiche && fiche.message) || '',
+    suivi: (fiche && Array.isArray(fiche.suivi)) ? fiche.suivi : [],
     docs: store.docsClient(k), // { id, nom, cat, date, type, size }
   });
 }
