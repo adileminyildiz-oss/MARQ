@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=744;
+var LAST_VER=745;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55114,7 +55114,7 @@ function testLienSignature() {
       +'<div class="adm-id-g">'+champs.map(function(k){ return '<div><span>'+k[0]+'</span>'+(k[1]?'<b>'+E(k[1])+'</b>':'<button type="button" class="adm-lk" onclick="admEntFiche()">à compléter</button>')+'</div>'; }).join('')+'</div></div>';
     var al=b.alertes;
     var ech=card('Échéances & alertes',String(al.length),al.length?'<div class="adm-list" data-no-kebab>'+al.map(function(x){ return '<button type="button" class="adm-row" onclick="admGo('+q(x.mod)+')"><span class="adm-dot adm-d-'+x.niv+'"></span><span class="adm-dd">'+frc(x.date)+'</span><span class="adm-tx"><b>'+E(x.titre)+'</b><i>'+E(x.detail)+'</i></span></button>'; }).join('')+'</div>':'<div class="adm-vide">Aucune échéance ni alerte.</div>');
-    var M=r.reporting.mois, an=String(today0().getFullYear()), ks=Object.keys(M).filter(function(k){ return k.slice(0,4)===an; }).sort();
+    var M=(typeof window.admRepMois==='function'&&window.admRepMois(c.id))||r.reporting.mois, an=String(today0().getFullYear()), ks=Object.keys(M).filter(function(k){ return k.slice(0,4)===an; }).sort();
     var kpi;
     if(!ks.length) kpi='<div class="adm-vide">Aucun chiffre saisi pour '+an+'.</div>'+btn('Saisir les chiffres du mois','admChiffres()');
     else { var sum=function(f){ return ks.reduce(function(s,k){ return s+num(M[k][f]); },0); }; var ca=sum('ca'), chg=sum('ch'), last=M[ks[ks.length-1]];
@@ -56111,6 +56111,7 @@ function testLienSignature() {
   ].join('\n'); document.head.appendChild(css);
   admModule('mpaye',{lbl:'Paye',sub:'Paie & DSN',ic:'card',page:page,bilan:bilan});
   window.admPayeBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
+  window.admPayeCalc=function(id,sid,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0], s=co&&RHs(id).salaries.filter(function(z){ return z.id===sid; })[0]; return s?calcul(co,s,m):null; };
   window.admPayeNir=nirOk; window.admPayeDsnTexte=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?dsnTexte(co,m):''; };
   window.admPayeControles=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?controles(co,m):[]; };
 })();
@@ -56258,6 +56259,149 @@ function testLienSignature() {
   admModule('mdoc',{lbl:'Doc',sub:'Documents & modèles',ic:'doc',page:page,bilan:bilan});
   window.admDocBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
   window.admDocModeles=function(){ return MOD.map(function(m){ return m.k; }); };
+})();
+</script>
+<script id="mq-admin-745">
+/* v745 — MARQ REPORTING : pilotage du dirigeant.
+   Chiffres mensuels consolidés, par ordre de priorité : le FEC (export
+   comptable, YADA ou autre logiciel) quand il couvre le mois, sinon la
+   saisie mensuelle, sinon les données de Mar'q (factures de MARQ CRM,
+   bulletins de MARQ PAYE, achats validés de MARQ WORKFLOW). Tableau de
+   bord de l'année (chiffre d'affaires et comparaison N-1, résultat et
+   marge, masse salariale et ratio, trésorerie, encours et délai moyen
+   d'encaissement), graphique mensuel, tableau mois par mois avec la
+   source de chaque chiffre, import du FEC (contrôle de l'équilibre, écarts
+   avec la facturation et la saisie), export CSV et synthèse du mois. La
+   carte « Chiffres clés » de la Page Entreprise lit ces chiffres
+   consolidés. 100 % additif. */
+(function(){
+  if(window.__admin745||!window.admModule||!window.__admKit) return; window.__admin745=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, sel=K.sel, num=K.num, money=K.money, pad=K.pad;
+  var ML=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'], MC=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  function RP(id){ var r=K.R(id); r.reporting=r.reporting||{}; r.reporting.mois=r.reporting.mois||{}; return r.reporting; }
+  function cid(){ return K.curId(); }
+  function r2(v){ return Math.round((+v||0)*100)/100; }
+  function mk(y,m){ return y+'-'+pad(m); }
+  function finMois(m){ var p=m.split('-'); return new Date(+p[0],+p[1],0); }
+  function libM(m){ var p=m.split('-'); return ML[+p[1]-1]+' '+p[0]; }
+
+  /* ---------- données de Mar'q ---------- */
+  function marq(co,m){ var r=K.R(co.id), crm=r.crm||{}, P=crm.pieces||[], fin=finMois(m), o={ca:0,ch:0,ms:0,enc:0,n:0};
+    P.forEach(function(p){ if(p.type!=='Facture') return; var d=dOf(p.date); if(!d) return; var ttc=r2(num(p.ht)*(1+num(p.tva==null?20:p.tva)/100));
+      if(d.getFullYear()+'-'+pad(d.getMonth()+1)===m){ o.ca+=num(p.ht); o.n++; }
+      var pl=dOf(p.payeLe); if(d<=fin&&(p.statut!=='Payée'||(pl&&pl>fin))) o.enc+=ttc; });
+    var py=(r.paye||{}).mois||{}, mm=py[m], sal=((r.rh||{}).salaries)||[];
+    if(mm&&mm.valide&&typeof window.paie26CalcData==='function'&&typeof window.admPayeCalc==='function'){ sal.forEach(function(s){ var c=window.admPayeCalc(co.id,s.id,m); if(c){ o.ms+=c.cout; o.n++; } }); }
+    ((r.workflow||{}).queue||[]).forEach(function(d){ if(d.type!=='Achat'||d.statut!=='valide') return; var x=new Date(d.ts); if(x.getFullYear()+'-'+pad(x.getMonth()+1)===m){ o.ch+=num((d.data||{}).montant); o.n++; } });
+    o.ch+=o.ms; ['ca','ch','ms','enc'].forEach(function(k){ o[k]=r2(o[k]); }); return o; }
+
+  /* ---------- FEC ---------- */
+  function lireFec(txt){ txt=String(txt||'').replace(/^﻿/,''); var L=txt.split(/\r?\n/).filter(function(l){ return l.trim(); }); if(L.length<2) throw new Error('fichier vide');
+    var sep=L[0].indexOf('\t')>=0?'\t':(L[0].indexOf('|')>=0?'|':';'), H=L[0].split(sep).map(function(h){ return h.trim().toLowerCase(); });
+    function ix(n){ return H.indexOf(n.toLowerCase()); }
+    var iD=ix('EcritureDate'), iC=ix('CompteNum'), iDe=ix('Debit'), iCr=ix('Credit'), iMo=ix('Montant'), iSe=ix('Sens'), iJ=ix('JournalCode');
+    if(iD<0||iC<0||((iDe<0||iCr<0)&&(iMo<0||iSe<0))) throw new Error('colonnes du FEC introuvables (EcritureDate, CompteNum, Debit, Credit)');
+    function n(v){ return num(String(v||'').replace(/\s/g,'').replace(',','.')); }
+    var E_=[], td=0, tc=0, dmin=null, dmax=null;
+    L.slice(1).forEach(function(l){ var c=l.split(sep); var ds=String(c[iD]||'').trim(), d=/^\d{8}$/.test(ds)?new Date(+ds.slice(0,4),+ds.slice(4,6)-1,+ds.slice(6,8)):dOf(ds); if(!d) return;
+      var de=iDe>=0?n(c[iDe]):(/^d/i.test(c[iSe]||'')?n(c[iMo]):0), cr=iCr>=0?n(c[iCr]):(/^c/i.test(c[iSe]||'')?n(c[iMo]):0);
+      E_.push({d:d,c:String(c[iC]||'').trim(),de:de,cr:cr,j:iJ>=0?String(c[iJ]||'').trim():''}); td+=de; tc+=cr; if(!dmin||d<dmin) dmin=d; if(!dmax||d>dmax) dmax=d; });
+    if(!E_.length) throw new Error('aucune écriture lisible');
+    var mois={}, ms=[]; for(var x=new Date(dmin.getFullYear(),dmin.getMonth(),1);x<=dmax;x.setMonth(x.getMonth()+1)) ms.push(mk(x.getFullYear(),x.getMonth()+1));
+    ms.forEach(function(m){ var p=m.split('-'), a=new Date(+p[0],+p[1]-1,1), b=finMois(m), o={ca:0,ch:0,ms:0,enc:0,treso:0};
+      E_.forEach(function(e){ var s=e.de-e.cr, c=e.c; if(e.d>=a&&e.d<=b&&!/^(AN|RAN|ANO)$/i.test(e.j)){ if(/^70/.test(c)) o.ca-=s; if(/^6/.test(c)) o.ch+=s; if(/^64/.test(c)) o.ms+=s; }
+        if(e.d<=b){ if(/^411/.test(c)) o.enc+=s; if(/^(512|53)/.test(c)) o.treso+=s; } });
+      Object.keys(o).forEach(function(k){ o[k]=r2(o[k]); }); mois[m]=o; });
+    return {mois:mois,debit:r2(td),credit:r2(tc),ecritures:E_.length,du:iso(dmin),au:iso(dmax)}; }
+
+  /* ---------- consolidation ---------- */
+  function mois(co,m){ var R_=RP(co.id), f=R_.fec&&R_.fec.mois&&R_.fec.mois[m]; if(f) return {ca:f.ca,ch:f.ch,ms:f.ms,enc:f.enc,treso:f.treso,src:'FEC'};
+    var s=R_.mois[m]; if(s) return {ca:num(s.ca),ch:num(s.ch),ms:num(s.ms),enc:num(s.enc),treso:null,src:'Saisie'};
+    var o=marq(co,m); if(o.n) return {ca:o.ca,ch:o.ch,ms:o.ms,enc:o.enc,treso:null,src:'Mar’q'}; return null; }
+  function annee(co,y){ var L=[]; for(var i=1;i<=12;i++){ var m=mk(y,i); L.push({m:m,v:mois(co,m)}); } return L; }
+  window.admRepMois=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; if(!co) return null; var y=t0().getFullYear(), o={}; annee(co,y).forEach(function(x){ if(x.v) o[x.m]={ca:x.v.ca,ch:x.v.ch,ms:x.v.ms,enc:x.v.enc}; }); return o; };
+
+  /* ---------- bilan ---------- */
+  function bilan(co){ var al=[], R_=RP(co.id), t=t0();
+    if(R_.fec&&Math.abs(R_.fec.debit-R_.fec.credit)>0.01) al.push({niv:'r',date:t,titre:'FEC déséquilibré',detail:'débit '+money(R_.fec.debit)+' ≠ crédit '+money(R_.fec.credit)+' : fichier à vérifier'});
+    if(t.getDate()>=10){ var p=new Date(t.getFullYear(),t.getMonth()-1,1), m=mk(p.getFullYear(),p.getMonth()+1); if(!mois(co,m)) al.push({niv:'o',date:new Date(t.getFullYear(),t.getMonth(),10),titre:'Chiffres de '+libM(m)+' à saisir',detail:'ni FEC, ni saisie, ni données Mar’q pour ce mois'}); }
+    var A=annee(co,t.getFullYear()).filter(function(x){ return x.v; }); if(A.length>=3){ var ca=A.reduce(function(s,x){ return s+x.v.ca; },0), ch=A.reduce(function(s,x){ return s+x.v.ch; },0); if(ca-ch<0) al.push({niv:'o',date:t,titre:'Résultat cumulé négatif',detail:money(ca-ch)+' sur '+A.length+' mois'}); }
+    return {alertes:al}; }
+
+  /* ---------- page ---------- */
+  function annees(co){ var y=t0().getFullYear(), L=[y,y-1], R_=RP(co.id); Object.keys(R_.mois).concat(Object.keys((R_.fec||{}).mois||{})).forEach(function(m){ var a=+m.slice(0,4); if(L.indexOf(a)<0) L.push(a); }); return L.sort(function(a,b){ return b-a; }); }
+  function yCour(co){ var y=+window.__admRepAn||t0().getFullYear(); return y; }
+  function graph(A){ var mx=0; A.forEach(function(x){ if(x.v) mx=Math.max(mx,x.v.ca,x.v.ch); }); if(!mx) return '<div class="adm-vide">Aucun chiffre pour cette année.</div>';
+    var step=Math.pow(10,Math.floor(Math.log10(mx))), top=Math.ceil(mx/step)*step, g='', y='';
+    for(var i=0;i<=4;i++){ var v=top*i/4; g+='<i class="rep-l" style="bottom:'+(i*25)+'%"></i>'; y+='<span style="bottom:'+(i*25)+'%">'+(v>=1000?Math.round(v/1000)+' k':Math.round(v))+'</span>'; }
+    var cols=A.map(function(x,i){ var b=x.v?[['ca','Chiffre d’affaires'],['ch','Charges']].map(function(k){ var v=Math.max(0,x.v[k[0]]); return '<b class="rep-b rep-'+k[0]+'" style="height:'+(v*100/top).toFixed(2)+'%" title="'+k[1]+' '+ML[i]+' : '+E(money(v))+'"></b>'; }).join(''):''; return '<div class="rep-c"><div class="rep-bars">'+b+'</div><span class="rep-m">'+MC[i]+'</span></div>'; }).join('');
+    return '<div class="rep-g" role="img" aria-label="Chiffre d’affaires et charges par mois"><div class="rep-y">'+y+'</div><div class="rep-p"><div class="rep-gl">'+g+'</div><div class="rep-cols">'+cols+'</div></div></div><div class="rep-leg"><span><i class="rep-ca"></i>Chiffre d’affaires</span><span><i class="rep-ch"></i>Charges</span></div>'; }
+  function page(){ var co=K.cur(); if(!co) return K.vide(); var R_=RP(co.id), y=yCour(co), A=annee(co,y), B=annee(co,y-1), t=K.tabs('mreporting',[['tdb','Tableau de bord'],['mois','Mois par mois'],['fec','FEC'],['exp','Export & synthèse']]), x='';
+    var selA='<label class="adm-inl">Année <select id="adm-rp-an" aria-label="Année" onchange="admRepAn(this.value)">'+annees(co).map(function(a){ return '<option'+(a===y?' selected':'')+'>'+a+'</option>'; }).join('')+'</select></label>';
+    var D_=A.filter(function(z){ return z.v; });
+    if(t.cur==='tdb'){ var sum=function(L,f){ return L.reduce(function(s,z){ return s+(z.v?num(z.v[f]):0); },0); }, ca=sum(D_,'ca'), ch=sum(D_,'ch'), ms=sum(D_,'ms');
+      var mm=D_.map(function(z){ return z.m; }), Bn=B.filter(function(z){ return z.v&&mm.indexOf(y+z.m.slice(4))>=0; }), caN1=sum(Bn,'ca');
+      var der=D_.slice(-1)[0], tr=D_.filter(function(z){ return z.v.treso!=null; }).slice(-1)[0];
+      var ca12=0; for(var i=0;i<12;i++){ var d=new Date(y,(der?+der.m.slice(5):12)-1-i,1), v=mois(co,mk(d.getFullYear(),d.getMonth()+1)); if(v) ca12+=v.ca; }
+      var dso=der&&ca12?Math.round(der.v.enc/(ca12*1.2)*365):null;
+      function k(l,v,s){ return '<div class="adm-k"><span>'+l+'</span><b>'+v+'</b>'+(s?'<i>'+s+'</i>':'')+'</div>'; }
+      x=card('Tableau de bord '+y,D_.length+' mois renseigné'+(D_.length>1?'s':''),'<div class="adm-top" data-no-kebab>'+selA+'</div>'
+        +'<div class="adm-kpis rep-k">'+k('Chiffre d’affaires',money(ca),Bn.length&&caN1?(ca>=caN1?'+':'')+String(Math.round((ca-caN1)*1000/caN1)/10).replace('.',',')+' % sur la même période de '+(y-1):'cumul de l’année')
+          +k('Résultat estimé',money(ca-ch),ca?'marge '+String(Math.round((ca-ch)*1000/ca)/10).replace('.',',')+' %':'')
+          +k('Masse salariale',money(ms),ca?String(Math.round(ms*1000/ca)/10).replace('.',',')+' % du chiffre d’affaires':'')
+          +k('Trésorerie',tr?money(tr.v.treso):'—',tr?'fin '+libM(tr.m)+' (FEC)':'disponible avec le FEC')
+          +k('Encours clients',der?money(der.v.enc):'—',dso!=null?'délai moyen d’encaissement : '+dso+' j':'')+'</div>'+graph(A),btn('Saisir un mois','admChiffres()',1));
+    }
+    if(t.cur==='mois'){ var tot={ca:0,ch:0,ms:0};
+      var rows=A.map(function(z){ var v=z.v; if(v){ tot.ca+=v.ca; tot.ch+=v.ch; tot.ms+=v.ms; }
+        return [ML[+z.m.slice(5)-1],v?money(v.ca):'—',v?money(v.ch):'—',v?money(v.ca-v.ch):'—',v?money(v.ms):'—',v?money(v.enc):'—',v&&v.treso!=null?money(v.treso):'—',v?pill(v.src,v.src==='FEC'?'g':(v.src==='Saisie'?'o':'n')):'',btn(RP(co.id).mois[z.m]?'Modifier':'Saisir','admChiffres('+q(z.m)+')',1)]; });
+      rows.push(['<b>Total</b>','<b>'+money(tot.ca)+'</b>','<b>'+money(tot.ch)+'</b>','<b>'+money(tot.ca-tot.ch)+'</b>','<b>'+money(tot.ms)+'</b>','','','','']);
+      x=card('Mois par mois '+y,'','<div class="adm-top" data-no-kebab>'+selA+'</div>'+tbl(['Mois','Chiffre d’affaires HT','Charges','Résultat','Masse salariale','Encours clients','Trésorerie','Source',''],rows))
+        +'<p class="adm-p0">Priorité des sources : le FEC quand il couvre le mois, sinon la saisie mensuelle, sinon les données de Mar’q (factures du CRM, bulletins validés de la paie, achats validés du Workflow).</p>';
+    }
+    if(t.cur==='fec'){ var F=R_.fec;
+      var ecarts=F?Object.keys(F.mois).sort().map(function(m){ var f=F.mois[m], s=R_.mois[m], mq=marq(co,m); return [libM(m),money(f.ca),mq.n?money(mq.ca)+(Math.abs(mq.ca-f.ca)>1?' '+pill('écart '+money(mq.ca-f.ca),'o'):''):'—',s?money(num(s.ca))+(Math.abs(num(s.ca)-f.ca)>1?' '+pill('écart '+money(num(s.ca)-f.ca),'o'):''):'—',money(f.treso)]; }):[];
+      x=card('Fichier des écritures comptables (FEC)',F?E(F.nom)+' · importé le '+fr(new Date(F.ts)):'aucun fichier importé',
+          F?'<div class="adm-kpis rep-k"><div class="adm-k"><span>Période</span><b>'+fr(F.du)+' → '+fr(F.au)+'</b></div><div class="adm-k"><span>Écritures</span><b>'+F.ecritures+'</b></div><div class="adm-k"><span>Total débit</span><b>'+money(F.debit)+'</b></div><div class="adm-k"><span>Total crédit</span><b>'+money(F.credit)+'</b></div><div class="adm-k"><span>Équilibre</span><b>'+(Math.abs(F.debit-F.credit)<=0.01?'équilibré':'déséquilibré')+'</b></div></div>'
+            +tbl(['Mois','CA comptable (70)','CA facturé (CRM)','CA saisi','Trésorerie (512, 53)'],ecarts)
+          :'<p class="adm-p0">Déposez le FEC exporté de YADA ou du logiciel comptable (fichier texte, séparateur tabulation ou « | »). Les comptes 70 donnent le chiffre d’affaires, la classe 6 les charges, les comptes 64 la masse salariale, le 411 l’encours clients et les 512 / 53 la trésorerie.</p>',
+          '<label class="btn btn-sm" for="adm-rp-f">'+(F?'Remplacer le FEC':'Importer un FEC')+'</label><input id="adm-rp-f" type="file" accept=".txt,.csv,text/plain" hidden onchange="admRepFec(this)">'+(F?btn('Retirer le FEC','admRepFecSuppr()',1):''));
+    }
+    if(t.cur==='exp'){ var der2=D_.slice(-1)[0];
+      x=card('Export','tableau mois par mois '+y,'<p class="adm-p0">Fichier CSV (séparateur « ; ») lisible par un tableur.</p>',btn('Télécharger le CSV','admRepCsv()'))
+        +card('Synthèse du mois',der2?libM(der2.m):'aucun mois renseigné',der2?'<textarea id="adm-doc" class="adm-doc" rows="12" aria-label="Synthèse du mois">'+E(synthese(co,der2.m))+'</textarea>':'<div class="adm-vide">Renseignez au moins un mois.</div>',der2?btn('Copier','admDocCopier()'):'');
+    }
+    return '<div class="adm-wrap">'+K.tete('mreporting')+t.html+x+'</div>'; }
+  function synthese(co,m){ var v=mois(co,m), p=m.split('-'), pm=new Date(+p[0],+p[1]-2,1), vp=mois(co,mk(pm.getFullYear(),pm.getMonth()+1)), y=+p[0];
+    var A=annee(co,y).filter(function(z){ return z.v&&z.m<=m; }), ca=A.reduce(function(s,z){ return s+z.v.ca; },0), ch=A.reduce(function(s,z){ return s+z.v.ch; },0);
+    function ev(a,b){ if(!b) return ''; var d=a-b; return ' ('+(d>=0?'+':'')+money(d)+' par rapport au mois précédent)'; }
+    return 'Point de gestion — '+K.nom(co)+' — '+libM(m)+'\n\nChiffre d’affaires du mois : '+money(v.ca)+ev(v.ca,vp&&vp.ca)+'\nCharges du mois : '+money(v.ch)+'\nRésultat du mois : '+money(v.ca-v.ch)+'\nMasse salariale : '+money(v.ms)+'\nEncours clients en fin de mois : '+money(v.enc)+(v.treso!=null?'\nTrésorerie en fin de mois : '+money(v.treso):'')+'\n\nDepuis le 1er janvier : chiffre d’affaires '+money(ca)+', résultat estimé '+money(ca-ch)+(ca?' (marge '+String(Math.round((ca-ch)*1000/ca)/10).replace('.',',')+' %)':'')+'.\n\nSource des chiffres : '+v.src+(v.src!=='FEC'?' — à confirmer par la comptabilité.':'.'); }
+
+  window.admRepAn=function(y){ window.__admRepAn=+y; rr(); };
+  window.admRepFec=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var co=K.cur(); if(!co) return;
+    function lire(enc,suite){ var r=new FileReader(); r.onload=function(){ suite(String(r.result||'')); }; r.readAsText(f,enc); }
+    lire('utf-8',function(txt){ if(txt.indexOf('�')>=0) return lire('windows-1252',fin); fin(txt); });
+    function fin(txt){ try{ var F=lireFec(txt); F.nom=f.name; F.ts=Date.now(); RP(co.id).fec=F; sv(); T('FEC importé : '+F.ecritures+' écritures, '+Object.keys(F.mois).length+' mois'+(Math.abs(F.debit-F.credit)>0.01?' — attention : débit et crédit ne sont pas égaux':'')+'.'); rr(); }catch(e){ T('FEC illisible : '+e.message+'.'); } } };
+  window.admRepFecTexte=function(txt,nom){ var co=K.cur(); if(!co) return null; var F=lireFec(txt); F.nom=nom||'FEC'; F.ts=Date.now(); RP(co.id).fec=F; sv(); rr(); return F; };
+  window.admRepFecSuppr=function(){ var co=K.cur(); if(!co) return; var go_=function(){ delete RP(co.id).fec; sv(); rr(); }; if(typeof uiConfirm==='function') uiConfirm('Retirer le FEC importé ? Les mois reviennent à la saisie ou aux données de Mar’q.',go_); else go_(); };
+  function csvTexte(co,y){ var L=['Mois;Chiffre d’affaires HT;Charges;Résultat;Masse salariale;Encours clients;Trésorerie;Source'];
+    function n(v){ return v==null?'':String(r2(v)).replace('.',','); }
+    annee(co,y).forEach(function(z){ var v=z.v; L.push([z.m,v?n(v.ca):'',v?n(v.ch):'',v?n(v.ca-v.ch):'',v?n(v.ms):'',v?n(v.enc):'',v?n(v.treso):'',v?v.src:''].join(';')); }); return L.join('\r\n'); }
+  window.admRepCsvTexte=function(y){ var co=K.cur(); return co?csvTexte(co,+y||yCour(co)):''; };
+  window.admRepCsv=function(){ var co=K.cur(); if(!co) return; var y=yCour(co), s='﻿'+csvTexte(co,y);
+    try{ var b=new Blob([s],{type:'text/csv;charset=utf-8'}), a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='Pilotage_'+K.nom(co).replace(/[^\w-]+/g,'_')+'_'+y+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },500); }catch(e){ T('Téléchargement impossible.'); } };
+
+  var css=document.createElement('style'); css.id='mq-admin-745-css'; css.textContent=[
+    '.rep-k{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:1000px){.rep-k{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.rep-g{display:flex;gap:6px;margin-top:14px;height:190px}.rep-y{position:relative;width:34px;flex:none;margin-bottom:20px}.rep-y span{position:absolute;right:0;transform:translateY(50%);font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}',
+    '.rep-p{position:relative;flex:1;min-width:0}.rep-gl{position:absolute;left:0;right:0;top:0;bottom:20px}.rep-l{position:absolute;left:0;right:0;height:0;border-top:1px solid currentColor;opacity:.14}',
+    '.rep-cols{position:absolute;inset:0;display:flex}.rep-c{flex:1;display:flex;flex-direction:column;min-width:0}.rep-bars{flex:1;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding:0 12%}.rep-m{height:20px;line-height:20px;text-align:center;font-size:11px;opacity:.7}',
+    '.rep-b{display:block;flex:1;max-width:26px;min-height:0;border-radius:2px 2px 0 0}.rep-b.rep-ca,.rep-leg i.rep-ca{background:#5b8def}.rep-b.rep-ch,.rep-leg i.rep-ch{background:#9a9aa3}',
+    '.rep-leg{display:flex;gap:14px;font-size:11.5px;opacity:.85;margin-top:4px}.rep-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}'
+  ].join('\n'); document.head.appendChild(css);
+  admModule('mreporting',{lbl:'Reporting',sub:'Pilotage dirigeant',ic:'trend',page:page,bilan:bilan});
+  window.admRepBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
+  window.admRepConso=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?mois(co,m):null; };
 })();
 </script>
 </body>

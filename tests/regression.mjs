@@ -39,7 +39,7 @@ const r = await page.evaluate(async () => {
   /* v715 : « parcours » (libellé « Suivi ») est ajouté à dessein — le suivi d'une
      demande de sa réception à la remise au client. À ne pas confondre avec la page
      « suivi » retirée (Suivi des collaborateurs, v207), qui reste interdite ci-dessous. */
-  out.navAttendue = 'cockpit,demandes,parcours,espace,formulaire,etudemarche,conformite,editions,factpresta,yada,facturier,tvarembours,agenda,clients,entreprise,mlegal,mcrm,mfiscal,mrh,mpaye,mdoc,mworkflow,mcontrol,pilotage,prestataires,services,params';
+  out.navAttendue = 'cockpit,demandes,parcours,espace,formulaire,etudemarche,conformite,editions,factpresta,yada,facturier,tvarembours,agenda,clients,entreprise,mlegal,mcrm,mfiscal,mrh,mpaye,mdoc,mworkflow,mcontrol,mreporting,pilotage,prestataires,services,params';
   out.navReelle = Array.isArray(PAGES) ? PAGES.map(p => p.id).join(',') : '';
   out.navTrim = out.navReelle === out.navAttendue;
   state.page = 'facturation'; render(); out.redirect = (state.page === 'facturation') ? true : true; // dispatch inconnu → pageDemandes
