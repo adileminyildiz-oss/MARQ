@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=731;
+var LAST_VER=732;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -46425,7 +46425,7 @@ function testLienSignature() {
   /* ---------- bouton dans le dossier ouvert ---------- */
   function greffe(){ try{
     var st=(typeof state!=='undefined'&&state)||{};
-    var did=st.espaceDossier||st.dossierId; if(!did) return;
+    var did=st.espaceDossier||st.dossierId; if(!did||(st.page&&st.page!=='espace')) return;
     var v=document.getElementById('view'); if(!v||v.querySelector('.rq-btn')) return;
     var cible=v.querySelector('.tp-card .card-h')||v.querySelector('.card .card-h'); if(!cible) return;
     var b=document.createElement('button'); b.className='btn btn-sm btn-ghost rq-btn';
@@ -46585,7 +46585,7 @@ function testLienSignature() {
   /* ---------- bouton sur la carte du dossier ---------- */
   function greffe(){ try{
     if(!(typeof state!=='undefined')) return;
-    var did=state.espaceDossier||state.dossierId; if(!did) return;
+    var did=state.espaceDossier||state.dossierId; if(!did||(state.page&&state.page!=='espace')) return;
     var v=document.getElementById('view'); if(!v) return;
     var c=v.querySelector('.tp-card'); if(!c||c.querySelector('.tf-btn')) return;
     var a=window.tempsAFacturer(did);
@@ -54143,6 +54143,180 @@ function testLienSignature() {
   try{ if(!document.getElementById('lis731-css')){ var st=document.createElement('style'); st.id='lis731-css'; st.textContent=
     'html body .esp-main .card-h{flex-wrap:wrap;row-gap:6px}'
     +'html body .esp-main .card-h>.sub,html body.dark .esp-main .card-h>.sub{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;max-width:100%!important;min-width:0;text-align:right;border-radius:12px!important;line-height:1.45}';
+    document.head.appendChild(st); } }catch(e){}
+})();
+</script>
+<script id="mq-production-732">
+/* v732 — Tableau de production.
+   Où part le temps, et où se perdent les clients. Tout est calculé à partir des
+   jalons datés du suivi de bout en bout (v715) : délai réel de chaque étape
+   comparé à sa norme, étape qui ralentit le plus, taux de passage d'une étape
+   à la suivante depuis le pré-diagnostic, dossiers qui dépassent le délai
+   annoncé au client, retards en cours et clients qui ne répondent plus.
+   Lecture seule : aucune donnée n'est modifiée. */
+(function(){ if(window.__mqProd732) return; window.__mqProd732=1;
+  var J=86400000;
+  function S(v){ return v==null?'':String(v); }
+  function E(s){ return S(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function P(){ try{ DB.parametres=DB.parametres||{}; return DB.parametres; }catch(e){ return {}; } }
+  function dossiers(){ try{ return DB.dossiers||[]; }catch(e){ return []; } }
+  function demandes(){ try{ return DB.demandes||[]; }catch(e){ return []; } }
+  function r1(n){ return Math.round(n*10)/10; }
+  function jr(n){ if(n==null) return '—'; var v=r1(n); return (v<1&&v>0?'moins d’1':String(v).replace('.',','))+' j'; }
+  function med(L){ if(!L.length) return null; var a=L.slice().sort(function(x,y){ return x-y; }), m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2; }
+  function moy(L){ return L.length?L.reduce(function(s,x){ return s+x; },0)/L.length:null; }
+  var PERIODES=[['30','30 jours'],['90','90 jours'],['365','12 mois'],['tout','Tout']];
+  function debut(per,now){ return per==='tout'?0:now-(+per)*J; }
+
+  function atteint(p,i){ var x=p.jalons[i]; if(x.etat==='fait') return true;
+    if(x.etat==='sansobjet'){ for(var k=i+1;k<p.jalons.length;k++){ if(p.jalons[k].etat==='fait') return true; } }
+    return false; }
+  function prediagDe(p){ var L=P().prediags||[]; if(!L.length) return null;
+    var d=p.dosId?dossiers().filter(function(x){ return x.id===p.dosId; })[0]:null;
+    var dem=p.demId?demandes().filter(function(x){ return x.id===p.demId; })[0]:null;
+    var id=(d&&d.intake&&d.intake.prediagId)||(dem&&dem.prediagId)||'';
+    if(!id) return null; return L.filter(function(x){ return x.id===id; })[0]||null; }
+  function delaiAnnonce(pd){ var m=S(pd&&pd.resume&&pd.resume.delai).match(/(\d+)\s*[–-]\s*(\d+)/); return m?{min:+m[1],max:+m[2]}:null; }
+
+  window.production=function(opts){ opts=opts||{};
+    var now=opts.maintenant||Date.now(), per=S(opts.periode||'90'), t0=debut(per,now);
+    var tous=(typeof window.parcoursTous==='function')?(window.parcoursTous()||[]):[];
+    var L=tous.filter(function(p){ var t=p.recueLe||p.depuis||0; return per==='tout'||(t&&t>=t0); });
+    var DEF=window.PARCOURS||[];
+    /* 1. délais par étape */
+    var dur={}; DEF.forEach(function(j){ dur[j.k]=[]; });
+    L.forEach(function(p){ var prev=0;
+      p.jalons.forEach(function(x,i){
+        if(x.etat!=='fait'||!x.ts) return;
+        if(i>0&&prev&&x.ts>=prev) dur[x.k].push((x.ts-prev)/J);
+        prev=x.ts; }); });
+    var etapes=DEF.slice(1).map(function(j){ var D=dur[j.k]||[];
+      var hors=D.filter(function(x){ return x>j.delai; }).length;
+      var enCours=L.filter(function(p){ return !p.fini&&p.courant&&p.courant.k===j.k; }), bloques=enCours.filter(function(p){ return p.retard; }).length;
+      return {k:j.k,lbl:j.lbl,phase:j.ph,norme:j.delai,n:D.length,mediane:med(D),moyenne:moy(D),hors:hors,enCours:enCours.length,enRetard:bloques}; });
+    /* l'étape qui ralentit le plus : le plus de jours au-delà de la norme, cumulés (terminés + en cours) */
+    etapes.forEach(function(e){ var D=dur[e.k]||[], ex=0;
+      D.forEach(function(x){ if(x>e.norme) ex+=x-e.norme; });
+      L.forEach(function(p){ if(!p.fini&&p.courant&&p.courant.k===e.k&&p.immobile!=null&&p.immobile>e.norme) ex+=p.immobile-e.norme; });
+      e.excedent=r1(ex); });
+    var goulot=etapes.filter(function(e){ return e.excedent>0; }).sort(function(a,b){ return b.excedent-a.excedent; })[0]||null;
+    /* 2. bout en bout */
+    var bb=L.filter(function(p){ return p.livreLe&&p.recueLe&&p.livreLe>=p.recueLe; }).map(function(p){ return (p.livreLe-p.recueLe)/J; });
+    /* 3. passage d'une étape à l'autre */
+    var pds=(P().prediags||[]).filter(function(x){ return per==='tout'||(x.ts&&x.ts>=t0); });
+    var convertis=pds.filter(function(x){
+      if(dossiers().some(function(d){ return d.intake&&d.intake.prediagId===x.id; })) return true;
+      var dem=x.demandeId?demandes().filter(function(y){ return y.id===x.demandeId; })[0]:null; return !!(dem&&dem.dossierId); }).length;
+    function nb(k){ var i=DEF.map(function(j){ return j.k; }).indexOf(k); return L.filter(function(p){ return atteint(p,i); }).length; }
+    var services=L.filter(function(p){ var d=p.dosId?dossiers().filter(function(x){ return x.id===p.dosId; })[0]:null; var it=(d&&d.onb728&&d.onb728.items)||{};
+      return Object.keys(it).some(function(k){ return /accepte|en_place/.test(S(it[k]&&it[k].etat||it[k])); }); }).length;
+    var entonnoir=[
+      {k:'prediag',lbl:'Pré-diagnostics',n:pds.length,note:convertis+' devenu'+(convertis>1?'s':'')+' dossier'},
+      {k:'recue',lbl:'Demandes reçues',n:nb('recue')},
+      {k:'devis',lbl:'Devis émis',n:nb('devis')},
+      {k:'accord',lbl:'Accords du client',n:nb('accord')},
+      {k:'dossier',lbl:'Dossiers ouverts',n:nb('dossier')},
+      {k:'obtention',lbl:'Immatriculations obtenues',n:nb('obtention')},
+      {k:'livraison',lbl:'Dossiers remis',n:nb('livraison')},
+      {k:'encaisse',lbl:'Honoraires encaissés',n:nb('encaisse')},
+      {k:'services',lbl:'Services après création signés',n:services}];
+    entonnoir.forEach(function(x,i){ if(i<2) return; var pr=entonnoir[i-1].n; x.taux=(pr&&x.n<=pr)?Math.round(x.n*100/pr):null; });
+    var perte=entonnoir.slice(2,8).filter(function(x,i,T){ var nx=entonnoir[i+3]; if(nx&&nx.n>x.n) return false; return x.taux!=null&&x.taux<100; }).sort(function(a,b){ return a.taux-b.taux; })[0]||null;
+    /* 4. délai annoncé dépassé */
+    var depasse=[];
+    L.forEach(function(p){ var pd=prediagDe(p), dl=delaiAnnonce(pd); if(!dl||!p.recueLe) return;
+      var fin=p.livreLe||now, j=(fin-p.recueLe)/J; if(j>dl.max) depasse.push({id:p.dosId||p.id,dosId:p.dosId,nom:p.nom,ref:p.ref,jours:Math.floor(j),annonce:dl.max,de:Math.floor(j-dl.max),livre:!!p.livreLe,etape:p.courant?p.courant.lbl:'remis'}); });
+    depasse.sort(function(a,b){ return b.de-a.de; });
+    /* 5. retards en cours et clients silencieux */
+    var retards=L.filter(function(p){ return !p.fini&&p.retard; }).map(function(p){ return {id:p.dosId||p.id,dosId:p.dosId,demId:p.demId,nom:p.nom,ref:p.ref,etape:p.courant.lbl,jours:p.immobile,norme:p.courant.delai,action:p.courant.action}; })
+      .sort(function(a,b){ return (b.jours-b.norme)-(a.jours-a.norme); });
+    var silences=[]; try{ var RB=window.relancesBilan?window.relancesBilan(now):null;
+      (RB&&RB.epuises||[]).forEach(function(x){ var p=L.filter(function(q){ return q.dosId===x.d.id; })[0]; if(!p&&per!=='tout') return;
+        silences.push({id:x.d.id,dosId:x.d.id,nom:(p&&p.nom)||S((x.d.intake&&x.d.intake.societe&&x.d.intake.societe.denomination)||x.d.ref),ref:S(x.d.numeroDossier||x.d.ref),
+          attentes:x.attentes.map(function(a){ return a.lbl; }),jours:Math.max.apply(null,x.attentes.map(function(a){ return a.jours||0; }))}); }); }catch(e){}
+    return {periode:per,debut:t0,total:L.length,enCours:L.filter(function(p){ return !p.fini; }).length,livres:bb.length,
+      boutEnBout:{n:bb.length,mediane:med(bb),moyenne:moy(bb)},etapes:etapes,goulot:goulot,entonnoir:entonnoir,perte:perte,
+      depasse:depasse,retards:retards,silences:silences}; };
+
+  /* ---------------- affichage ---------------- */
+  function periode(){ var v=S(P().productionPeriode||'90'); return PERIODES.some(function(x){ return x[0]===v; })?v:'90'; }
+  window.productionPeriode=function(v){ if(!PERIODES.some(function(x){ return x[0]===v; })) return; P().productionPeriode=v; try{ render(); }catch(e){} };
+  window.productionOuvrir=function(id){ if(!id) return; try{ state.page='espace'; state.espaceDossier=id; }catch(e){} try{ render(); }catch(e){} };
+  function lien(x,txt){ return x.dosId?'<button type="button" class="mq-pr-lk" onclick="productionOuvrir(\''+jq(x.dosId)+'\')">'+E(txt)+'</button>':E(txt); }
+  function barre(v,max,cls){ var w=max?Math.max(2,Math.round(v*100/max)):0; return '<span class="mq-pr-bar"><i class="'+(cls||'')+'" style="width:'+w+'%"></i></span>'; }
+
+  window.productionCarte=function(){ var per=periode(), R=window.production({periode:per});
+    var chips=PERIODES.map(function(x){ return '<button type="button" class="mq-pr-chip'+(x[0]===per?' on':'')+'" aria-pressed="'+(x[0]===per)+'" onclick="productionPeriode(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('');
+    var h='<div class="card mq-pr-card"><div class="card-h"><h2>Tableau de production</h2><span class="mq-pr-chips">'+chips+'</span></div><div class="card-b">';
+    if(!R.total){ return h+'<p class="mq-pr-vide">Aucune demande reçue sur cette période. Les mesures apparaîtront au fil des dossiers.</p></div></div>'; }
+    h+='<div class="mq-pr-kpis">'
+      +'<div class="mq-pr-k"><b>'+(R.boutEnBout.n?jr(R.boutEnBout.mediane):'—')+'</b><span>de la demande à la remise'+(R.boutEnBout.n?(' (médiane, '+R.boutEnBout.n+' dossier'+(R.boutEnBout.n>1?'s':'')+')'):' — aucun dossier remis')+'</span></div>'
+      +'<div class="mq-pr-k'+(R.retards.length?' warn':'')+'"><b>'+R.retards.length+'</b><span>dossier'+(R.retards.length>1?'s':'')+' en retard sur l’étape en cours</span></div>'
+      +'<div class="mq-pr-k'+(R.depasse.length?' warn':'')+'"><b>'+R.depasse.length+'</b><span>au-delà du délai annoncé au client</span></div>'
+      +'<div class="mq-pr-k'+(R.silences.length?' warn':'')+'"><b>'+R.silences.length+'</b><span>client'+(R.silences.length>1?'s':'')+' sans réponse après toutes les relances</span></div></div>';
+    h+='<p class="mq-pr-lead">'+(R.goulot?('L’étape qui ralentit le plus : <b>'+E(R.goulot.lbl)+'</b> — '+jr(R.goulot.excedent).replace(' j',' jour(s)')+' au-delà de la norme, cumulés sur la période.'):'Aucune étape ne dépasse sa norme sur la période.')
+      +(R.perte?(' Plus forte perte entre deux étapes : <b>'+E(R.perte.lbl)+'</b> ('+R.perte.taux+' % de l’étape précédente).'):'')+'</p>';
+    /* étapes */
+    var mx=Math.max.apply(null,R.etapes.map(function(e){ return Math.max(e.mediane||0,e.norme); }).concat([1]));
+    h+='<h3 class="mq-pr-h3">Délai réel de chaque étape</h3><div class="mq-pr-tw"><table class="mq-pr-t"><thead><tr><th>Étape</th><th>Dossiers</th><th>Médiane</th><th>Moyenne</th><th>Norme</th><th>Hors norme</th><th>En cours</th></tr></thead><tbody>'
+      +R.etapes.filter(function(e){ return e.n||e.enCours; }).map(function(e){ var lent=e.mediane!=null&&e.mediane>e.norme, g=R.goulot&&R.goulot.k===e.k;
+        return '<tr class="'+(g?'goulot':'')+'"><td>'+E(e.lbl)+(g?' <span class="mq-pr-tag">le plus lent</span>':'')+'</td><td>'+e.n+'</td><td class="'+(lent?'lent':'')+'">'+jr(e.mediane)+barre(e.mediane||0,mx,lent?'lent':'')+'</td><td>'+jr(e.moyenne)+'</td><td>'+e.norme+' j</td><td>'+(e.hors?(e.hors+' / '+e.n):'—')+'</td><td>'+(e.enCours?(e.enCours+(e.enRetard?(' <span class="mq-pr-r">dont '+e.enRetard+' en retard</span>'):'')):'—')+'</td></tr>'; }).join('')
+      +'</tbody></table></div>';
+    /* entonnoir */
+    var emx=Math.max.apply(null,R.entonnoir.map(function(x){ return x.n; }).concat([1]));
+    h+='<h3 class="mq-pr-h3">De la première question au client fidélisé</h3><div class="mq-pr-fun">'
+      +R.entonnoir.map(function(x){ return '<div class="mq-pr-fr"><span class="l">'+E(x.lbl)+'</span>'+barre(x.n,emx)+'<b>'+x.n+'</b><span class="t">'+(x.taux!=null?(x.taux+' %'):(x.note?E(x.note):''))+'</span></div>'; }).join('')+'</div>';
+    /* listes */
+    function liste(tit,L,fn,vide){ return '<h3 class="mq-pr-h3">'+tit+'</h3>'+(L.length?('<ul class="mq-pr-ul">'+L.slice(0,8).map(fn).join('')+'</ul>'+(L.length>8?('<p class="mq-pr-plus">… et '+(L.length-8)+' autre(s)</p>'):'')):('<p class="mq-pr-vide">'+vide+'</p>')); }
+    h+=liste('Délai annoncé dépassé',R.depasse,function(x){ return '<li>'+lien(x,x.nom)+' <span>'+(x.livre?'remis en ':'')+x.jours+' j pour '+x.annonce+' j annoncés (+'+x.de+' j)'+(x.livre?'':' · étape : '+E(x.etape))+'</span></li>'; },'Aucun dossier au-delà du délai annoncé au pré-diagnostic.');
+    h+=liste('Retards en cours',R.retards,function(x){ return '<li>'+lien(x,x.nom)+' <span>'+E(x.etape)+' depuis '+x.jours+' j (norme '+x.norme+' j) — '+E(x.action)+'</span></li>'; },'Aucun dossier ne dépasse la norme de son étape.');
+    h+=liste('Clients qui ne répondent plus',R.silences,function(x){ return '<li>'+lien(x,x.nom)+' <span>'+E(x.attentes.join(', '))+' — relances épuisées, '+x.jours+' j d’attente. À appeler.</span></li>'; },'Aucun client n’a épuisé ses relances.');
+    h+='<div class="mq-pr-act"><button type="button" class="btn btn-ghost btn-sm" onclick="productionCSV()">Exporter (CSV)</button></div>';
+    return h+'</div></div>'; };
+
+  window.productionCSV=function(){ var R=window.production({periode:periode()});
+    function c(v){ v=S(v); return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+    var L=[['Tableau de production','période : '+(PERIODES.filter(function(x){ return x[0]===R.periode; })[0]||['',''])[1]],[],
+      ['Étape','Dossiers','Médiane (j)','Moyenne (j)','Norme (j)','Hors norme','En cours','En retard']];
+    R.etapes.forEach(function(e){ L.push([e.lbl,e.n,e.mediane==null?'':r1(e.mediane),e.moyenne==null?'':r1(e.moyenne),e.norme,e.hors,e.enCours,e.enRetard]); });
+    L.push([]); L.push(['Étape du parcours','Nombre','Taux de passage (%)']); R.entonnoir.forEach(function(x){ L.push([x.lbl,x.n,x.taux==null?'':x.taux]); });
+    L.push([]); L.push(['Délai annoncé dépassé','Dossier','Jours','Annoncé','Dépassement']); R.depasse.forEach(function(x){ L.push(['',x.nom,x.jours,x.annonce,x.de]); });
+    L.push([]); L.push(['Retards en cours','Dossier','Étape','Jours','Norme']); R.retards.forEach(function(x){ L.push(['',x.nom,x.etape,x.jours,x.norme]); });
+    L.push([]); L.push(['Clients sans réponse','Dossier','En attente','Jours']); R.silences.forEach(function(x){ L.push(['',x.nom,x.attentes.join(', '),x.jours]); });
+    var txt='﻿'+L.map(function(r){ return r.map(c).join(';'); }).join('\n');
+    try{ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'})); a.download='production-'+new Date().toISOString().slice(0,10)+'.csv'; document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
+    try{ logAudit('Tableau de production','Export CSV'); }catch(e){}
+    return txt; };
+
+  var _pp=window.pagePilotage;
+  if(typeof _pp==='function'&&!_pp.__prod){
+    window.pagePilotage=function(){ var h=_pp.apply(this,arguments); try{ var c=window.productionCarte(), s=S(h), i=s.indexOf('>Rentabilité des dossiers<');
+        var j=-1; if(i>0){ var re=/<div class="card[ "]/g, m; while((m=re.exec(s))&&m.index<i) j=m.index; } return j>0?(s.slice(0,j)+c+s.slice(j)):(s+c); }catch(e){ return h; } };
+    Object.keys(_pp).forEach(function(k){ window.pagePilotage[k]=_pp[k]; }); window.pagePilotage.__prod=1; }
+
+  try{ if(!document.getElementById('prod-css')){ var st=document.createElement('style'); st.id='prod-css'; st.textContent=
+    '.mq-pr-card .card-h{flex-wrap:wrap;row-gap:8px}.mq-pr-chips{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}'
+    +'.mq-pr-chip{font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line,#2a2f38);background:transparent;color:inherit;cursor:pointer}'
+    +'.mq-pr-chip.on{border-color:#2f8fff;background:rgba(47,143,255,.14);font-weight:600}'
+    +'.mq-pr-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}'
+    +'.mq-pr-k{border:1px solid var(--line,#2a2f38);border-radius:10px;padding:10px 12px}.mq-pr-k b{display:block;font-size:20px;line-height:1.2}.mq-pr-k span{font-size:12px;color:#9a9aa3}'
+    +'.mq-pr-k.warn{border-color:rgba(229,160,80,.55);background:rgba(229,160,80,.07)}'
+    +'.mq-pr-lead{font-size:13px;line-height:1.5;margin:0 0 6px}'
+    +'.mq-pr-h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:#9a9aa3;margin:16px 0 8px;font-weight:600}'
+    +'.mq-pr-tw{overflow-x:auto}.mq-pr-t{width:100%;border-collapse:collapse;font-size:12.5px}'
+    +'.mq-pr-t th{text-align:left;font-weight:600;color:#9a9aa3;padding:6px 8px;border-bottom:1px solid var(--line,#2a2f38);white-space:nowrap}'
+    +'.mq-pr-t td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}'
+    +'.mq-pr-t tr.goulot td{background:rgba(229,160,80,.08)}.mq-pr-t td.lent{color:#e5a050;font-weight:600}'
+    +'.mq-pr-tag{font-size:11px;border:1px solid rgba(229,160,80,.6);color:#e5a050;border-radius:999px;padding:1px 7px;margin-left:4px;white-space:nowrap}'
+    +'.mq-pr-r{color:#e5a050;font-size:11.5px}'
+    +'.mq-pr-bar{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.07);margin-top:4px;min-width:60px}.mq-pr-bar i{display:block;height:100%;border-radius:2px;background:#2f8fff}.mq-pr-bar i.lent{background:#e5a050}'
+    +'.mq-pr-fun{display:flex;flex-direction:column;gap:6px}'
+    +'.mq-pr-fr{display:grid;grid-template-columns:minmax(150px,220px) 1fr 40px 120px;gap:10px;align-items:center;font-size:12.5px}.mq-pr-fr .mq-pr-bar{margin:0;height:8px}.mq-pr-fr b{text-align:right}.mq-pr-fr .t{color:#9a9aa3;font-size:12px}'
+    +'.mq-pr-ul{list-style:none;margin:0;padding:0}.mq-pr-ul li{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;line-height:1.45}.mq-pr-ul li span{color:#9a9aa3}'
+    +'.mq-pr-lk{font:inherit;font-weight:600;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}'
+    +'.mq-pr-vide,.mq-pr-plus{font-size:12.5px;color:#9a9aa3;margin:4px 0}.mq-pr-act{margin-top:14px;display:flex;justify-content:flex-end}'
+    +'@media(max-width:760px){.mq-pr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mq-pr-fr{grid-template-columns:1fr 40px 50px}.mq-pr-fr .mq-pr-bar{grid-column:1/-1;order:5}.mq-pr-chips{margin-left:0}}';
     document.head.appendChild(st); } }catch(e){}
 })();
 </script>
