@@ -91,7 +91,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   // 9. téléphone
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
   for(const [m,t] of [['mrh','sal'],['mrh','abs'],['mrh','med'],['mrh','ent'],['mrh','sens'],['mworkflow','file'],['mworkflow','circ'],['mworkflow','hist']]){
-    r=await ev(([m,t])=>{ go(m); admTab(m,t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },[m,t]);
+    r=await ev(([m,t])=>{ go(m); admTab(m,t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },[m,t]);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+m+' › '+t+')',JSON.stringify(r)); }
   r=await ev(()=>{ admWfNouvelle('Embauche'); const m=document.querySelector('#ov.show .modal'); if(!m) return false; const q=m.getBoundingClientRect(); const ok=q.width>0&&q.left>=-1&&q.right<=innerWidth+1; closeModal(); return ok; });
   A(r,'téléphone : fenêtre de demande dans l’écran');

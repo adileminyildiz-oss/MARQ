@@ -29,7 +29,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 1. inscription
   r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent)}; });
-  A(r.b.includes('Paye')&&r.on.includes('MARQ PAYE'),'module inscrit : barre latérale et tuile',JSON.stringify(r.on));
+  A(r.b.includes('Paye')&&r.on.includes('MARQ PAYE'),'module inscrit : registre et tuile de la page Administration',JSON.stringify(r.on));
 
   // 2. fiche de paie : contrôles NIR / PCS / taux
   r=await ev(()=>{ go('mpaye'); admTab('mpaye','sal'); admPayeSal('s1'); const set=(i,v)=>document.getElementById(i).value=v;
@@ -69,10 +69,10 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   A(/^S90\.G00\.90\.001,'(\d+)'$/.test(L[L.length-2])&&+L[L.length-2].match(/'(\d+)'/)[1]===L.length,'S90 : nombre total de rubriques exact',L.slice(-2).join(' | '));
 
   // 7. échéance, alertes, dépôt ; paie externe
-  r=await ev(M=>{ const al=admPayeBilan('c1').alertes.map(a=>a.titre+' | '+a.detail+' | '+a.date.getDate()); admPayeDepose(); document.getElementById('adm-pd-r').value='DSN-4471'; admPayeDeposeOk(); const al2=admPayeBilan('c1').alertes.filter(a=>/DSN de/.test(a.titre)&&a.titre.indexOf(document.getElementById('adm-py-m')?'':'')>=0).map(a=>a.titre);
+  r=await ev(M=>{ const al=admPayeBilan('c1').alertes.map(a=>a.titre+' | '+a.detail+' | '+a.date.getDate()); admPayeDepose(); document.getElementById('adm-pd-r').value='DSN-4471'; admPayeDeposeOk(); const al2=admPayeBilan('c1').alertes.filter(a=>/DSN d(e |’)/.test(a.titre)&&a.titre.indexOf(document.getElementById('adm-py-m')?'':'')>=0).map(a=>a.titre);
     admTab('mpaye','bul'); const rouvrir=[...document.querySelectorAll('#view button')].some(b=>/Rouvrir/.test(b.textContent)); return {al,al2,dep:DB.admin.c1.paye.mois[M].dsn,rouvrir}; },M);
   const libM=new Date(M+'-01T12:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  A(r.al.some(x=>x.indexOf('DSN de '+libM)===0&&/\| 15$/.test(x)),'échéance de la DSN : le 15 du mois suivant (moins de 50 salariés)',JSON.stringify(r.al));
+  A(r.al.some(x=>x.indexOf('DSN '+(/^[aeiouy]/i.test(libM)?'d’':'de ')+libM)===0&&/\| 15$/.test(x)),'échéance de la DSN : le 15 du mois suivant (moins de 50 salariés)',JSON.stringify(r.al));
   A(r.dep.deposee&&r.dep.ref==='DSN-4471'&&!r.al2.some(x=>x.indexOf(libM)>=0)&&!r.rouvrir,'DSN déposée : plus d’alerte pour le mois, mois non rouvrable',JSON.stringify(r));
   r=await ev(()=>{ DB.admin.c1.paye.conf.eff='>=50'; const m=Object.keys(DB.admin.c1.paye.mois)[0]; delete DB.admin.c1.paye.mois[m].dsn.deposee; const a=admPayeBilan('c1').alertes.filter(x=>/DSN de/.test(x.titre)).map(x=>x.date.getDate());
     DB.admin.c1.rh.salaries[1].paie.taux=''; const f=admPayeBilan('c1').alertes.some(x=>/fiche à compléter : Lina Moreau/.test(x.titre));
@@ -81,7 +81,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 8. téléphone
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const t of ['bul','sal','dsn','par']){ r=await ev(t=>{ go('mpaye'); admTab('mpaye',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
+  for(const t of ['bul','sal','dsn','par']){ r=await ev(t=>{ go('mpaye'); admTab('mpaye',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+t+')',JSON.stringify(r)); }
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

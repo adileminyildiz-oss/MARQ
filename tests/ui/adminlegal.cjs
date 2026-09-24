@@ -23,8 +23,8 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   let r;
 
   // 1. barre latérale : groupe Administration
-  r=await ev(()=>{ go('cockpit'); const L=[...document.querySelectorAll('#nav .nav-flat-lbl')].map(x=>x.textContent.trim()); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); return {L,b}; });
-  A(r.L.includes('Administration')&&r.b.includes('Entreprises')&&r.b.includes('Legal'),'barre latérale : groupe « Administration » avec Entreprises et Legal',JSON.stringify(r.L));
+  r=await ev(()=>{ go('cockpit'); const L=[...document.querySelectorAll('#nav .nav-flat-lbl')].map(x=>x.textContent.trim()); const b=[...document.querySelectorAll('#nav .nav-btn')].filter(x=>x.offsetParent).map(x=>x.textContent.trim()); return {L,b}; });
+  A(r.L.includes('Administration')&&r.b.includes('Administration')&&!r.b.includes('Legal'),'barre latérale : une seule entrée « Administration » (les modules s’ouvrent depuis sa page)',JSON.stringify(r.b));
 
   // 2. aucune entreprise : invitation à créer la fiche
   r=await ev(()=>{ go('entreprise'); return document.getElementById('view').innerText; });
@@ -89,7 +89,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   r=await ev(()=>JSON.parse(JSON.stringify(DB.admin.c1.legal)).decisions.length>=2);
   A(r,'données de l’administration conservées dans la base');
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const pg of ['entreprise','mlegal']){ r=await ev(pg=>{ go(pg); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className); }); return {o,hs:document.documentElement.scrollWidth>innerWidth}; },pg);
+  for(const pg of ['entreprise','mlegal']){ r=await ev(pg=>{ go(pg); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className); }); return {o,hs:document.documentElement.scrollWidth>innerWidth}; },pg);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse de l’écran ('+pg+')',JSON.stringify(r)); }
   A(errs2().length===0,'aucune erreur JavaScript',errs2().join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

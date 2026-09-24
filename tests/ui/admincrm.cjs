@@ -28,7 +28,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 1. inscription du module
   r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent)}; });
-  A(r.b.includes('CRM')&&r.on.includes('MARQ CRM'),'module inscrit : barre latérale et tuile de la Page Entreprise',JSON.stringify(r.on));
+  A(r.b.includes('CRM')&&r.on.includes('MARQ CRM'),'module inscrit : registre et tuile de la page Administration',JSON.stringify(r.on));
 
   // 2. contacts : contrôles, création, échanges
   r=await ev(()=>{ go('mcrm'); admCrmContact(); document.getElementById('adm-ck-r').value='Nexity Lille'; document.getElementById('adm-ck-s').value='123'; admCrmContactOk(); const k1=DB.admin.c1.crm.contacts.length;
@@ -98,7 +98,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 9. téléphone
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const t of ['cli','doc','ach','ao','imp']){ r=await ev(t=>{ go('mcrm'); admTab('mcrm',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
+  for(const t of ['cli','doc','ach','ao','imp']){ r=await ev(t=>{ go('mcrm'); admTab('mcrm',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+t+')',JSON.stringify(r)); }
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

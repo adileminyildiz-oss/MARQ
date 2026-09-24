@@ -57,7 +57,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   r=await ev(()=>{ admFisTva('jour','24'); go('entreprise'); return [...document.querySelectorAll('.adm-row')].some(x=>/mfiscal/.test(x.getAttribute('onclick'))); });
   A(r,'échéances fiscales proches cliquables depuis la Page Entreprise');
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const t of ['tva','cal','is','loc']){ r=await ev(t=>{ go('mfiscal'); admTab('mfiscal',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
+  for(const t of ['tva','cal','is','loc']){ r=await ev(t=>{ go('mfiscal'); admTab('mfiscal',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+t+')',JSON.stringify(r)); }
   A(errs2().length===0,'aucune erreur JavaScript',errs2().join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

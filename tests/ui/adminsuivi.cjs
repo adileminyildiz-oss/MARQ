@@ -21,7 +21,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
     DB.admin={c2:{rh:{salaries:[{id:'s1',prenom:'Paul',nom:'Durand',contrat:'CDI',entree:'2019-01-01',actif:true,paie:{taux:15,nir:'1850575123456'}}],absences:[],notes:[]},paye:{conf:{},mois:{}}}};
     DB.parametres.adminInscrits=['c2']; save(); });
   const retards=id=>ev(id=>{ admBilanCacheVider(); const f=admFiscalBilan(id).alertes, g=admBilanGlobal(id).alertes;
-    return {fisR:f.filter(a=>/en retard depuis/.test(a.detail)).length, dsn:g.filter(a=>/^DSN de/.test(a.titre)&&a.niv==='r').length, tot:g.length, grp:admAlertesGroupees(id)}; },id);
+    return {fisR:f.filter(a=>/en retard depuis/.test(a.detail)).length, dsn:g.filter(a=>/^DSN d(e |’)/.test(a.titre)&&a.niv==='r').length, tot:g.length, grp:admAlertesGroupees(id)}; },id);
   let r;
 
   // 1. inscription : suivi depuis aujourd'hui
@@ -37,8 +37,8 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   r=await retards('c2');
   const g=r.grp.filter(a=>/déclarations de TVA en retard/.test(a.titre));
   A(r.fisR>=3&&r.dsn>=1,'sans date de suivi : tout l’historique reste suivi (TVA, DSN en retard)',JSON.stringify({fisR:r.fisR,dsn:r.dsn}));
-  A(g.length===1&&/^\d+ déclarations de TVA en retard$/.test(g[0].titre)&&/« TVA de .+ » à « TVA de .+ »/.test(g[0].detail)&&r.grp.length<r.tot,'Page Entreprise : les TVA en retard tiennent sur une ligne (première et dernière nommées)',JSON.stringify(g));
-  r=await ev(()=>{ admEntChoisir('c2'); go('entreprise'); const t=document.getElementById('view').innerText; return {grp:/déclarations de TVA en retard/.test(t),seul:(t.match(/^TVA de /gm)||[]).length}; });
+  A(g.length===1&&/^\d+ déclarations de TVA en retard$/.test(g[0].titre)&&/« TVA d(e |’).+ » à « TVA d(e |’).+ »/.test(g[0].detail)&&r.grp.length<r.tot,'Page Entreprise : les TVA en retard tiennent sur une ligne (première et dernière nommées)',JSON.stringify(g));
+  r=await ev(()=>{ admEntChoisir('c2'); go('entreprise'); const t=document.getElementById('view').innerText; return {grp:/déclarations de TVA en retard/.test(t),seul:(t.match(/^TVA d(e |’)/gm)||[]).length}; });
   A(r.grp,'Page Entreprise : ligne regroupée affichée',JSON.stringify(r));
 
   // 3. modification de la date

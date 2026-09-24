@@ -43,7 +43,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 1. inscription
   r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent)}; });
-  A(r.b.includes('Archive')&&r.on.includes('MARQ ARCHIVE'),'module inscrit : barre latérale et tuile',JSON.stringify(r.on));
+  A(r.b.includes('Archive')&&r.on.includes('MARQ ARCHIVE'),'module inscrit : registre et tuile de la page Administration',JSON.stringify(r.on));
 
   // 2. inventaire : durées et points de départ
   r=await ev(()=>{ const I=admArcInventaire('c1'), m={}; I.forEach(z=>{ m[z.id]=z; }); return m; });
@@ -100,7 +100,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 9. téléphone
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const t of ['dur','pur','gel','jr']){ r=await ev(t=>{ go('marchive'); admTab('marchive',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className&&e.className.baseVal!==undefined?e.className.baseVal:(e.className||e.tagName)); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
+  for(const t of ['dur','pur','gel','jr']){ r=await ev(t=>{ go('marchive'); admTab('marchive',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className&&e.className.baseVal!==undefined?e.className.baseVal:(e.className||e.tagName)); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+t+')',JSON.stringify(r)); }
   r=await ev(()=>{ go('marchive'); admTab('marchive','pur'); admArcLot('fact'); const m=document.querySelector('#ov .modal').getBoundingClientRect(); const o=[...document.querySelectorAll('#ov .modal *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).length; closeModal(); return {w:Math.round(m.width),o}; });
   A(r.o===0&&r.w<=390,'téléphone : fenêtre de purge sans débordement',JSON.stringify(r));

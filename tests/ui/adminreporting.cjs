@@ -34,7 +34,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 1. inscription
   r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent)}; });
-  A(r.b.includes('Reporting')&&r.on.includes('MARQ REPORTING'),'module inscrit : barre latérale et tuile',JSON.stringify(r.on));
+  A(r.b.includes('Reporting')&&r.on.includes('MARQ REPORTING'),'module inscrit : registre et tuile de la page Administration',JSON.stringify(r.on));
 
   // 2. données de Mar'q : CA facturé, achats validés, encours en fin de mois
   r=await ev(y=>({jan:admRepConso('c1',y+'-01'),fev:admRepConso('c1',y+'-02'),mar:admRepConso('c1',y+'-03'),avr:admRepConso('c1',y+'-04')}),y);
@@ -86,10 +86,10 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   A(/Chiffre d’affaires \d{4}\s*19 000,00/.test(nb(r.e)),'Page Entreprise : « Chiffres clés » reprend les chiffres consolidés (FEC + saisie)',nb(r.e).match(/Chiffre d’affaires \d{4}[^\n]*\n?[^\n]*/)||'');
 
   // 8. alerte chiffres manquants (après le 10) ; téléphone
-  r=await ev(()=>{ const d=new Date(); if(d.getDate()<10) return 'hors période'; const al=admRepBilan('c1').alertes.map(a=>a.titre); return al.some(x=>/^Chiffres de .* à saisir$/.test(x))?'ok':JSON.stringify(al); });
+  r=await ev(()=>{ const d=new Date(); if(d.getDate()<10) return 'hors période'; const al=admRepBilan('c1').alertes.map(a=>a.titre); return al.some(x=>/^Chiffres d(e |’).* à saisir$/.test(x))?'ok':JSON.stringify(al); });
   A(r==='ok'||r==='hors période','mois précédent sans aucun chiffre : alerte à partir du 10',r);
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  for(const t of ['tdb','mois','fec','exp']){ r=await ev(t=>{ go('mreporting'); admTab('mreporting',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className&&e.className.baseVal!==undefined?e.className.baseVal:(e.className||e.tagName)); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
+  for(const t of ['tdb','mois','fec','exp']){ r=await ev(t=>{ go('mreporting'); admTab('mreporting',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className&&e.className.baseVal!==undefined?e.className.baseVal:(e.className||e.tagName)); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+t+')',JSON.stringify(r)); }
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

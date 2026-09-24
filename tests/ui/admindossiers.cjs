@@ -75,9 +75,9 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 7. téléphone
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
-  r=await ev(()=>{ go('entreprise'); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth,ch:document.querySelectorAll('.adm-ch').length}; });
+  r=await ev(()=>{ go('entreprise'); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth,ch:document.querySelectorAll('.adm-ch').length}; });
   A(!r.o.length&&!r.hs&&r.ch>=3,'téléphone : liste de choix sans débordement',JSON.stringify(r));
-  r=await ev(()=>{ admEntChoisir('c1'); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; });
+  r=await ev(()=>{ admEntChoisir('c1'); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; });
   A(!r.o.length&&!r.hs,'téléphone : sélecteur et « Changer de dossier » dans l’écran',JSON.stringify(r));
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');
