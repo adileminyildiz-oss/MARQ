@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=740;
+var LAST_VER=741;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -54996,15 +54996,35 @@ function testLienSignature() {
   try{ IC.building=IC.building||ICO.building; IC.scale=IC.scale||ICO.scale; }catch(e){}
 
   /* ---------------- données ---------------- */
-  function ents(){ return (DB.clients||[]).filter(function(c){ return c&&c.clientType!=='particulier'; }).sort(function(a,b){ return nom(a).localeCompare(nom(b),'fr'); }); }
+  /* v741 : chaque société (et ses dossiers) est inscrite explicitement à l'Administration ;
+     à chaque entrée dans le module, le dossier se choisit (aucune ouverture automatique). */
+  function toutes(){ return (DB.clients||[]).filter(function(c){ return c&&c.clientType!=='particulier'; }).sort(function(a,b){ return nom(a).localeCompare(nom(b),'fr'); }); }
+  function inscrits(){ var p=P(); if(!Array.isArray(p.adminInscrits)){ var ex=(DB.clients||[]).map(function(c){ return c&&c.id; }); p.adminInscrits=Object.keys(DB.admin||{}).filter(function(id){ return ex.indexOf(id)>=0; }); } return p.adminInscrits; }
+  function ents(){ var I=inscrits(); return toutes().filter(function(c){ return I.indexOf(c.id)>=0; }); }
+  function norm(x){ x=String(x||'').toLowerCase(); try{ x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,''); }catch(e){} return x.replace(/[^a-z0-9]+/g,''); }
+  function dossiersDe(c){ var n=norm(nom(c)); return (DB.dossiers||[]).filter(function(d){ return d&&(((d.clientIds||[]).indexOf(c.id)>=0)||(n&&d.denom&&norm(d.denom)===n)); }); }
+  function orphelins(){ var T_=toutes(); return (DB.dossiers||[]).filter(function(d){ return d&&!T_.some(function(c){ return dossiersDe(c).indexOf(d)>=0; }); }); }
   function nom(c){ return (c&&(c.denomination||((c.prenom?c.prenom+' ':'')+(c.nom||''))))||'(sans nom)'; }
   function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
-  function curId(){ var L=ents(), id=P().adminEnt; if(id&&L.some(function(c){ return c.id===id; })) return id; return L[0]?L[0].id:null; }
+  function curId(){ var id=P().adminEnt; return id&&ents().some(function(c){ return c.id===id; })?id:null; }
   function cur(){ var id=curId(); return id?(DB.clients||[]).filter(function(c){ return c.id===id; })[0]:null; }
   function R(id){ DB.admin=DB.admin||{}; var r=DB.admin[id]=DB.admin[id]||{}; var L=r.legal=r.legal||{};
     L.decisions=L.decisions||[]; L.titres=L.titres||[]; L.be=L.be||[]; L.actes=L.actes||[]; L.ag=L.ag||{}; L.registres=L.registres||{}; L.kbis=L.kbis||{};
     r.reporting=r.reporting||{}; r.reporting.mois=r.reporting.mois||{}; r.workflow=r.workflow||{}; r.workflow.queue=r.workflow.queue||[]; return r; }
-  window.admEntChoisir=function(id){ P().adminEnt=id; sv(); rr(); };
+  window.admEntChoisir=function(id){ if(id&&!ents().some(function(c){ return c.id===id; })) return T('Inscrivez d’abord ce dossier à l’Administration.'); P().adminEnt=id||null; sv(); rr(); };
+  window.admEntChanger=function(){ P().adminEnt=null; sv(); rr(); };
+  window.admInscrire=function(id,ouvrir){ var I=inscrits(); if(!toutes().some(function(c){ return c.id===id; })) return; if(I.indexOf(id)<0) I.push(id); R(id); if(ouvrir) P().adminEnt=id; sv(); T('Dossier inscrit à l’Administration.'); rr(); };
+  window.admRetirer=function(id){ var c=toutes().filter(function(x){ return x.id===id; })[0]; if(!c) return;
+    var go_=function(){ P().adminInscrits=inscrits().filter(function(x){ return x!==id; }); if(P().adminEnt===id) P().adminEnt=null; sv(); T('Dossier retiré de l’Administration (ses données sont conservées).'); rr(); };
+    if(typeof uiConfirm==='function') uiConfirm('Retirer '+nom(c)+' de l’Administration ? Ses registres et suivis sont conservés et reviennent s’il est de nouveau inscrit.',go_); else go_(); };
+  window.admDossierVoir=function(id){ try{ state.page='espace'; state.espaceDossier=id; render(); }catch(e){} };
+  window.admDossierSociete=function(did){ var d=(DB.dossiers||[]).filter(function(x){ return x.id===did; })[0]; if(!d) return;
+    var sug=d.denom&&String(d.denom).indexOf('«')<0?d.denom:'';
+    openModal('Créer la fiche société du dossier '+E(d.ref||''),'<p class="adm-p0">La fiche « Entreprise » est créée dans Clients, rattachée au dossier '+E(d.ref||'')+' et inscrite à l’Administration.</p><div class="frow"><div><label for="adm-ds-n">Dénomination</label><input id="adm-ds-n" value="'+E(sug)+'"></div><div><label for="adm-ds-f">Forme</label>'+sel('adm-ds-f',['SAS','SASU','SARL','EURL','SCI','SNC','SA','Entreprise individuelle'],'SAS')+'</div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admDossierSocieteOk('+q(did)+')">Créer et inscrire</button>'); };
+  window.admDossierSocieteOk=function(did){ var d=(DB.dossiers||[]).filter(function(x){ return x.id===did; })[0]; if(!d) return; var n=val('adm-ds-n'); if(!n) return T('Indiquez la dénomination.');
+    var id=(typeof uid==='function')?uid('c'):'c'+Date.now(); DB.clients=DB.clients||[]; DB.clients.unshift({id:id,clientType:'entreprise',denomination:n,forme:val('adm-ds-f')||'SAS',associes:[],docVars:{},createdAt:(typeof today==='function'?today():'')});
+    d.clientIds=d.clientIds||[]; if(d.clientIds.indexOf(id)<0) d.clientIds.push(id); var I=inscrits(); if(I.indexOf(id)<0) I.push(id); R(id); P().adminEnt=id; sv(); closeModal(); T('Fiche société créée et inscrite.'); rr(); };
   window.admEntFiche=function(){ var c=cur(); if(!c) return; try{ state.cliSel=c.id; }catch(e){} try{ go('clients'); }catch(e){} };
   window.admEntCreer=function(){ try{ go('clients'); }catch(e){} try{ cliNew('entreprise'); }catch(e){} };
 
@@ -55061,8 +55081,21 @@ function testLienSignature() {
   function card(t,sub,body,act){ return '<div class="card adm-card"><div class="card-h"><h2>'+t+'</h2>'+(sub?'<span class="sub">'+sub+'</span>':'')+'<span class="adm-sp"></span>'+(act||'')+'</div><div class="card-b">'+body+'</div></div>'; }
   function btn(t,fn,ghost){ return '<button type="button" class="btn btn-sm'+(ghost?' btn-ghost':'')+'" onclick="'+fn+'">'+t+'</button>'; }
   function spark(v){ if(v.length<2) return ''; var mx=Math.max.apply(null,v), mn=Math.min.apply(null,v), w=84, h=22, n=v.length-1; var pts=v.map(function(x,i){ return (i*w/n).toFixed(1)+','+(h-2-((x-mn)/((mx-mn)||1))*(h-4)).toFixed(1); }).join(' '); return '<svg class="adm-spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'; }
-  function selecteur(c){ var L=ents(); return '<div class="adm-sel"><span class="adm-sel-ic">'+ic('building')+'</span><select id="adm-ent" aria-label="Entreprise" onchange="admEntChoisir(this.value)">'+L.map(function(x){ return '<option value="'+E(x.id)+'"'+(x.id===c.id?' selected':'')+'>'+E(nom(x))+'</option>'; }).join('')+'</select></div>'; }
-  function vide(){ return '<div class="adm-wrap"><div class="card"><div class="card-h"><h2>Aucune entreprise cliente</h2></div><div class="card-b"><p class="adm-p0">L’administration se tient pour chaque fiche « Entreprise » du module Clients. Créez ou importez d’abord la fiche de la société.</p>'+btn('Créer une fiche entreprise','admEntCreer()')+'</div></div></div>'; }
+  function selecteur(c){ var L=ents(); return '<div class="adm-sel"><span class="adm-sel-ic">'+ic('building')+'</span><select id="adm-ent" aria-label="Dossier" onchange="admEntChoisir(this.value)">'+L.map(function(x){ return '<option value="'+E(x.id)+'"'+(x.id===c.id?' selected':'')+'>'+E(nom(x))+'</option>'; }).join('')+'</select></div>'+btn('Changer de dossier','admEntChanger()',1); }
+  function dosTags(c){ var D=dossiersDe(c); return D.length?'<span class="adm-dos" data-no-kebab>'+D.map(function(d){ return '<button type="button" class="adm-dtag" onclick="event.stopPropagation();admDossierVoir('+q(d.id)+')" title="Ouvrir le dossier">'+E(d.ref||'Dossier')+(d.statut?' · '+E(d.statut):'')+'</button>'; }).join('')+'</span>':'<span class="adm-dos adm-dos0">aucun dossier de formalité</span>'; }
+  window.__admChoixQ=window.__admChoixQ||'';
+  window.admChoixQ=function(v){ window.__admChoixQ=v; var n=norm(v); document.querySelectorAll('[data-adm-q]').forEach(function(r){ r.hidden=!!n&&r.getAttribute('data-adm-q').indexOf(n)<0; }); };
+  function vide(){ var T_=toutes(), I=inscrits(), ins=ents(), non=T_.filter(function(c){ return I.indexOf(c.id)<0; }), orph=orphelins();
+    if(!T_.length&&!orph.length) return '<div class="adm-wrap"><div class="card"><div class="card-h"><h2>Aucune entreprise cliente</h2></div><div class="card-b"><p class="adm-p0">L’administration se tient pour chaque fiche « Entreprise » du module Clients. Créez ou importez d’abord la fiche de la société.</p>'+btn('Créer une fiche entreprise','admEntCreer()')+'</div></div></div>';
+    function qk(c){ return norm(nom(c)+' '+(c.siren||'')+' '+dossiersDe(c).map(function(d){ return d.ref||''; }).join(' ')); }
+    var rch='<div class="adm-top" data-no-kebab><div class="adm-sel adm-rch"><span class="adm-sel-ic">'+ic('building')+'</span><input id="adm-choix-q" type="search" placeholder="Rechercher une société, un SIREN ou un n° de dossier" aria-label="Rechercher un dossier" value="'+E(window.__admChoixQ)+'" oninput="admChoixQ(this.value)"></div><span class="adm-sp"></span>'+btn('Créer une fiche entreprise','admEntCreer()',1)+'</div>';
+    var a=card('Choisir le dossier','<span class="sub">'+ins.length+' inscrit'+(ins.length>1?'s':'')+'</span>',ins.length?'<div class="adm-list" data-no-kebab>'+ins.map(function(c){ var b=bilanGlobal(c), nr=b.alertes.filter(function(x){ return x.niv==='r'; }).length;
+        return '<div class="adm-ch" data-no-kebab data-adm-q="'+E(qk(c))+'"><button type="button" class="adm-chb" onclick="admEntChoisir('+q(c.id)+')"><b>'+E(nom(c))+'</b><i>'+E([(c.forme||'').toUpperCase(),c.siren?'SIREN '+String(c.siren).replace(/\s/g,'').replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3'):''].filter(Boolean).join(' · '))+'</i></button>'+dosTags(c)+'<span class="adm-chs">'+(nr?pill(nr+' en retard','r'):pill('à jour','g'))+'</span>'+btn('Ouvrir','admEntChoisir('+q(c.id)+')')+btn('Retirer','admRetirer('+q(c.id)+')',1)+'</div>'; }).join('')+'</div>'
+      :'<div class="adm-vide">Aucun dossier inscrit. Inscrivez ci-dessous les sociétés à suivre : chaque dossier doit être inscrit pour entrer dans l’Administration.</div>');
+    var b=non.length?card('À inscrire',non.length+' société'+(non.length>1?'s':''),'<div class="adm-list" data-no-kebab>'+non.map(function(c){ return '<div class="adm-ch" data-no-kebab data-adm-q="'+E(qk(c))+'"><span class="adm-chb adm-chn"><b>'+E(nom(c))+'</b><i>'+E([(c.forme||'').toUpperCase(),c.siren?'SIREN '+String(c.siren).replace(/\s/g,'').replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3'):''].filter(Boolean).join(' · '))+'</i></span>'+dosTags(c)+'<span class="adm-chs"></span>'+btn('Inscrire','admInscrire('+q(c.id)+')',1)+btn('Inscrire et ouvrir','admInscrire('+q(c.id)+',1)')+'</div>'; }).join('')+'</div>'):'';
+    var o=orph.length?card('Dossiers sans fiche société',String(orph.length),'<p class="adm-p0">Ces dossiers de formalité ne sont rattachés à aucune fiche « Entreprise ». Créez la fiche pour inscrire la société.</p><div class="adm-list" data-no-kebab>'+orph.map(function(d){ var lib=(d.denom&&String(d.denom).indexOf('«')<0?d.denom:'')||(typeof dossierClients==='function'?dossierClients(d):'')||'';
+        return '<div class="adm-ch" data-no-kebab data-adm-q="'+E(norm((d.ref||'')+' '+lib))+'"><button type="button" class="adm-chb" onclick="admDossierVoir('+q(d.id)+')"><b>'+E(d.ref||'Dossier')+'</b><i>'+E([lib,d.statut].filter(Boolean).join(' · '))+'</i></button><span class="adm-dos" data-no-kebab></span><span class="adm-chs"></span>'+btn('Créer la fiche société','admDossierSociete('+q(d.id)+')',1)+'</div>'; }).join('')+'</div>'):'';
+    return '<div class="adm-wrap">'+rch+a+b+o+'</div>'; }
   window.__admTab=window.__admTab||{};
   window.admTab=function(m,t){ window.__admTab[m]=t; rr(); };
   function tabs(m,L){ var cur=window.__admTab[m]; if(!L.some(function(t){ return t[0]===cur; })) cur=L[0][0]; return {cur:cur,html:'<div class="adm-tabs" role="tablist" data-no-kebab>'+L.map(function(t){ return '<button type="button" role="tab" aria-selected="'+(t[0]===cur)+'" class="adm-tab'+(t[0]===cur?' on':'')+'" onclick="admTab('+q(m)+','+q(t[0])+')">'+t[1]+(t[2]?'<span class="adm-c">'+t[2]+'</span>':'')+'</button>'; }).join('')+'</div>'}; }
@@ -55224,7 +55257,10 @@ function testLienSignature() {
      d'après rendu : cartes repliables, menus « ⋮ », animation) : le rendu de base affiche, pour une
      page qu'il ne connaît pas, la fonction pageDemandes ; elle est prêtée le temps du rendu. */
   function pageSure(fn){ return function(){ try{ return fn(); }catch(e){ try{ window.__admErr=e; }catch(_){} return '<div class="card"><div class="card-b">Affichage impossible : '+E(e&&e.message)+'</div></div>'; } }; }
-  var _r=window.render; window.render=function(){ var p=(typeof state!=='undefined')&&state.page; if(PG[p]&&typeof window.pageDemandes==='function'){
+  var _last=null;
+  var _r=window.render; window.render=function(){ var p=(typeof state!=='undefined')&&state.page;
+    if(PG[p]&&!PG[_last]&&!window.__admGarde){ try{ P().adminEnt=null; }catch(e){} } _last=p;
+    if(PG[p]&&typeof window.pageDemandes==='function'){
       var orig=window.pageDemandes; window.pageDemandes=pageSure(PG[p].fn);
       try{ return _r.apply(this,arguments); } finally { window.pageDemandes=orig; } }
     return _r.apply(this,arguments); };
@@ -55245,6 +55281,14 @@ function testLienSignature() {
     '.adm-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}.adm-d-r{background:var(--adm-r)}.adm-d-o{background:var(--adm-o)}.adm-d-g{background:var(--adm-g)}',
     '.adm-dd{font:600 12px var(--sans);width:40px;flex:none;margin-top:1px;font-variant-numeric:tabular-nums}',
     '.adm-tx{display:flex;flex-direction:column;min-width:0;flex:1}.adm-tx b{font-size:12.5px;font-weight:600}.adm-tx i{font-style:normal;font-size:11.5px;opacity:.8}',
+    '.adm-ch{display:grid;grid-template-columns:minmax(160px,1.1fr) minmax(0,1.6fr) auto auto auto;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line-soft)}.adm-ch:last-child{border-bottom:0}.adm-ch[hidden]{display:none!important}',
+    'html body .adm-wrap .adm-chb{all:unset;box-sizing:border-box;display:flex;flex-direction:column;min-width:0;cursor:pointer;padding:2px 4px;border-radius:6px}html body .adm-wrap span.adm-chb{cursor:default}html body .adm-wrap button.adm-chb:hover{background:rgba(255,255,255,.04)}html body .adm-wrap button.adm-chb:focus-visible{outline:2px solid #8a8a93}',
+    '.adm-chb b{font-size:13px;font-weight:600;overflow-wrap:anywhere}.adm-chb i{font-style:normal;font-size:11.5px;opacity:.8}',
+    '.adm-dos{display:flex;flex-wrap:wrap;gap:4px;min-width:0}.adm-dos0{font-size:11.5px;opacity:.7}',
+    'html body .adm-wrap button.adm-dtag{all:unset;box-sizing:border-box;cursor:pointer;font-size:11px;border:1px solid var(--line-soft);border-radius:6px;padding:1px 6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}html body .adm-wrap button.adm-dtag:hover{border-color:#8a8a93}html body .adm-wrap button.adm-dtag:focus-visible{outline:2px solid #8a8a93}',
+    '.adm-rch{flex:1;min-width:0;max-width:520px}.adm-rch input{border:0!important;background:transparent!important;color:inherit;font:500 13px var(--sans);width:100%;height:30px;box-shadow:none!important;min-width:0}',
+    'html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-chb,html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-dtag{background:transparent!important;box-shadow:none!important;min-height:0!important;height:auto!important}html body:not(#mq):not(#mq):not(#mq):not(#mq):not(#mq):not(#mq) .adm-wrap button.adm-chb:hover{background:rgba(255,255,255,.05)!important}',
+    '@media(max-width:760px){.adm-ch{display:flex;flex-wrap:wrap;align-items:center}.adm-ch .adm-chb{flex:1 1 60%}.adm-ch .adm-dos{flex:1 1 100%;order:0}.adm-ch .adm-dos:empty{display:none}.adm-ch>.btn{flex:1 1 40%}.adm-sel select{min-width:0;max-width:62vw}}',
     '.adm-vide{font-size:12.5px;opacity:.85;padding:8px 2px}.adm-p0{font-size:12px;opacity:.85;margin:8px 0}.adm-note{font-size:11.5px;opacity:.85;margin-top:8px}',
     '.adm-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.adm-k{display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:8px;padding:7px 9px;min-width:0}.adm-k span{font-size:11px;opacity:.8}.adm-k b{font:700 16px var(--sans);font-variant-numeric:tabular-nums}.adm-k i{font-style:normal;font-size:11px;opacity:.8}.adm-spark{width:100%;height:22px;margin-top:4px;opacity:.7}',
     '.adm-v{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-bottom:1px solid var(--line-soft)}.adm-vk{font-size:11px;font-weight:600;border:1px solid var(--line-soft);border-radius:6px;padding:1px 6px;min-width:74px;text-align:center}',

@@ -18,13 +18,13 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   await p.waitForFunction(()=>window.marqPret&&window.marqPret()&&document.querySelector('#nav .nav-btn'),{timeout:30000});
   const ev=(f,a)=>p.evaluate(f,a);
   await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; window.alert=()=>{}; try{ delete DB.parametres.adminCodeHash; }catch(e){} window.__admSens=0;
-    const y=new Date().getFullYear(); DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',siren:'912345678',president:'Karim Benali',presidentFonction:'Président',siege:'14 rue des Forges',cp:'59000',ville:'Lille',activites:['Gros œuvre et maçonnerie'],associes:[{nom:'Karim Benali',parts:500}]}]; DB.admin={}; save(); });
+    const y=new Date().getFullYear(); DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',siren:'912345678',president:'Karim Benali',presidentFonction:'Président',siege:'14 rue des Forges',cp:'59000',ville:'Lille',activites:['Gros œuvre et maçonnerie'],associes:[{nom:'Karim Benali',parts:500}]}]; DB.admin={}; DB.parametres.adminInscrits=DB.clients.map(c=>c.id); save(); });
   const errs2=()=>errs.filter(e=>!/ServiceWorker/.test(e));
   let r;
   const iso=d=>d.toISOString().slice(0,10), dans=n=>{ const d=new Date(); d.setDate(d.getDate()+n); return iso(d); };
 
   // 1. inscription dans le registre des modules
-  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); const on=[...document.querySelectorAll('button.adm-tile')].map(x=>x.querySelector('b').textContent); const dom=document.querySelector('.adm-dom').innerText; return {b,on,dom}; });
+  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); const on=[...document.querySelectorAll('button.adm-tile')].map(x=>x.querySelector('b').textContent); const dom=document.querySelector('.adm-dom').innerText; return {b,on,dom}; });
   A(r.b.includes('Control')&&r.on.includes('MARQ CONTROL')&&/KYC \/ LCB-FT\s*\n?\s*\d+/.test(r.dom)&&/Assurances\s*\n?\s*\d+/.test(r.dom)&&/Qualité\s*\n?\s*non évalué/.test(r.dom),'module inscrit : barre, tuile ouverte, domaines KYC et Assurances notés, Qualité non évalué',JSON.stringify({on:r.on,dom:r.dom}));
 
   // 2. verrou : sans code, rien n'est affiché ; création du code haché ; mauvais code refusé

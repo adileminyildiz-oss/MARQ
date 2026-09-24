@@ -17,13 +17,13 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   await p.waitForFunction(()=>window.marqPret&&window.marqPret()&&document.querySelector('#nav .nav-btn'),{timeout:30000});
   const ev=(f,a)=>p.evaluate(f,a);
   await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; window.alert=()=>{};
-    DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',regime:'IS',president:'Karim Benali'},{id:'c2',clientType:'entreprise',denomination:'ZEN IR',forme:'sarl',regime:'IR',clotureExercice:'30/06'}]; DB.admin={}; DB.parametres.adminEnt='c1'; save(); });
+    DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',regime:'IS',president:'Karim Benali'},{id:'c2',clientType:'entreprise',denomination:'ZEN IR',forme:'sarl',regime:'IR',clotureExercice:'30/06'}]; DB.admin={}; DB.parametres.adminInscrits=DB.clients.map(c=>c.id); DB.parametres.adminEnt='c1'; save(); });
   const errs2=()=>errs.filter(e=>!/ServiceWorker/.test(e));
   let r;
   const y=new Date().getFullYear();
 
   // 1. inscription
-  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent),dom:document.querySelector('.adm-dom').innerText}; });
+  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent),dom:document.querySelector('.adm-dom').innerText}; });
   A(r.b.includes('Fiscal')&&r.on.includes('MARQ FISCAL')&&/Fiscal\s*\n?\s*\d+/.test(r.dom),'module inscrit : barre, tuile, domaine Fiscal noté',JSON.stringify(r.on));
 
   // 2. CA3 : lignes et report de crédit

@@ -21,14 +21,14 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   const ev=(f,a)=>p.evaluate(f,a);
   await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; window.alert=()=>{};
     DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',regime:'IS',president:'Karim Benali',salaries:[{prenom:'Lina',nom:'Morel',poste:'Conductrice de travaux',contrat:'CDI'},{prenom:'Hugo',nom:'Petit',poste:'Maçon',contrat:'CDD'}]}];
-    DB.admin={}; DB.parametres.adminEnt='c1'; delete DB.parametres.adminCodeHash; window.__admSens=0; save(); });
+    DB.admin={}; DB.parametres.adminInscrits=DB.clients.map(c=>c.id); DB.parametres.adminEnt='c1'; delete DB.parametres.adminCodeHash; window.__admSens=0; save(); });
   const set=(o)=>ev(o=>{ Object.keys(o).forEach(k=>{ const e=document.getElementById(k); if(e) e.value=o[k]; }); },o);
   const iso=d=>d.toISOString().slice(0,10);
   const J=n=>{ const d=new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+n); return iso(d); };
   let r;
 
   // 1. inscription des deux modules
-  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent),dom:document.querySelector('.adm-dom').innerText}; });
+  r=await ev(()=>{ go('cockpit'); const b=[...document.querySelectorAll('#nav .nav-btn')].map(x=>x.textContent.trim()); go('entreprise'); admEntChoisir('c1'); return {b,on:[...document.querySelectorAll('button.adm-tile b')].map(x=>x.textContent),dom:document.querySelector('.adm-dom').innerText}; });
   A(r.b.includes('RH')&&r.b.includes('Workflow')&&r.on.includes('MARQ RH')&&r.on.includes('MARQ WORKFLOW')&&/Social/.test(r.dom),'modules inscrits : barre, tuiles, domaine Social',JSON.stringify(r.on));
 
   // 2. reprise des salariés de la fiche (sans doublon)

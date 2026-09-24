@@ -18,7 +18,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   await p.waitForFunction(()=>window.marqPret&&window.marqPret()&&document.querySelector('#nav .nav-btn'),{timeout:30000});
   const ev=(f,a)=>p.evaluate(f,a);
   await ev(()=>{ window.uiConfirm=(m,fn)=>fn&&fn(); window.confirm=()=>true; window.alert=()=>{}; window.__toasts=[]; const _t=window.toast; window.toast=function(m){ window.__toasts.push(''+m); try{ return _t&&_t.apply(this,arguments); }catch(e){} };
-    DB.clients=[]; DB.admin={}; save(); });
+    DB.clients=[]; DB.dossiers=[]; DB.admin={}; save(); });
   const errs2=()=>errs.filter(e=>!/ServiceWorker/.test(e));
   let r;
 
@@ -34,7 +34,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   r=await ev(()=>{ const y=new Date().getFullYear();
     DB.clients=[{id:'c1',clientType:'entreprise',denomination:'BATI-NORD',forme:'sas',siren:'912345678',president:'Karim Benali',siege:'14 rue des Forges',cp:'59000',ville:'Lille',capital:10000,activites:['Gros œuvre'],salaries:[{nom:'A'},{nom:'B'}],associes:[{nom:'Karim Benali',parts:450},{nom:'Samia Benali',parts:50}],regime:'IS',dateCreation:(y-3)+'-03-01'},
       {id:'c2',clientType:'entreprise',denomination:'AXIOME FORMATION',forme:'sas'},{id:'p1',clientType:'particulier',prenom:'Jean',nom:'DUPONT'}];
-    save(); go('entreprise'); admEntChoisir('c1'); const opts=[...document.querySelectorAll('#adm-ent option')].map(o=>o.textContent); return {opts,txt:document.getElementById('view').innerText}; });
+    DB.parametres.adminInscrits=['c1','c2']; save(); go('entreprise'); admEntChoisir('c1'); const opts=[...document.querySelectorAll('#adm-ent option')].map(o=>o.textContent); return {opts,txt:document.getElementById('view').innerText}; });
   A(r.opts.length===2&&r.opts.includes('BATI-NORD')&&!r.opts.some(o=>/DUPONT/.test(o))&&/SIREN 912 345 678/.test(r.txt)&&/Karim Benali/.test(r.txt)&&/2 salariés/.test(r.txt),'Page Entreprise : fiches entreprise seulement, identité reprise de la fiche',JSON.stringify(r.opts));
   r=await ev(()=>{ admEntChoisir('c2'); const t=document.getElementById('view').innerText; admEntChoisir('c1'); return t; });
   A(/AXIOME FORMATION/.test(r)&&/à compléter/.test(r),'changement d’entreprise ; champs manquants signalés « à compléter »');
