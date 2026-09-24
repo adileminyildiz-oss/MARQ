@@ -60,8 +60,8 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   A(r.avant===0&&r.apres===1&&r.lien&&/Congés payés/.test(r.txt)&&/À intégrer/.test(r.txt),'absence validée → reportée dans MARQ RH, à intégrer en paie',JSON.stringify({st:r.st,a:r.apres}));
   r=await ev(()=>{ const a=DB.admin.c1.rh.absences[0]; admRhPaie(a.id); return !!DB.admin.c1.rh.absences[0].paie; });
   A(r,'absence marquée intégrée à la paie');
-  r=await ev(()=>{ go('mworkflow'); admWfNouvelle('Absence'); document.getElementById('adm-wa-d').value='2026-05-10'; document.getElementById('adm-wa-f').value='2026-05-01'; const n=DB.admin.c1.workflow.queue.length; admWfCreer(); const m=document.getElementById('modal'); const o=m&&getComputedStyle(m).display!=='none'&&/Nouvelle demande/.test(m.innerText); closeModal(); return {n2:DB.admin.c1.workflow.queue.length-n,o}; });
-  A(r.n2===0,'absence aux dates inversées refusée',JSON.stringify(r));
+  r=await ev(()=>{ go('mworkflow'); admWfNouvelle('Absence'); document.getElementById('adm-wa-d').value='2026-05-10'; document.getElementById('adm-wa-f').value='2026-05-01'; const n=DB.admin.c1.workflow.queue.length; admWfCreer(); const m=document.getElementById('ov'); const o=!!m&&m.classList.contains('show')&&/Nouvelle demande/.test(m.innerText); closeModal(); return {n2:DB.admin.c1.workflow.queue.length-n,o}; });
+  A(r.n2===0&&r.o,'absence aux dates inversées refusée (la fenêtre reste ouverte)',JSON.stringify(r));
 
   // 6. embauche → salarié créé + registre ; sinistre → CONTROL ; refus avec motif
   r=await ev(e=>{ admWfNouvelle('Embauche'); document.getElementById('adm-we-p').value='Nora'; document.getElementById('adm-we-n').value='Diallo'; document.getElementById('adm-we-po').value='Assistante'; document.getElementById('adm-we-e').value=e; admWfCreer();
@@ -93,7 +93,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   for(const [m,t] of [['mrh','sal'],['mrh','abs'],['mrh','med'],['mrh','ent'],['mrh','sens'],['mworkflow','file'],['mworkflow','circ'],['mworkflow','hist']]){
     r=await ev(([m,t])=>{ go(m); admTab(m,t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },[m,t]);
     A(!r.o.length&&!r.hs,'téléphone : rien ne dépasse ('+m+' › '+t+')',JSON.stringify(r)); }
-  r=await ev(()=>{ admWfNouvelle('Embauche'); const m=document.getElementById('modal-c')||document.querySelector('.modal'); const q=m?m.getBoundingClientRect():{right:0}; const ok=q.right<=innerWidth+1; closeModal(); return ok; });
+  r=await ev(()=>{ admWfNouvelle('Embauche'); const m=document.querySelector('#ov.show .modal'); if(!m) return false; const q=m.getBoundingClientRect(); const ok=q.width>0&&q.left>=-1&&q.right<=innerWidth+1; closeModal(); return ok; });
   A(r,'téléphone : fenêtre de demande dans l’écran');
   A(errs.length===0,'aucune erreur JavaScript',errs.join(' | '));
   console.log('TOTAL '+ok+' ok / '+ko+' ko');

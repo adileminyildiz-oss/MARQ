@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=742;
+var LAST_VER=743;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55299,7 +55299,7 @@ function testLienSignature() {
     'html body .adm-wrap .adm-tile.off{cursor:default;opacity:.55}.adm-tt em{font-style:normal;font-size:11px;margin-top:3px;opacity:.9}',
     '.adm-ti{width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--line-soft);display:grid;place-items:center}.adm-ti svg{width:17px;height:17px}',
     '.adm-tt{display:flex;flex-direction:column;min-width:0;padding-right:18px}.adm-tt b{font:700 12.5px var(--sans);letter-spacing:.2px}.adm-tt i{font-style:normal;font-size:11.5px;opacity:.8;line-height:1.35}',
-    '.adm-n{position:absolute;top:8px;right:8px;min-width:18px;height:18px;border-radius:9px;background:#f4f6fa;color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important;font:700 11px/18px var(--sans);text-align:center;padding:0 5px}',
+    '.adm-tile .adm-n{position:absolute;top:8px;right:8px;min-width:18px;height:18px;border-radius:9px;background:#f4f6fa;color:#0b0b0c!important;-webkit-text-fill-color:#0b0b0c!important;font:700 11px/18px var(--sans);text-align:center;padding:0 5px}',
     '.adm-head{display:flex;align-items:center;gap:10px}.adm-hi{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-soft);display:grid;place-items:center}.adm-hi svg{width:18px;height:18px}.adm-head b{display:block;font:700 14px var(--sans)}.adm-head span{font-size:11.5px;opacity:.85}',
     '.adm-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line-soft);padding-bottom:6px}',
     'html body .adm-wrap button.adm-tab{height:30px;padding:0 11px;border-radius:7px;border:1px solid transparent!important;background:transparent!important;box-shadow:none!important;color:inherit;font:600 12px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px}html body .adm-wrap button.adm-tab:hover{background:rgba(255,255,255,.05)!important}',
@@ -55920,6 +55920,199 @@ function testLienSignature() {
   ].join('\n'); document.head.appendChild(css);
   admModule('mcrm',{lbl:'CRM',sub:'Clients, ventes & achats',ic:'users',page:page,bilan:bilan});
   window.admCrmBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
+})();
+</script>
+<script id="mq-admin-743">
+/* v743 — MARQ PAYE : bulletins du mois et DSN.
+   Les salariés viennent de MARQ RH ; leur rémunération (taux horaire, heures,
+   statut, taux de prélèvement à la source) et les éléments variables du mois
+   (heures supplémentaires, absences, primes, paniers) donnent les bulletins,
+   calculés par le moteur de paie de Mar'q (barème 2026 : cotisations,
+   réduction générale, heures supplémentaires, PAS, net social). Le mois se
+   valide ; les absences validées en RH sont alors marquées intégrées à la
+   paie. La DSN du mois est contrôlée (SIRET, APE, NIR et sa clé, dates,
+   contrat, PCS-ESE, organisme URSSAF, bulletins validés) puis générée au
+   format NEODeS (blocs S10 à S90 principaux), à passer dans DSN-VAL avant
+   dépôt sur net-entreprises. Échéance : le 5 (50 salariés et plus) ou le 15
+   du mois suivant ; alertes sur la Page Entreprise. 100 % additif. */
+(function(){
+  if(window.__admin743||!window.admModule||!window.__admKit) return; window.__admin743=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, sel=K.sel, num=K.num, money=K.money, pad=K.pad;
+  var ML=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  function PY(id){ var r=K.R(id), p=r.paye=r.paye||{}; p.conf=p.conf||{eff:'<11',at:'',mutuelle:'NON',pas:'',urssaf:'',essai:true,externe:false}; p.mois=p.mois||{}; return p; }
+  function RHs(id){ var r=K.R(id); r.rh=r.rh||{}; r.rh.salaries=r.rh.salaries||[]; r.rh.absences=r.rh.absences||[]; return r.rh; }
+  function cid(){ return K.curId(); }
+  function nomSal(s){ return ((s.prenom||'')+' '+(s.nom||'')).trim()||'(sans nom)'; }
+  function mk(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+  function moisCourant(){ var m=window.__admPayeMois; if(m&&/^\d{4}-\d{2}$/.test(m)) return m; var d=t0(); d.setDate(1); d.setMonth(d.getMonth()-1); return mk(d); }
+  function lib(m){ var p=m.split('-'); return ML[+p[1]-1]+' '+p[0]; }
+  function bornes(m){ var p=m.split('-'), a=new Date(+p[0],+p[1]-1,1), b=new Date(+p[0],+p[1],0); return {a:a,b:b}; }
+  function PI(s){ s.paie=s.paie||{}; return s.paie; }
+  function actifs(id,m){ var B=bornes(m); return RHs(id).salaries.filter(function(s){ var e=dOf(s.entree), f=dOf(s.fin); if(!e||e>B.b) return false; if(s.actif===false&&!f) return false; if(f&&f<B.a) return false; return !/Intérim/.test(s.contrat||''); }); }
+  function MO(P,m){ var o=P.mois[m]=P.mois[m]||{}; o.el=o.el||{}; o.dsn=o.dsn||{}; return o; }
+  function el(P,m,sid){ var o=MO(P,m); o.el[sid]=o.el[sid]||{}; return o.el[sid]; }
+  function calcul(co,s,m){ if(typeof window.paie26CalcData!=='function') return null; var P=PY(co.id), pi=PI(s), e=(MO(P,m).el[s.id])||{};
+    var E_={heures:e.heures!=null&&e.heures!==''?e.heures:(pi.heures||''),taux:e.taux!=null&&e.taux!==''?e.taux:(pi.taux||''),hs25:e.hs25||0,hs50:e.hs50||0,absH:e.absH||0,prime:e.prime||0,panierNb:e.panierNb||0,indemn:e.indemn||0,cpPris:e.cpPris||0};
+    if(!(num(E_.heures)>0&&num(E_.taux)>0)) return null;
+    var par={eff:P.conf.eff||'<11'}; if(P.conf.at!=='') par.at=P.conf.at; if(P.conf.mutuelle) par.mutuelle=P.conf.mutuelle; var pas=pi.pas!=null&&pi.pas!==''?pi.pas:P.conf.pas; if(pas!==''&&pas!=null) par.pas=pas;
+    try{ return window.paie26CalcData({emp:{nom:K.nom(co),siret:co.siret||''},sal:{nom:nomSal(s),statut:pi.statut||'Non-cadre'},cp:{},par:par,el:E_,modele:'2026',per:{}}); }catch(x){ return null; } }
+  function echeance(P,m){ var p=m.split('-'), d=new Date(+p[0],+p[1],P.conf.eff==='>=50'?5:15); return d; }
+
+  /* ---------- NIR ---------- */
+  function nirOk(v){ v=String(v||'').replace(/\s/g,'').toUpperCase(); if(!/^[12378]\d{2}(0[1-9]|1[0-2]|[2-9]\d)(\d{2}|2A|2B)\d{6}\d{2}$/.test(v)) return false;
+    var c=v.slice(0,13).replace('2A','19').replace('2B','18'), k=+v.slice(13); var r=0; for(var i=0;i<c.length;i++) r=(r*10+ +c[i])%97; return 97-r===k; }
+
+  /* ---------- contrôles DSN ---------- */
+  var NAT={CDI:['01','99'],CDD:['02','99'],Apprentissage:['02','65'],Professionnalisation:['02','61'],Stage:['29','99']};
+  function controles(co,m){ var P=PY(co.id), o=MO(P,m), S=actifs(co.id,m), L=[];
+    function c(ok,t,det){ L.push({ok:!!ok,t:t,det:det||''}); }
+    var siret=String(co.siret||'').replace(/\s/g,'');
+    c(/^\d{14}$/.test(siret),'SIRET de l’établissement',siret||'absent de la fiche société');
+    c(!!(co.ape||co.codeApe),'Code APE',co.ape||co.codeApe||'absent de la fiche société');
+    c(!!((co.siege||co.adresse)&&co.cp&&co.ville),'Adresse de l’établissement',[co.siege||co.adresse,co.cp,co.ville].filter(Boolean).join(' ')||'incomplète');
+    c(/^\d{14}$/.test(String(P.conf.urssaf||'').replace(/\s/g,'')),'SIRET de l’URSSAF destinataire des cotisations',P.conf.urssaf||'à renseigner (onglet Paramètres)');
+    c(S.length>0,'Salariés présents sur le mois',S.length+' salarié(s)');
+    c(!!o.valide,'Bulletins du mois validés',o.valide?'le '+fr(o.valide):'à valider (onglet Bulletins)');
+    S.forEach(function(s){ var pi=PI(s), n=nomSal(s);
+      c(nirOk(pi.nir),n+' — NIR et sa clé',pi.nir||'absent');
+      c(!!dOf(pi.naissance),n+' — date de naissance',pi.naissance?fr(pi.naissance):'absente');
+      c(!!NAT[s.contrat||'CDI'],n+' — nature du contrat',s.contrat||'CDI');
+      c(/^\d{3}[a-z]$/i.test(String(pi.pcs||'')),n+' — code PCS-ESE',pi.pcs||'absent (ex. 621a)');
+      c(!!calcul(co,s,m),n+' — bulletin calculé',calcul(co,s,m)?'':'taux horaire ou heures manquants'); });
+    return L; }
+
+  /* ---------- fichier NEODeS ---------- */
+  function jj(d){ d=(d instanceof Date)?d:dOf(d); return d?pad(d.getDate())+pad(d.getMonth()+1)+d.getFullYear():''; }
+  function mt(v){ return (Math.round((+v||0)*100)/100).toFixed(2); }
+  function dsnTexte(co,m){ var P=PY(co.id), S=actifs(co.id,m), B=bornes(m), siret=String(co.siret||'').replace(/\s/g,''), siren=siret.slice(0,9), nic=siret.slice(9), L=[];
+    function R(code,v){ v=String(v==null?'':v).replace(/'/g,' ').trim(); if(v!=='') L.push(code+",'"+v+"'"); }
+    R('S10.G00.00.001','MARQ'); R('S10.G00.00.002','AEM CONSEIL'); R('S10.G00.00.003',String(window.LAST_VER||'')); R('S10.G00.00.005',P.conf.essai?'01':'02'); R('S10.G00.00.006','P26V01'); R('S10.G00.00.008','01');
+    R('S10.G00.01.001',siren); R('S10.G00.01.002',nic); R('S10.G00.01.003',K.nom(co)); R('S10.G00.01.004',co.siege||co.adresse||''); R('S10.G00.01.005',co.cp); R('S10.G00.01.006',co.ville);
+    R('S10.G00.02.002',co.president||K.nom(co)); if(co.email) R('S10.G00.02.004',co.email);
+    R('S20.G00.05.001','01'); R('S20.G00.05.002','01'); R('S20.G00.05.003','11'); R('S20.G00.05.004','1'); R('S20.G00.05.005','01'+pad(B.a.getMonth()+1)+B.a.getFullYear()); R('S20.G00.05.007',jj(t0())); R('S20.G00.05.010','01');
+    R('S21.G00.06.001',siren); R('S21.G00.06.002',nic); R('S21.G00.06.003',String(co.ape||co.codeApe||'').replace(/[.\s]/g,'')); R('S21.G00.06.004',co.siege||co.adresse||''); R('S21.G00.06.005',co.cp); R('S21.G00.06.006',co.ville);
+    R('S21.G00.11.001',nic); R('S21.G00.11.002',String(co.ape||co.codeApe||'').replace(/[.\s]/g,'')); R('S21.G00.11.003',co.siege||co.adresse||''); R('S21.G00.11.004',co.cp); R('S21.G00.11.005',co.ville); R('S21.G00.11.008',S.length);
+    var totUrssaf=0;
+    S.forEach(function(s,i){ var pi=PI(s), r=calcul(co,s,m); if(!r) return; var nir=String(pi.nir||'').replace(/\s/g,''), nat=NAT[s.contrat||'CDI']||NAT.CDI, num_='C'+pad(i+1)+String(s.id||'').slice(-4).toUpperCase();
+      R('S21.G00.30.001',nir); R('S21.G00.30.002',String(s.nom||'').toUpperCase()); R('S21.G00.30.004',s.prenom); R('S21.G00.30.005',nir.charAt(0)==='2'?'02':'01'); R('S21.G00.30.006',jj(pi.naissance)); if(pi.lieu) R('S21.G00.30.007',pi.lieu);
+      var cadre=/cadre/i.test(pi.statut||'')&&!/non/i.test(pi.statut||'');
+      R('S21.G00.40.001',jj(s.entree)); R('S21.G00.40.002',cadre?'04':'07'); R('S21.G00.40.003',cadre?'01':'04'); R('S21.G00.40.004',String(pi.pcs||'').toLowerCase()); R('S21.G00.40.007',nat[0]); R('S21.G00.40.008',nat[1]); R('S21.G00.40.009',num_);
+      R('S21.G00.40.011','10'); R('S21.G00.40.012','151.67'); R('S21.G00.40.013',mt(num(pi.heures)||151.67)); R('S21.G00.40.014',(num(pi.heures)||151.67)>=151.67?'10':'20');
+      if(s.fin) R('S21.G00.40.010',jj(s.fin));
+      R('S21.G00.50.001',jj(B.b)); R('S21.G00.50.002',mt(r.netImp)); R('S21.G00.50.003',num_+'-'+m.replace('-','')); R('S21.G00.50.004',mt(r.netPay)); R('S21.G00.50.006',mt(r.pasTx)); R('S21.G00.50.007','01'); R('S21.G00.50.009',mt(-r.pas));
+      R('S21.G00.51.001',jj(B.a)); R('S21.G00.51.002',jj(B.b)); R('S21.G00.51.010',num_); R('S21.G00.51.011','001'); R('S21.G00.51.013',mt(r.brut));
+      R('S21.G00.51.001',jj(B.a)); R('S21.G00.51.002',jj(B.b)); R('S21.G00.51.010',num_); R('S21.G00.51.011','010'); R('S21.G00.51.012',mt(r.hTrav)); R('S21.G00.51.013',mt(r.salBase));
+      [['02',Math.min(r.brut,r.PSS)],['03',r.brut],['04',r.brut*0.9825]].forEach(function(b){ R('S21.G00.78.001',b[0]); R('S21.G00.78.002',jj(B.a)); R('S21.G00.78.003',jj(B.b)); R('S21.G00.78.004',mt(b[1])); });
+      r.lignes.forEach(function(l){ if(/^(mal|at|vp|vd|fam|csa|fnal|dial|chom|ags|csgd|csgn|red)$/.test(l.code)) totUrssaf+=-(l.ms||0)-(l.mp||0); }); });
+    R('S21.G00.20.001',String(P.conf.urssaf||'').replace(/\s/g,'')); R('S21.G00.20.005',mt(totUrssaf)); R('S21.G00.20.006',jj(B.a)); R('S21.G00.20.007',jj(B.b)); R('S21.G00.20.010','05');
+    L.push("S90.G00.90.001,'"+(L.length+2)+"'"); L.push("S90.G00.90.002,'1'");
+    return L.join('\n'); }
+
+  /* ---------- alertes ---------- */
+  function bilan(co){ var P=PY(co.id), al=[]; if(P.conf.externe) return {alertes:[]};
+    var d=t0(); d.setDate(1);
+    for(var i=1;i<=3;i++){ var x=new Date(d); x.setMonth(x.getMonth()-i); var m=mk(x); if(!actifs(co.id,m).length) continue; var o=P.mois[m]||{}, ech=echeance(P,m), j=jours(ech);
+      if((o.dsn||{}).deposee) continue;
+      if(j<0) al.push({niv:'r',date:ech,titre:'DSN de '+lib(m)+' non déposée',detail:'échéance dépassée depuis '+(-j)+' j'});
+      else if(j<=10) al.push({niv:j<=3?'r':'o',date:ech,titre:'DSN de '+lib(m)+' à déposer',detail:'avant le '+fr(ech)+(o.valide?'':' · bulletins à valider')}); }
+    RHs(co.id).salaries.filter(function(s){ return s.actif!==false&&!/Intérim|Stage/.test(s.contrat||''); }).forEach(function(s){ var pi=PI(s);
+      if(!(num(pi.taux)>0)||!nirOk(pi.nir)) al.push({niv:'o',date:t0(),titre:'Paie — fiche à compléter : '+nomSal(s),detail:[!(num(pi.taux)>0)?'taux horaire':'',!nirOk(pi.nir)?'NIR':''].filter(Boolean).join(' et ')+' manquant'}); });
+    return {alertes:al}; }
+
+  /* ---------- page ---------- */
+  function moisOpts(){ var d=t0(); d.setDate(1); d.setMonth(d.getMonth()+1); var L=[]; for(var i=0;i<14;i++){ L.push(mk(d)); d.setMonth(d.getMonth()-1); } var c=moisCourant(); if(L.indexOf(c)<0) L.push(c); return L; }
+  function page(){ var co=K.cur(); if(!co) return K.vide(); var P=PY(co.id), m=moisCourant(), o=MO(P,m), S=actifs(co.id,m);
+    var t=K.tabs('mpaye',[['bul','Bulletins'],['sal','Salariés & rémunération'],['dsn','DSN'],['par','Paramètres']]), x='';
+    var selM='<label class="adm-inl">Mois <select id="adm-py-m" aria-label="Mois de paie" onchange="admPayeMois(this.value)">'+moisOpts().map(function(v){ return '<option value="'+v+'"'+(v===m?' selected':'')+'>'+lib(v)+'</option>'; }).join('')+'</select></label>';
+    if(t.cur==='bul'){ var tot={brut:0,sal:0,net:0,cout:0}, manque=0;
+      var rows=S.map(function(s){ var r=calcul(co,s,m), e=o.el[s.id]||{}; if(!r){ manque++; return [E(nomSal(s)),E(s.contrat||''),'—','—','—','—',pill('À compléter','o'),btn('Saisir','admPayeSaisie('+q(s.id)+')',1)]; }
+        tot.brut+=r.brut; tot.sal+=-r.totSal; tot.net+=r.netPay; tot.cout+=r.cout;
+        var v=[num(e.hs25)+num(e.hs50)?(num(e.hs25)+num(e.hs50))+' h sup.':'',num(e.absH)?num(e.absH)+' h d’absence':'',num(e.prime)?'prime':''].filter(Boolean).join(' · ');
+        return [E(nomSal(s))+(v?'<br><small>'+E(v)+'</small>':''),E(s.contrat||''),money(r.brut),money(-r.totSal),money(r.netPay),money(r.cout),o.valide?pill('Validé','g'):pill('Calculé','n'),(o.valide?'':btn('Saisir','admPayeSaisie('+q(s.id)+')',1))+btn('Bulletin','admPayeBulletin('+q(s.id)+')',1)]; });
+      if(S.length) rows.push(['<b>Total'+(manque?' des bulletins calculés':'')+'</b>','','<b>'+money(tot.brut)+'</b>','<b>'+money(tot.sal)+'</b>','<b>'+money(tot.net)+'</b>','<b>'+money(tot.cout)+'</b>','','']);
+      var abs=RHs(co.id).absences.filter(function(a){ var B=bornes(m), d=dOf(a.debut), f=dOf(a.fin); return d&&f&&d<=B.b&&f>=B.a; });
+      x=card('Bulletins de '+lib(m),S.length+' salarié(s)'+(o.valide?' · validés le '+fr(o.valide):''),'<div class="adm-top" data-no-kebab>'+selM+'</div>'+tbl(['Salarié','Contrat','Brut','Cotisations salariales','Net à payer','Coût employeur','État',''],rows,'Aucun salarié présent ce mois-ci (MARQ RH).')
+          +(abs.length?'<p class="adm-p0">'+abs.length+' absence(s) validée(s) en RH sur le mois : '+abs.map(function(a){ var s=RHs(co.id).salaries.filter(function(z){ return z.id===a.salarieId; })[0]; return E((s?nomSal(s):'?')+' — '+a.type+' du '+fr(a.debut)+' au '+fr(a.fin)); }).join(' ; ')+'. Reportez les heures d’absence dans la saisie du salarié.</p>':''),
+          o.valide?((o.dsn||{}).deposee?'':btn('Rouvrir le mois','admPayeRouvrir()',1)):(S.length&&!manque?btn('Valider les bulletins du mois','admPayeValider()'):''));
+    }
+    if(t.cur==='sal'){ var A=RHs(co.id).salaries.filter(function(s){ return s.actif!==false; });
+      x=card('Rémunération et identité sociale',A.length+' salarié(s)',tbl(['Salarié','Statut','Heures / mois','Taux horaire','Brut de base','Taux PAS','NIR','PCS-ESE',''],A.map(function(s){ var pi=PI(s), h=num(pi.heures)||151.67;
+          return [E(nomSal(s)),E(pi.statut||'Non-cadre'),String(h).replace('.',','),num(pi.taux)?money(num(pi.taux)):pill('à saisir','o'),num(pi.taux)?money(Math.round(h*num(pi.taux)*100)/100):'—',pi.pas!==''&&pi.pas!=null?String(pi.pas).replace('.',',')+' %':'défaut',nirOk(pi.nir)?pill('valide','g'):pill(pi.nir?'clé invalide':'à saisir',pi.nir?'r':'o'),E(pi.pcs||'—'),btn('Modifier','admPayeSal('+q(s.id)+')',1)]; }),'Aucun salarié : ajoutez-les dans MARQ RH.'))
+        +'<p class="adm-p0">Les salariés, contrats et dates d’entrée viennent de MARQ RH. Une embauche validée dans MARQ WORKFLOW apparaît ici.</p>';
+    }
+    if(t.cur==='dsn'){ var C_=controles(co,m), bad=C_.filter(function(c){ return !c.ok; }).length, ech=echeance(P,m), dsn=o.dsn||{};
+      x=card('DSN de '+lib(m),'à déposer avant le '+fr(ech)+(dsn.deposee?' · déposée le '+fr(dsn.deposee)+(dsn.ref?' (n° '+E(dsn.ref)+')':''):''),'<div class="adm-top" data-no-kebab>'+selM+'</div>'
+          +'<div class="adm-list">'+C_.map(function(c){ return '<div class="pay-ctl"><span class="adm-dot adm-d-'+(c.ok?'g':'r')+'"></span><span class="adm-tx"><b>'+E(c.t)+'</b><i>'+E(c.det)+'</i></span></div>'; }).join('')+'</div>',
+          (bad?'':btn('Générer le fichier DSN','admPayeDsn()'))+(dsn.genere&&!dsn.deposee?btn('Marquer déposée','admPayeDepose()',1):''))
+        +'<p class="adm-p0">'+(bad?bad+' point(s) à corriger avant de générer le fichier. ':'')+'Fichier au format NEODeS (norme P26V01), envoi '+(P.conf.essai?'<b>d’essai</b>':'<b>réel</b>')+'. Passez-le dans l’outil de contrôle DSN-VAL avant de le déposer sur net-entreprises.fr.</p>';
+    }
+    if(t.cur==='par'){ var cf=P.conf;
+      x=card('Paramètres de paie','',
+        '<div class="frow"><div><label for="adm-pp-e">Effectif</label>'+sel('adm-pp-e',['<11','11-49','>=50'],cf.eff||'<11')+'</div><div><label for="adm-pp-a">Taux accident du travail notifié (%)</label><input id="adm-pp-a" inputmode="decimal" value="'+E(cf.at)+'" placeholder="barème par défaut"></div></div>'
+        +'<div class="frow"><div><label for="adm-pp-m">Mutuelle d’entreprise</label>'+sel('adm-pp-m',['NON','OUI'],cf.mutuelle||'NON')+'</div><div><label for="adm-pp-p">Taux PAS par défaut (%)</label><input id="adm-pp-p" inputmode="decimal" value="'+E(cf.pas)+'" placeholder="0"></div></div>'
+        +'<div class="frow"><div><label for="adm-pp-u">SIRET de l’URSSAF (organisme de recouvrement)</label><input id="adm-pp-u" inputmode="numeric" value="'+E(cf.urssaf)+'"></div><div><label for="adm-pp-s">Envoi DSN</label>'+sel('adm-pp-s',['Essai','Réel'],cf.essai?'Essai':'Réel')+'</div></div>'
+        +'<label class="adm-inl"><input type="checkbox" id="adm-pp-x" style="width:auto"'+(cf.externe?' checked':'')+'> La paie de cette société est faite hors de Mar’q (pas d’alerte DSN)</label>',
+        btn('Enregistrer','admPayeConf()'))+'<p class="adm-p0">Échéance de la DSN : le 5 du mois suivant à partir de 50 salariés, le 15 en dessous. Les taux non renseignés suivent le barème de paie 2026 (Paramètres → Barèmes).</p>';
+    }
+    return '<div class="adm-wrap">'+K.tete('mpaye')+t.html+x+'</div>'; }
+
+  window.admPayeMois=function(m){ window.__admPayeMois=m; rr(); };
+  var CH=[['heures','Heures du mois'],['taux','Taux horaire (€)'],['hs25','Heures sup. à 25 %'],['hs50','Heures sup. à 50 %'],['absH','Heures d’absence'],['prime','Prime (€)'],['panierNb','Paniers repas (nombre)'],['indemn','Indemnités non soumises (€)'],['cpPris','Congés pris (jours)']];
+  window.admPayeSaisie=function(sid){ var co=K.cur(), P=PY(co.id), m=moisCourant(), s=RHs(co.id).salaries.filter(function(z){ return z.id===sid; })[0]; if(!s) return; var e=el(P,m,sid), pi=PI(s);
+    var def={heures:pi.heures||'151.67',taux:pi.taux||''};
+    openModal('Éléments de paie — '+E(nomSal(s))+' — '+lib(m),'<div class="pay-grid">'+CH.map(function(c){ return '<div><label for="adm-pe-'+c[0]+'">'+c[1]+'</label><input id="adm-pe-'+c[0]+'" inputmode="decimal" value="'+E(e[c[0]]!=null&&e[c[0]]!==''?e[c[0]]:(def[c[0]]||''))+'"></div>'; }).join('')+'</div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admPayeSaisieOk('+q(sid)+')">Calculer</button>'); };
+  window.admPayeSaisieOk=function(sid){ var co=K.cur(), P=PY(co.id), m=moisCourant(), o=MO(P,m); if(o.valide) return T('Le mois est validé : rouvrez-le pour modifier.'); var e=el(P,m,sid);
+    CH.forEach(function(c){ var v=val('adm-pe-'+c[0]).replace(',','.'); e[c[0]]=v; });
+    if(!(num(e.heures)>0)||!(num(e.taux)>0)) return T('Indiquez les heures et le taux horaire.'); sv(); closeModal(); rr(); };
+  window.admPayeBulletin=function(sid){ var co=K.cur(), m=moisCourant(), s=RHs(co.id).salaries.filter(function(z){ return z.id===sid; })[0], r=s&&calcul(co,s,m); if(!r) return T('Bulletin non calculé.');
+    function f(v){ return v==null?'':money(v); } function tx(v){ return v==null||v===''?'':String(Math.round(v*1000)/1000).replace('.',',')+' %'; }
+    var lignes=[['Salaire de base',f(r.salBase),'','','','']];
+    if(r.absMt) lignes.push(['Absences',f(r.absMt),'','','','']); if(r.mt25) lignes.push(['Heures supplémentaires 25 %',f(r.mt25),'','','','']); if(r.mt50) lignes.push(['Heures supplémentaires 50 %',f(r.mt50),'','','','']); if(r.prime) lignes.push(['Prime',f(r.prime),'','','','']);
+    lignes.push(['<b>Salaire brut</b>','<b>'+money(r.brut)+'</b>','','','','']);
+    r.lignes.forEach(function(l){ lignes.push([E(l.lib),l.bs!=null?f(l.bs):(l.bp!=null?f(l.bp):''),tx(l.ts),l.ms!=null?f(l.ms):'',tx(l.tp),l.mp!=null?f(l.mp):'']); });
+    lignes.push(['<b>Total des cotisations</b>','','','<b>'+money(r.totSal)+'</b>','','<b>'+money(r.totPat)+'</b>']);
+    openModal('Bulletin de '+lib(m)+' — '+E(nomSal(s)),tbl(['Rubrique','Base','Taux sal.','Part salariale','Taux pat.','Part patronale'],lignes)
+      +'<div class="adm-kpis pay-k"><div class="adm-k"><span>Net imposable</span><b>'+money(r.netImp)+'</b></div><div class="adm-k"><span>Prélèvement à la source</span><b>'+money(-r.pas)+'</b><i>taux '+tx(r.pasTx)+'</i></div><div class="adm-k"><span>Net à payer</span><b>'+money(r.netPay)+'</b></div><div class="adm-k"><span>Montant net social</span><b>'+money(r.netSocial)+'</b></div><div class="adm-k"><span>Coût employeur</span><b>'+money(r.cout)+'</b></div></div>',
+      '<button class="btn btn-pri" onclick="closeModal()">Fermer</button>'); };
+  window.admPayeValider=function(){ var co=K.cur(), P=PY(co.id), m=moisCourant(), o=MO(P,m), S=actifs(co.id,m); if(!S.length) return; if(S.some(function(s){ return !calcul(co,s,m); })) return T('Complétez tous les bulletins avant de valider.');
+    o.valide=iso(t0()); var B=bornes(m), n=0; RHs(co.id).absences.forEach(function(a){ var d=dOf(a.debut), f=dOf(a.fin); if(d&&f&&d<=B.b&&f>=B.a&&!a.paie&&S.some(function(s){ return s.id===a.salarieId; })){ a.paie=o.valide; n++; } });
+    sv(); T('Bulletins de '+lib(m)+' validés'+(n?' ; '+n+' absence(s) marquée(s) intégrée(s) à la paie':'')+'.'); rr(); };
+  window.admPayeRouvrir=function(){ var co=K.cur(), P=PY(co.id), m=moisCourant(), o=MO(P,m); if((o.dsn||{}).deposee) return T('La DSN du mois est déposée : le mois ne peut plus être rouvert.'); o.valide=''; o.dsn={}; sv(); rr(); };
+  window.admPayeSal=function(sid){ var co=K.cur(), s=RHs(co.id).salaries.filter(function(z){ return z.id===sid; })[0]; if(!s) return; var pi=PI(s);
+    openModal('Paie — '+E(nomSal(s)),'<div class="frow"><div><label for="adm-ps-st">Statut</label>'+sel('adm-ps-st',['Non-cadre','Cadre'],pi.statut||'Non-cadre')+'</div><div><label for="adm-ps-h">Heures mensuelles</label><input id="adm-ps-h" inputmode="decimal" value="'+E(pi.heures||'151.67')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-ps-t">Taux horaire brut (€)</label><input id="adm-ps-t" inputmode="decimal" value="'+E(pi.taux||'')+'"></div><div><label for="adm-ps-p">Taux PAS (%) — vide : taux par défaut</label><input id="adm-ps-p" inputmode="decimal" value="'+E(pi.pas==null?'':pi.pas)+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-ps-n">N° de sécurité sociale (NIR, 15 caractères)</label><input id="adm-ps-n" value="'+E(pi.nir||'')+'"></div><div><label for="adm-ps-c">Code PCS-ESE</label><input id="adm-ps-c" value="'+E(pi.pcs||'')+'" placeholder="ex. 621a"></div></div>'
+      +'<div class="frow"><div><label for="adm-ps-d">Date de naissance</label><input id="adm-ps-d" type="date" value="'+E(pi.naissance||'')+'"></div><div><label for="adm-ps-l">Commune de naissance</label><input id="adm-ps-l" value="'+E(pi.lieu||'')+'"></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admPayeSalOk('+q(sid)+')">Enregistrer</button>'); };
+  window.admPayeSalOk=function(sid){ var co=K.cur(), s=RHs(co.id).salaries.filter(function(z){ return z.id===sid; })[0]; if(!s) return;
+    var o={statut:val('adm-ps-st'),heures:val('adm-ps-h').replace(',','.'),taux:val('adm-ps-t').replace(',','.'),pas:val('adm-ps-p').replace(',','.'),nir:val('adm-ps-n').replace(/\s/g,'').toUpperCase(),pcs:val('adm-ps-c').toLowerCase(),naissance:val('adm-ps-d'),lieu:val('adm-ps-l')};
+    if(o.nir&&!nirOk(o.nir)) return T('NIR invalide : 15 caractères, clé de contrôle comprise.');
+    if(o.pcs&&!/^\d{3}[a-z]$/.test(o.pcs)) return T('Code PCS-ESE : 3 chiffres et une lettre (ex. 621a).');
+    if(o.taux&&!(num(o.taux)>0)) return T('Taux horaire invalide.');
+    Object.assign(PI(s),o); sv(); closeModal(); T('Fiche de paie enregistrée.'); rr(); };
+  window.admPayeConf=function(){ var P=PY(cid()), u=val('adm-pp-u').replace(/\s/g,''); if(u&&!/^\d{14}$/.test(u)) return T('Le SIRET de l’URSSAF compte 14 chiffres.');
+    Object.assign(P.conf,{eff:val('adm-pp-e'),at:val('adm-pp-a').replace(',','.'),mutuelle:val('adm-pp-m'),pas:val('adm-pp-p').replace(',','.'),urssaf:u,essai:val('adm-pp-s')!=='Réel',externe:!!(document.getElementById('adm-pp-x')||{}).checked}); sv(); T('Paramètres enregistrés.'); rr(); };
+  window.admPayeDsn=function(){ var co=K.cur(), P=PY(co.id), m=moisCourant(), o=MO(P,m); if(controles(co,m).some(function(c){ return !c.ok; })) return T('Corrigez les points signalés avant de générer la DSN.');
+    var txt=dsnTexte(co,m); o.dsn=o.dsn||{}; o.dsn.genere=Date.now(); sv(); window.__admPayeDsnTxt=txt;
+    openModal('DSN de '+lib(m)+' — '+E(K.nom(co)),'<textarea id="adm-doc" class="adm-doc" rows="16" aria-label="Fichier DSN" spellcheck="false">'+E(txt)+'</textarea><p class="adm-p0">'+txt.split('\n').length+' rubriques. Enregistrez le fichier, contrôlez-le dans DSN-VAL, puis déposez-le sur net-entreprises.fr.</p>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-ghost" onclick="admDocCopier()">Copier</button><button class="btn btn-pri" onclick="admPayeDsnDl()">Enregistrer le fichier</button>'); rr(); };
+  window.admPayeDsnDl=function(){ var co=K.cur(), m=moisCourant(), txt=window.__admPayeDsnTxt||dsnTexte(co,m), siret=String(co.siret||'').replace(/\s/g,'');
+    try{ var b=new Blob([txt],{type:'text/plain;charset=iso-8859-1'}), a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='DSN_'+siret+'_'+m.replace('-','')+'.dsn'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },500); }catch(e){ T('Téléchargement impossible : copiez le texte.'); } };
+  window.admPayeDepose=function(){ var m=moisCourant(); openModal('DSN de '+lib(m)+' déposée','<div class="frow"><div><label for="adm-pd-d">Date du dépôt</label><input id="adm-pd-d" type="date" value="'+iso(t0())+'"></div><div><label for="adm-pd-r">N° de dépôt net-entreprises</label><input id="adm-pd-r"></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admPayeDeposeOk()">Enregistrer</button>'); };
+  window.admPayeDeposeOk=function(){ var co=K.cur(), P=PY(co.id), m=moisCourant(), o=MO(P,m), d=val('adm-pd-d'); if(!d) return T('Indiquez la date du dépôt.'); o.dsn=o.dsn||{}; o.dsn.deposee=d; o.dsn.ref=val('adm-pd-r'); sv(); closeModal(); T('DSN enregistrée comme déposée.'); rr(); };
+
+  var css=document.createElement('style'); css.id='mq-admin-743-css'; css.textContent=[
+    '.pay-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}.pay-grid>div{display:flex;flex-direction:column;min-width:0}@media(max-width:600px){.pay-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.pay-ctl{display:flex;align-items:flex-start;gap:8px;padding:5px 2px;border-bottom:1px solid var(--line-soft)}.pay-ctl:last-child{border-bottom:0}',
+    '.pay-k{grid-template-columns:repeat(5,minmax(0,1fr));margin-top:10px}@media(max-width:760px){.pay-k{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.adm-inl{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}.adm-inl select{width:auto;min-width:150px}'
+  ].join('\n'); document.head.appendChild(css);
+  admModule('mpaye',{lbl:'Paye',sub:'Paie & DSN',ic:'card',page:page,bilan:bilan});
+  window.admPayeBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
+  window.admPayeNir=nirOk; window.admPayeDsnTexte=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?dsnTexte(co,m):''; };
+  window.admPayeControles=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?controles(co,m):[]; };
 })();
 </script>
 </body>
