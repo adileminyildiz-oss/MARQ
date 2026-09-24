@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=739;
+var LAST_VER=740;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55089,8 +55089,9 @@ function testLienSignature() {
       var K=[['Chiffre d’affaires '+an,money(ca),ks.length+' mois saisi'+(ks.length>1?'s':''),serie('ca')],['Marge',ca?(Math.round((ca-chg)*1000/ca)/10).toString().replace('.',',')+' %':'—','CA − charges : '+money(ca-chg),ks.map(function(k){ var a=num(M[k].ca); return a?(a-num(M[k].ch))/a:0; })],['Masse salariale',money(sum('ms')),'cumul '+an,serie('ms')],['Encours clients',money(num(last.enc)),'à fin '+ks[ks.length-1].slice(5)+'/'+an,serie('enc')]];
       kpi='<div class="adm-kpis">'+K.map(function(k){ return '<div class="adm-k"><span>'+k[0]+'</span><b>'+k[1]+'</b><i>'+E(k[2])+'</i>'+spark(k[3])+'</div>'; }).join('')+'</div>'; }
     var kc=card('Chiffres clés','saisie mensuelle',kpi,ks.length?btn('Saisir un mois','admChiffres()',1):'');
-    var Q=r.workflow.queue.filter(function(x){ return x.statut==='attente'; });
-    var val=card('Validations en attente',String(Q.length),Q.length?'<div class="adm-list">'+Q.map(function(x){ return '<div class="adm-v"><span class="adm-vk">'+E(x.type)+'</span><span class="adm-tx"><b>'+E(x.libelle)+'</b><i>'+E(x.detail||'')+'</i></span></div>'; }).join('')+'</div>':'<div class="adm-vide">Rien à valider. Les demandes déposées par le client (absence, achat, embauche, sinistre) arriveront ici.</div>');
+    var Q=r.workflow.queue.filter(function(x){ return x.statut==='attente'||x.statut==='dirigeant'; });
+    var wf=MODS.some(function(m){ return m[0]==='mworkflow'&&m[5]; });
+    var val=card('Validations en attente',String(Q.length),Q.length?'<div class="adm-list">'+Q.map(function(x){ return '<div class="adm-v"><span class="adm-vk">'+E(x.type)+'</span><span class="adm-tx"><b>'+E(x.libelle)+'</b><i>'+E((x.statut==='dirigeant'?'Accord du dirigeant attendu · ':'')+(x.detail||''))+'</i></span>'+(wf?btn('Traiter','admGo('+q('mworkflow')+')',1):'')+'</div>'; }).join('')+'</div>':'<div class="adm-vide">Rien à valider. Les demandes du client (absence, achat, embauche, sinistre) arrivent ici.</div>',wf?btn('Nouvelle demande','admWfNouvelle()',1):'');
     var ev=b.dom.filter(function(d){ return d[1]!=null; }), sc=ev.length?Math.round(ev.reduce(function(s,d){ return s+d[1]; },0)/ev.length):null;
     var col=function(v){ return v>=80?'var(--adm-g)':v>=65?'var(--adm-o)':'var(--adm-r)'; };
     var score=card('Score de conformité',ev.length+' domaine'+(ev.length>1?'s':'')+' évalué'+(ev.length>1?'s':''),'<div class="adm-sc">'+(sc==null?'<div class="adm-gauge" style="--v:0;--c:var(--line-soft)"><b>—</b></div>':'<div class="adm-gauge" style="--v:'+sc+';--c:'+col(sc)+'"><b>'+sc+'</b><span>/ 100</span></div>')
@@ -55531,6 +55532,152 @@ function testLienSignature() {
     '@media(max-width:760px){.adm-fform{grid-template-columns:1fr}.adm-fform input{text-align:left}}',
     '.adm-card .card-h input[type=month]{height:28px;width:auto;max-width:160px}'
   ].join('\n'); document.head.appendChild(css);
+})();
+</script>
+<script id="mq-admin-740">
+/* v740 — MARQ WORKFLOW et MARQ RH.
+   WORKFLOW : les demandes du client (absence, demande d'achat, embauche,
+   sinistre) entrent dans une file ; le cabinet valide ou refuse, le
+   dirigeant donne son accord pour un achat au-dessus du seuil (sous le
+   seuil, l'achat est validé automatiquement). Chaque validation déclenche
+   sa suite : absence → RH ; embauche → salarié créé, registre du personnel
+   mis à jour, DPAE et visite à faire ; sinistre → MARQ CONTROL ; achat →
+   bon de commande numéroté. Historique de chaque décision.
+   RH : salariés (repris de la fiche client), DPAE, période d'essai, fin de
+   CDD, absences et soldes de congés, visites médicales (information et
+   prévention, suivi renforcé), entretiens professionnels, dossiers
+   sensibles sous code d'accès. Domaine Social au score. 100 % additif. */
+(function(){
+  if(window.__admin740||!window.admModule||!window.__admKit) return; window.__admin740=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, addM=K.addM, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, nid=K.nid, sel=K.sel, num=K.num, money=K.money, pad=K.pad;
+  function RH(id){ var r=K.R(id), h=r.rh=r.rh||{}; h.salaries=h.salaries||[]; h.absences=h.absences||[]; h.notes=h.notes||[]; return h; }
+  function WF(id){ var r=K.R(id), w=r.workflow; w.queue=w.queue||[]; if(w.seuil==null) w.seuil=5000; w.bc=w.bc||0; return w; }
+  function cid(){ return K.curId(); }
+  function nomSal(s){ return ((s.prenom||'')+' '+(s.nom||'')).trim()||'(sans nom)'; }
+  function ouvres(a,b){ var d=dOf(a), f=dOf(b); if(!d||!f||f<d) return 0; var n=0; for(var x=new Date(d);x<=f;x.setDate(x.getDate()+1)){ if(x.getDay()%6) n++; } return n; }
+  function ouvert(){ return !!(window.__admSens&&window.__admSens>Date.now()); }
+
+  /* ================= RH ================= */
+  function reprendre(c,h){ (c.salaries||[]).forEach(function(s){ if(!s||!(s.nom||s.prenom)) return; var k=nomSal(s).toLowerCase(); if(h.salaries.some(function(x){ return nomSal(x).toLowerCase()===k; })) return;
+      h.salaries.push({id:nid('sal'),prenom:s.prenom||'',nom:s.nom||'',poste:s.poste||'',contrat:s.contrat||'CDI',entree:'',essaiMois:'',fin:'',dpae:'',visite:'',renforce:false,entretien:'',actif:true}); }); }
+  function periodeConges(){ var t=t0(), y=t.getMonth()>=5?t.getFullYear():t.getFullYear()-1; return {deb:new Date(y,5,1),fin:new Date(y+1,4,31)}; }
+  function conges(h,s){ var P=periodeConges(), t=t0(), e=dOf(s.entree), deb=e&&e>P.deb?e:P.deb, mois=Math.max(0,(t.getFullYear()-deb.getFullYear())*12+t.getMonth()-deb.getMonth()+(t.getDate()>=deb.getDate()?1:0));
+    var acquis=Math.min(25,Math.round(mois*25/12*10)/10), pris=h.absences.filter(function(a){ var d=dOf(a.debut); return a.salarieId===s.id&&a.type==='Congés payés'&&d&&d>=P.deb&&d<=P.fin; }).reduce(function(x,a){ return x+ouvres(a.debut,a.fin); },0);
+    return {acquis:acquis,pris:pris,solde:Math.round((acquis-pris)*10)/10}; }
+  function prochVisite(s){ var v=dOf(s.visite), e=dOf(s.entree); if(v) return addM(v,s.renforce?24:60); return e?(s.renforce?e:addM(e,3)):null; }
+  function prochEntretien(s){ var d=dOf(s.entretien)||dOf(s.entree); return d?addM(d,24):null; }
+  function rhBilan(c){ var h=RH(c.id), t=t0(), al=[], ok=0, tot=0, act=h.salaries.filter(function(s){ return s.actif!==false; });
+    act.forEach(function(s){ var n=nomSal(s), e=dOf(s.entree);
+      tot++; if(s.dpae) ok++; else if(e) al.push({niv:jours(e)<=2?'r':'o',date:e,titre:'DPAE — '+n,detail:'à faire avant l’embauche du '+fr(e)});
+      var v=prochVisite(s); tot++; if(v&&jours(v)>=0) ok++; if(v&&jours(v)<=30) al.push({niv:jours(v)<0?'r':'o',date:v,titre:'Visite médicale — '+n,detail:(s.renforce?'suivi renforcé':'visite d’information et de prévention')+(jours(v)<0?' en retard':' avant le '+fr(v))});
+      var en=prochEntretien(s); tot++; if(en&&jours(en)>=0) ok++; if(en&&jours(en)<=30) al.push({niv:jours(en)<0?'r':'o',date:en,titre:'Entretien professionnel — '+n,detail:jours(en)<0?'en retard':'avant le '+fr(en)});
+      if(e&&num(s.essaiMois)>0){ var fe=addM(e,num(s.essaiMois)); if(jours(fe)>=0&&jours(fe)<=15) al.push({niv:'o',date:fe,titre:'Fin de période d’essai — '+n,detail:'le '+fr(fe)+' : poursuivre ou rompre par écrit'}); }
+      var f=dOf(s.fin); if(/CDD/.test(s.contrat||'')&&f&&jours(f)>=0&&jours(f)<=30) al.push({niv:'o',date:f,titre:'Fin de CDD — '+n,detail:'le '+fr(f)+' : renouvellement ou indemnité de fin de contrat'}); });
+    return {alertes:al,domaines:[['Social',tot?Math.round(ok*100/tot):null]]}; }
+
+  function pageRH(){ var c=K.cur(); if(!c) return K.vide(); var h=RH(c.id), b=rhBilan(c), act=h.salaries.filter(function(s){ return s.actif!==false; });
+    var t=K.tabs('mrh',[['sal','Salariés',String(act.length)],['abs','Absences & congés'],['med','Visites médicales'],['ent','Entretiens'],['sens','Dossiers sensibles']]), x='';
+    if(t.cur==='sal'){
+      var rep=(c.salaries||[]).some(function(s){ return s&&(s.nom||s.prenom)&&!h.salaries.some(function(z){ return nomSal(z).toLowerCase()===nomSal(s).toLowerCase(); }); })?btn('Reprendre les salariés de la fiche','admRhReprendre()',1):'';
+      x=card('Salariés',act.length+' en poste',tbl(['Salarié','Poste','Contrat','Entrée','DPAE','Fin d’essai',''],h.salaries.map(function(s){ var e=dOf(s.entree), fe=e&&num(s.essaiMois)>0?addM(e,num(s.essaiMois)):null;
+          return [E(nomSal(s))+(s.actif===false?' '+pill('Sorti','n'):''),E(s.poste||'—'),E(s.contrat||'—')+(s.fin?' · jusqu’au '+fr(s.fin):''),e?fr(e):'—',s.dpae?pill('Faite le '+fr(s.dpae),'g'):pill('À faire','r'),fe?fr(fe):'—',btn('Modifier','admRhSal('+q(s.id)+')',1)]; }),'Aucun salarié.'),rep+btn('Ajouter un salarié','admRhSal()'))
+        +'<p class="adm-p0">Une embauche déclarée par le client passe par MARQ WORKFLOW : validée, elle crée le salarié ici.</p>';
+    }
+    if(t.cur==='abs'){
+      var P=periodeConges();
+      x=card('Soldes de congés payés','période du '+fr(P.deb)+' au '+fr(P.fin)+' · 25 jours ouvrés par an',tbl(['Salarié','Acquis','Pris','Solde'],act.map(function(s){ var g=conges(h,s); return [E(nomSal(s)),g.acquis+' j',g.pris+' j',g.solde<0?pill(g.solde+' j','r'):g.solde+' j']; }),'Aucun salarié.'))
+        +card('Absences validées',String(h.absences.length),tbl(['Salarié','Type','Du','Au','Jours ouvrés','Paie',''],h.absences.slice().sort(function(a,b){ return (b.debut||'')>(a.debut||'')?1:-1; }).map(function(a){ var s=h.salaries.filter(function(z){ return z.id===a.salarieId; })[0]; return [E(s?nomSal(s):'—'),E(a.type),fr(a.debut),fr(a.fin),String(ouvres(a.debut,a.fin)),a.paie?pill('Intégrée','g'):pill('À intégrer','o'),btn(a.paie?'Annuler':'Intégrée à la paie','admRhPaie('+q(a.id)+')',1)]; }),'Aucune absence.'),btn('Déclarer une absence','admWfNouvelle('+q('Absence')+')'));
+    }
+    if(t.cur==='med'){
+      x=card('Suivi de l’état de santé','information et prévention : dans les 3 mois de l’embauche puis tous les 5 ans ; suivi renforcé : avant l’embauche puis tous les 2 ans',tbl(['Salarié','Suivi','Dernière visite','Prochaine',''],act.map(function(s){ var v=prochVisite(s); return [E(nomSal(s)),'<label class="adm-inl"><input type="checkbox" style="width:auto"'+(s.renforce?' checked':'')+' onchange="admRhChamp('+q(s.id)+','+q('renforce')+',this.checked)"> renforcé</label>','<input type="date" class="adm-in" aria-label="Dernière visite — '+E(nomSal(s))+'" value="'+E(s.visite||'')+'" onchange="admRhChamp('+q(s.id)+','+q('visite')+',this.value)">',v?(jours(v)<0?pill(fr(v)+' — en retard','r'):(jours(v)<=30?pill(fr(v),'o'):fr(v))):'—',btn('Visite faite aujourd’hui','admRhChamp('+q(s.id)+','+q('visite')+','+q(iso(t0()))+')',1)]; }),'Aucun salarié.'));
+    }
+    if(t.cur==='ent'){
+      x=card('Entretiens professionnels','tous les 2 ans ; état des lieux récapitulatif tous les 6 ans',tbl(['Salarié','Dernier entretien','Prochain',''],act.map(function(s){ var en=prochEntretien(s); return [E(nomSal(s)),'<input type="date" class="adm-in" aria-label="Dernier entretien — '+E(nomSal(s))+'" value="'+E(s.entretien||'')+'" onchange="admRhChamp('+q(s.id)+','+q('entretien')+',this.value)">',en?(jours(en)<0?pill(fr(en)+' — en retard','r'):(jours(en)<=30?pill(fr(en),'o'):fr(en))):'—',btn('Entretien fait aujourd’hui','admRhChamp('+q(s.id)+','+q('entretien')+','+q(iso(t0()))+')',1)]; }),'Aucun salarié.'));
+    }
+    if(t.cur==='sens'){
+      if(!ouvert()) x=card('Dossiers sensibles','<span class="adm-lock">protégé</span>','<div class="adm-lockbox">'+K.ic('shield')+'<div><b>Données protégées</b><span>Procédures disciplinaires, arrêts et informations de santé : saisissez le code d’accès du cabinet.</span></div>'+btn('Déverrouiller','admSensibleOuvrir()')+'</div>');
+      else x=card('Dossiers sensibles',String(h.notes.length),tbl(['Date','Salarié','Nature','Note',''],h.notes.slice().reverse().map(function(n){ var s=h.salaries.filter(function(z){ return z.id===n.salarieId; })[0]; return [fr(n.date),E(s?nomSal(s):'—'),E(n.type),E(n.texte),btn('Supprimer','admRhNoteSuppr('+q(n.id)+')',1)]; }),'Aucune note.'),btn('Fermer l’accès','admSensibleFermer()',1)+btn('Ajouter une note','admRhNote()'));
+    }
+    return '<div class="adm-wrap">'+K.tete('mrh')+t.html+x+'</div>'; }
+
+  window.admRhReprendre=function(){ var c=K.cur(); if(!c) return; var h=RH(c.id), n=h.salaries.length; reprendre(c,h); sv(); T((h.salaries.length-n)+' salarié(s) repris de la fiche : complétez les dates d’entrée.'); rr(); };
+  window.admRhChamp=function(id,k,v){ var h=RH(cid()), s=h.salaries.filter(function(z){ return z.id===id; })[0]; if(!s) return; s[k]=v; sv(); rr(); };
+  window.admRhPaie=function(id){ var h=RH(cid()), a=h.absences.filter(function(z){ return z.id===id; })[0]; if(!a) return; a.paie=a.paie?'':iso(t0()); sv(); rr(); };
+  var CONTRATS=['CDI','CDD','Apprentissage','Professionnalisation','Stage','Intérim'];
+  window.admRhSal=function(id){ var h=RH(cid()), s=id?h.salaries.filter(function(z){ return z.id===id; })[0]:{prenom:'',nom:'',poste:'',contrat:'CDI',entree:iso(t0()),essaiMois:'2',fin:'',dpae:'',actif:true};
+    openModal(id?'Modifier le salarié':'Ajouter un salarié',formSal(s,'adm-rs')+(id?'<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="adm-rs-sorti" style="width:auto"'+(s.actif===false?' checked':'')+'> A quitté l’entreprise</label>':''),
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admRhSalOk('+(id?q(id):'')+')">Enregistrer</button>'); };
+  function formSal(s,p){ return '<div class="frow"><div><label for="'+p+'-p">Prénom</label><input id="'+p+'-p" value="'+E(s.prenom)+'"></div><div><label for="'+p+'-n">Nom</label><input id="'+p+'-n" value="'+E(s.nom)+'"></div></div>'
+      +'<div class="frow"><div><label for="'+p+'-po">Poste</label><input id="'+p+'-po" value="'+E(s.poste)+'"></div><div><label for="'+p+'-c">Contrat</label>'+sel(p+'-c',CONTRATS,s.contrat)+'</div></div>'
+      +'<div class="frow"><div><label for="'+p+'-e">Date d’entrée</label><input id="'+p+'-e" type="date" value="'+E(s.entree)+'"></div><div><label for="'+p+'-es">Période d’essai (mois)</label><input id="'+p+'-es" inputmode="numeric" value="'+E(s.essaiMois)+'"></div></div>'
+      +'<div class="frow"><div><label for="'+p+'-f">Fin du contrat (CDD)</label><input id="'+p+'-f" type="date" value="'+E(s.fin)+'"></div><div><label for="'+p+'-d">DPAE faite le</label><input id="'+p+'-d" type="date" value="'+E(s.dpae||'')+'"></div></div>'; }
+  function lireSal(p){ return {prenom:val(p+'-p'),nom:val(p+'-n'),poste:val(p+'-po'),contrat:val(p+'-c'),entree:val(p+'-e'),essaiMois:val(p+'-es'),fin:val(p+'-f'),dpae:val(p+'-d')}; }
+  window.admRhSalOk=function(id){ var h=RH(cid()), o=lireSal('adm-rs'); if(!o.nom||!o.entree) return T('Indiquez le nom et la date d’entrée.'); var so=document.getElementById('adm-rs-sorti'); o.actif=!(so&&so.checked);
+    if(id) Object.assign(h.salaries.filter(function(z){ return z.id===id; })[0],o); else { o.id=nid('sal'); o.visite=''; o.entretien=''; o.renforce=false; h.salaries.push(o); } sv(); closeModal(); T('Salarié enregistré.'); rr(); };
+  window.admRhNote=function(){ if(!ouvert()) return admSensibleOuvrir(); var h=RH(cid());
+    openModal('Note sensible','<div class="frow"><div><label for="adm-ns">Salarié</label><select id="adm-ns">'+h.salaries.map(function(s){ return '<option value="'+E(s.id)+'">'+E(nomSal(s))+'</option>'; }).join('')+'</select></div><div><label for="adm-nt">Nature</label>'+sel('adm-nt',['Disciplinaire','Arrêt de travail','Santé','Autre'],'Disciplinaire')+'</div></div><label for="adm-nx">Note</label><textarea id="adm-nx" rows="4"></textarea>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admRhNoteOk()">Enregistrer</button>'); };
+  window.admRhNoteOk=function(){ if(!ouvert()) return; var h=RH(cid()), o={id:nid('nt'),date:iso(t0()),salarieId:val('adm-ns'),type:val('adm-nt'),texte:val('adm-nx')}; if(!o.texte) return T('Écrivez la note.'); h.notes.push(o); sv(); closeModal(); rr(); };
+  window.admRhNoteSuppr=function(id){ if(!ouvert()) return; var h=RH(cid()); h.notes=h.notes.filter(function(n){ return n.id!==id; }); sv(); rr(); };
+
+  /* ================= WORKFLOW ================= */
+  var TYPES=['Absence','Achat','Embauche','Sinistre'];
+  function hist(d,action){ d.historique=d.historique||[]; d.historique.push({ts:Date.now(),action:action}); }
+  function wfBilan(c){ var w=WF(c.id), al=[];
+    w.queue.forEach(function(d){ if(d.statut!=='attente'&&d.statut!=='dirigeant') return; var age=Math.floor((Date.now()-d.ts)/86400000); if(age<2) return;
+      al.push({niv:age>5?'r':'o',date:new Date(d.ts),titre:(d.statut==='dirigeant'?'Accord du dirigeant attendu — ':'À valider — ')+d.type,detail:d.libelle+' · depuis '+age+' j'}); });
+    return {alertes:al}; }
+  function libelle(type,o,c){ var h=RH(c.id); if(type==='Absence'){ var s=h.salaries.filter(function(z){ return z.id===o.salarieId; })[0]; return (s?nomSal(s):'Salarié')+' — '+(o.type||'absence').toLowerCase()+' du '+fr(o.debut)+' au '+fr(o.fin); }
+    if(type==='Achat') return (o.objet||'Achat')+' — '+money(num(o.montant))+' HT'+(o.fournisseur?' ('+o.fournisseur+')':'');
+    if(type==='Embauche') return 'Embauche de '+((o.prenom||'')+' '+(o.nom||'')).trim()+(o.poste?', '+o.poste:'')+' au '+fr(o.entree);
+    return 'Sinistre du '+fr(o.date)+' — '+(o.nature||''); }
+  window.__admWfType='Absence';
+  window.admWfNouvelle=function(type){ var c=K.cur(); if(!c) return; if(type) window.__admWfType=type; var ty=window.__admWfType, h=RH(c.id), w=WF(c.id), body='';
+    if(ty==='Absence') body=(h.salaries.length?'<div class="frow"><div><label for="adm-wa-s">Salarié</label><select id="adm-wa-s">'+h.salaries.filter(function(s){ return s.actif!==false; }).map(function(s){ return '<option value="'+E(s.id)+'">'+E(nomSal(s))+'</option>'; }).join('')+'</select></div><div><label for="adm-wa-t">Motif</label>'+sel('adm-wa-t',['Congés payés','Maladie','Accident du travail','RTT','Congé sans solde','Événement familial','Autre'],'Congés payés')+'</div></div><div class="frow"><div><label for="adm-wa-d">Du</label><input id="adm-wa-d" type="date" value="'+iso(t0())+'"></div><div><label for="adm-wa-f">Au</label><input id="adm-wa-f" type="date" value="'+iso(t0())+'"></div></div>':'<div class="adm-vide">Ajoutez d’abord les salariés dans MARQ RH.</div>');
+    if(ty==='Achat') body='<label for="adm-wc-o">Objet</label><input id="adm-wc-o" placeholder="Ex. location d’une mini-pelle"><div class="frow"><div><label for="adm-wc-f">Fournisseur</label><input id="adm-wc-f"></div><div><label for="adm-wc-m">Montant HT (€)</label><input id="adm-wc-m" inputmode="decimal"></div></div><p class="adm-p0">Sous '+money(num(w.seuil))+' HT, la demande est validée automatiquement ; au-dessus, l’accord du dirigeant est requis.</p>';
+    if(ty==='Embauche') body=formSal({prenom:'',nom:'',poste:'',contrat:'CDI',entree:'',essaiMois:'2',fin:'',dpae:''},'adm-we');
+    if(ty==='Sinistre'){ var A=((K.R(c.id).control||{}).assurances)||[]; body='<div class="frow"><div><label for="adm-ws-d">Date du sinistre</label><input id="adm-ws-d" type="date" value="'+iso(t0())+'"></div><div><label for="adm-ws-c">Contrat</label><select id="adm-ws-c"><option value="">—</option>'+A.map(function(a){ return '<option value="'+E(a.id)+'">'+E(a.type+' · '+(a.assureur||''))+'</option>'; }).join('')+'</select></div></div><label for="adm-ws-n">Nature</label><input id="adm-ws-n"><label for="adm-ws-x">Circonstances</label><textarea id="adm-ws-x" rows="3"></textarea>'; }
+    openModal('Nouvelle demande','<div class="frow"><div><label for="adm-wt">Demande</label><select id="adm-wt" onchange="admWfNouvelle(this.value)">'+TYPES.map(function(x){ return '<option'+(x===ty?' selected':'')+'>'+x+'</option>'; }).join('')+'</select></div><div><label for="adm-wo">Transmise par</label>'+sel('adm-wo',['Le client','Le cabinet'],'Le client')+'</div></div>'+body,
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admWfCreer()">Enregistrer la demande</button>'); };
+  window.admWfCreer=function(){ var c=K.cur(); if(!c) return; var ty=window.__admWfType, w=WF(c.id), o;
+    if(ty==='Absence'){ o={salarieId:val('adm-wa-s'),type:val('adm-wa-t'),debut:val('adm-wa-d'),fin:val('adm-wa-f')}; if(!o.salarieId) return T('Ajoutez d’abord les salariés dans MARQ RH.'); if(!o.debut||!o.fin||o.fin<o.debut) return T('Vérifiez les dates de l’absence.'); }
+    if(ty==='Achat'){ o={objet:val('adm-wc-o'),fournisseur:val('adm-wc-f'),montant:num(val('adm-wc-m'))}; if(!o.objet||!o.montant) return T('Indiquez l’objet et le montant.'); }
+    if(ty==='Embauche'){ o=lireSal('adm-we'); if(!o.nom||!o.entree) return T('Indiquez le nom et la date d’entrée.'); }
+    if(ty==='Sinistre'){ o={date:val('adm-ws-d'),contratId:val('adm-ws-c'),nature:val('adm-ws-n'),description:val('adm-ws-x')}; if(!o.date||!o.nature) return T('Indiquez la date et la nature.'); }
+    var d={id:nid('wf'),type:ty,data:o,libelle:libelle(ty,o,c),source:val('adm-wo')||'Le client',ts:Date.now(),statut:'attente',historique:[]};
+    hist(d,'Demande reçue ('+d.source.toLowerCase()+')');
+    if(ty==='Achat'){ if(o.montant<num(w.seuil)){ d.statut='valide'; hist(d,'Validée automatiquement : sous le seuil de '+money(num(w.seuil))+' HT'); suite(c,d); } else { d.statut='dirigeant'; d.detail='au-dessus du seuil de '+money(num(w.seuil))+' HT'; } }
+    w.queue.push(d); sv(); closeModal(); T(d.statut==='valide'?'Demande validée automatiquement.':'Demande enregistrée.'); rr(); };
+  function suite(c,d){ var r=K.R(c.id), o=d.data, h=RH(c.id), w=WF(c.id);
+    if(d.type==='Absence'){ h.absences.push({id:nid('abs'),salarieId:o.salarieId,type:o.type,debut:o.debut,fin:o.fin,paie:'',wf:d.id}); hist(d,'Absence reportée dans MARQ RH (à intégrer en paie)'); }
+    if(d.type==='Embauche'){ var s={id:nid('sal'),prenom:o.prenom,nom:o.nom,poste:o.poste,contrat:o.contrat,entree:o.entree,essaiMois:o.essaiMois,fin:o.fin,dpae:o.dpae||'',visite:'',entretien:'',renforce:false,actif:true}; h.salaries.push(s); r.legal.registres.personnel={date:iso(t0())}; hist(d,'Salarié créé dans MARQ RH ; registre unique du personnel mis à jour'+(s.dpae?'':' ; DPAE à faire avant le '+fr(o.entree))); }
+    if(d.type==='Sinistre'){ var ctl=r.control=r.control||{}; ctl.sinistres=ctl.sinistres||[]; ctl.sinistres.push({id:nid('sin'),date:o.date,contratId:o.contratId,nature:o.nature,description:o.description,statut:'À déclarer'}); hist(d,'Sinistre ouvert dans MARQ CONTROL : déclaration sous 5 jours ouvrés'); }
+    if(d.type==='Achat'){ w.bc++; d.bc='BC-'+t0().getFullYear()+'-'+pad(w.bc); hist(d,'Bon de commande '+d.bc+' émis'); } }
+  function trouve(id){ var w=WF(cid()); return w.queue.filter(function(x){ return x.id===id; })[0]; }
+  window.admWfValider=function(id){ var c=K.cur(), d=trouve(id); if(!d||(d.statut!=='attente'&&d.statut!=='dirigeant')) return; if(d.statut==='dirigeant') hist(d,'Accord du dirigeant reçu'); else hist(d,'Validée par le cabinet'); d.statut='valide'; suite(c,d); sv(); T('Demande validée : suite enregistrée.'); rr(); };
+  window.admWfRefuser=function(id){ var d=trouve(id); if(!d) return; openModal('Refuser la demande','<p class="adm-p0">'+E(d.libelle)+'</p><label for="adm-wr">Motif communiqué au client</label><textarea id="adm-wr" rows="3"></textarea>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admWfRefuserOk('+q(id)+')">Refuser</button>'); };
+  window.admWfRefuserOk=function(id){ var d=trouve(id); if(!d) return; var m=val('adm-wr'); if(!m) return T('Indiquez le motif.'); d.statut='refuse'; d.motif=m; hist(d,'Refusée : '+m); sv(); closeModal(); rr(); };
+  window.admWfSeuil=function(v){ var w=WF(cid()); w.seuil=Math.max(0,num(v)); sv(); rr(); };
+  window.admWfBc=function(id){ var c=K.cur(), d=trouve(id); if(!d||!d.bc) return; var o=d.data;
+    var txt='BON DE COMMANDE '+d.bc+'\n\n'+K.nom(c)+(c.siege?'\n'+c.siege+' '+((c.cp||'')+' '+(c.ville||'')).trim():'')+(c.siren?'\nSIREN '+c.siren:'')+'\n\nFournisseur : '+(o.fournisseur||'……')+'\nDate : '+fr(new Date(d.ts))+'\n\nObjet : '+o.objet+'\nMontant HT : '+money(num(o.montant))+'\n\nConditions de paiement : ……\nLivraison : ……\n\nPour la société, '+(c.president||'');
+    openModal('Bon de commande '+E(d.bc),'<textarea id="adm-doc" class="adm-doc" rows="16" aria-label="Bon de commande">'+E(txt)+'</textarea>','<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-pri" onclick="admDocCopier()">Copier le texte</button>'); };
+  var STL={attente:['À valider','o'],dirigeant:['Accord du dirigeant','o'],valide:['Validée','g'],refuse:['Refusée','r']};
+  function pageWF(){ var c=K.cur(); if(!c) return K.vide(); var w=WF(c.id), P=w.queue.filter(function(d){ return d.statut==='attente'||d.statut==='dirigeant'; });
+    var t=K.tabs('mworkflow',[['file','À traiter',P.length?String(P.length):''],['circ','Circuits'],['hist','Historique']]), x='';
+    if(t.cur==='file') x=card('Demandes à traiter',String(P.length),tbl(['Reçue le','Demande','Détail','Étape',''],P.slice().sort(function(a,b){ return a.ts-b.ts; }).map(function(d){ var age=Math.floor((Date.now()-d.ts)/86400000);
+        return [fr(new Date(d.ts))+(age>=2?' '+pill(age+' j',age>5?'r':'o'):''),E(d.type),E(d.libelle)+'<br><small>'+E(d.source)+'</small>',pill(STL[d.statut][0],'o'),btn(d.statut==='dirigeant'?'Accord reçu':'Valider','admWfValider('+q(d.id)+')')+btn('Refuser','admWfRefuser('+q(d.id)+')',1)]; }),'Aucune demande en attente.'),btn('Nouvelle demande','admWfNouvelle()'));
+    if(t.cur==='circ') x=card('Circuits','ce qui se passe à la validation',tbl(['Demande','Validation','Suite automatique'],[['Absence','Cabinet','Reportée dans MARQ RH, à intégrer en paie'],['Demande d’achat','Automatique sous le seuil, dirigeant au-dessus','Bon de commande numéroté'],['Embauche','Cabinet','Salarié créé dans MARQ RH, registre du personnel mis à jour, DPAE et visite à faire'],['Sinistre','Cabinet','Sinistre ouvert dans MARQ CONTROL, déclaration sous 5 jours ouvrés']]))
+        +card('Seuil des demandes d’achat','','<div class="frow"><div><label for="adm-wse">Validation du dirigeant au-dessus de (€ HT)</label><input id="adm-wse" inputmode="decimal" value="'+E(w.seuil)+'" onchange="admWfSeuil(this.value)"></div><div></div></div>');
+    if(t.cur==='hist'){ var H=w.queue.filter(function(d){ return d.statut==='valide'||d.statut==='refuse'; }).sort(function(a,b){ return b.ts-a.ts; });
+      x=card('Historique',String(H.length),tbl(['Reçue le','Demande','Décision','Suite',''],H.map(function(d){ var last=(d.historique||[]).slice(-1)[0]; return [fr(new Date(d.ts)),E(d.libelle),pill(STL[d.statut][0],STL[d.statut][1]),E(last?last.action:''),d.bc?btn('Bon de commande','admWfBc('+q(d.id)+')',1):'']; }),'Aucune décision.')); }
+    return '<div class="adm-wrap">'+K.tete('mworkflow')+t.html+x+'</div>'; }
+
+  admModule('mrh',{lbl:'RH',sub:'Ressources humaines',ic:'idcard',page:pageRH,bilan:rhBilan});
+  admModule('mworkflow',{lbl:'Workflow',sub:'Circuits de validation',ic:'bolt',page:pageWF,bilan:wfBilan});
+  window.admRhBilan=function(id){ var c=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return c?rhBilan(c):null; };
+  var css=document.createElement('style'); css.id='mq-admin-740-css'; css.textContent='.adm-inl{display:flex;gap:6px;align-items:center;margin:0;font-size:12px}.adm-v .btn{margin-left:auto;flex:none}.adm-t td small{font-size:11px;opacity:.8}';
+  document.head.appendChild(css);
 })();
 </script>
 </body>
