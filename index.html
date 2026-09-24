@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=741;
+var LAST_VER=742;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55722,6 +55722,204 @@ function testLienSignature() {
   window.admRhBilan=function(id){ var c=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return c?rhBilan(c):null; };
   var css=document.createElement('style'); css.id='mq-admin-740-css'; css.textContent='.adm-inl{display:flex;gap:6px;align-items:center;margin:0;font-size:12px}.adm-v .btn{margin-left:auto;flex:none}.adm-t td small{font-size:11px;opacity:.8}';
   document.head.appendChild(css);
+})();
+</script>
+<script id="mq-admin-742">
+/* v742 — MARQ CRM : clients, ventes, achats et marchés publics de la société.
+   Fichier des contacts (clients, prospects, fournisseurs) avec historique des
+   échanges ; devis et factures de la société (transformation d'un devis
+   accepté en facture, encaissement, relances graduées avec courrier) ;
+   demandes d'achat reprises du circuit MARQ WORKFLOW ; veille des marchés
+   publics sur le BOAMP (API ouverte de la DILA, mots-clés et départements,
+   pertinence, suivi de la réponse) ; import CSV des contacts et reprise des
+   devis / factures existants. Alertes : factures échues, devis sans réponse,
+   dates limites de marchés. 100 % additif. */
+(function(){
+  if(window.__admin742||!window.admModule||!window.__admKit) return; window.__admin742=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, nid=K.nid, sel=K.sel, num=K.num, money=K.money, pad=K.pad;
+  function C(id){ var r=K.R(id), c=r.crm=r.crm||{}; c.contacts=c.contacts||[]; c.pieces=c.pieces||[]; c.boamp=c.boamp||{mots:'',deps:'',avis:[]}; c.boamp.avis=c.boamp.avis||[]; return c; }
+  function cid(){ return K.curId(); }
+  function norm(x){ x=String(x||'').toLowerCase(); try{ x=x.normalize('NFD').replace(/[̀-ͯ]/g,''); }catch(e){} return x.replace(/[^a-z0-9]+/g,' ').trim(); }
+  function ttc(p){ return Math.round(num(p.ht)*(1+num(p.tva==null||p.tva===''?20:p.tva)/100)*100)/100; }
+  function contactDe(c,id){ return c.contacts.filter(function(x){ return x.id===id; })[0]; }
+  function nomC(k){ return k?(k.raison||k.contact||'(sans nom)'):'—'; }
+  function echue(p){ var e=dOf(p.echeance); return p.type==='Facture'&&p.statut!=='Payée'&&e&&jours(e)<0; }
+  function numero(c,type){ var y=t0().getFullYear(), pre=(type==='Devis'?'D-':'F-')+y+'-', n=c.pieces.filter(function(p){ return p.type===type&&String(p.num||'').indexOf(pre)===0; }).length+1; var s=String(n); while(s.length<3) s='0'+s; return pre+s; }
+
+  /* ---------- bilan : alertes ---------- */
+  function bilan(co){ var c=C(co.id), al=[];
+    c.pieces.forEach(function(p){ var k=contactDe(c,p.contactId);
+      if(echue(p)){ var n=-jours(dOf(p.echeance)); al.push({niv:n>30?'r':'o',date:dOf(p.echeance),titre:'Facture '+(p.num||'')+' échue — '+nomC(k),detail:money(ttc(p))+' TTC depuis '+n+' j'+((p.relances||[]).length?' · '+p.relances.length+' relance(s)':' · aucune relance')}); }
+      if(p.type==='Devis'&&p.statut==='En cours'){ var d=dOf((p.relances||[]).slice(-1)[0]||p.date); if(d&&jours(d)<=-15) al.push({niv:'o',date:d,titre:'Devis '+(p.num||'')+' sans réponse — '+nomC(k),detail:'envoyé le '+fr(p.date)+' · '+money(num(p.ht))+' HT : relancer'}); } });
+    c.boamp.avis.forEach(function(a){ var l=dOf(a.limite); if(l&&(a.statut==='À étudier'||a.statut==='Réponse en cours')&&jours(l)>=0&&jours(l)<=7) al.push({niv:jours(l)<=2?'r':'o',date:l,titre:'Marché public — date limite '+fr(l),detail:a.objet}); });
+    return {alertes:al}; }
+
+  /* ---------- page ---------- */
+  function kpis(L){ return '<div class="adm-kpis crm-k">'+L.map(function(k){ return '<div class="adm-k"><span>'+k[0]+'</span><b>'+k[1]+'</b>'+(k[2]?'<i>'+k[2]+'</i>':'')+'</div>'; }).join('')+'</div>'; }
+  function page(){ var co=K.cur(); if(!co) return K.vide(); var c=C(co.id), y=t0().getFullYear(), an=new Date(t0()); an.setFullYear(an.getFullYear()-1);
+    var ach=((K.R(co.id).workflow||{}).queue||[]).filter(function(d){ return d.type==='Achat'; });
+    var t=K.tabs('mcrm',[['cli','Clients & ventes',c.contacts.length?String(c.contacts.length):''],['doc','Devis & factures'],['ach','Demandes d’achat',ach.filter(function(d){ return d.statut==='attente'||d.statut==='dirigeant'; }).length?String(ach.filter(function(d){ return d.statut==='attente'||d.statut==='dirigeant'; }).length):''],['ao','Marchés publics'],['imp','Import']]), x='';
+    if(t.cur==='cli'||t.cur==='doc'){
+      var dev=c.pieces.filter(function(p){ return p.type==='Devis'&&p.statut==='En cours'; }), dec=c.pieces.filter(function(p){ var d=dOf(p.date); return p.type==='Devis'&&(p.statut==='Accepté'||p.statut==='Refusé')&&d&&d>=an; });
+      var acc=dec.filter(function(p){ return p.statut==='Accepté'; }).length, fa=c.pieces.filter(function(p){ return p.type==='Facture'&&p.statut!=='Payée'; });
+      var actifs=c.contacts.filter(function(k){ return c.pieces.some(function(p){ var d=dOf(p.date); return p.contactId===k.id&&p.type==='Facture'&&d&&d>=an; }); }).length;
+      x=kpis([['Devis en cours',String(dev.length),money(dev.reduce(function(s,p){ return s+num(p.ht); },0))+' HT'],['Taux de transformation',dec.length?Math.round(acc*100/dec.length)+' %':'—','12 derniers mois'],['Factures à encaisser',money(fa.reduce(function(s,p){ return s+ttc(p); },0)),'dont '+money(fa.filter(echue).reduce(function(s,p){ return s+ttc(p); },0))+' échus'],['Clients actifs',String(actifs),'factures sur 12 mois']]);
+    }
+    if(t.cur==='cli'){
+      var rows=c.contacts.slice().sort(function(a,b){ return nomC(a).localeCompare(nomC(b),'fr'); }).map(function(k){ var P=c.pieces.filter(function(p){ return p.contactId===k.id; });
+        var ca=P.filter(function(p){ var d=dOf(p.date); return p.type==='Facture'&&d&&d.getFullYear()===y; }).reduce(function(s,p){ return s+num(p.ht); },0);
+        var ouv=P.filter(function(p){ return p.type==='Devis'&&p.statut==='En cours'; }).length, enc=P.filter(function(p){ return p.type==='Facture'&&p.statut!=='Payée'; }), ech=enc.some(echue);
+        var der=(k.echanges||[]).slice(-1)[0];
+        return [E(nomC(k))+(k.contact&&k.raison?'<br><small>'+E(k.contact)+'</small>':''),pill(k.type||'Client',k.type==='Prospect'?'o':(k.type==='Fournisseur'?'n':'g')),ca?money(ca):'—',String(ouv||'—'),der?fr(der.date)+' — '+E(der.texte):'—',(enc.length?money(enc.reduce(function(s,p){ return s+ttc(p); },0)):'—')+(ech?' '+pill('échu','r'):''),btn('Échange','admCrmEchange('+q(k.id)+')',1)+btn('Modifier','admCrmContact('+q(k.id)+')',1)]; });
+      x+=card('Contacts',c.contacts.length+' fiche'+(c.contacts.length>1?'s':''),tbl(['Contact','Type','CA '+y+' HT','Devis ouverts','Dernier échange','Encours TTC',''],rows,'Aucun contact. Ajoutez-en un ou importez un fichier CSV (onglet Import).'),btn('Nouveau contact','admCrmContact()'));
+    }
+    if(t.cur==='doc'){
+      var P=c.pieces.slice().sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; });
+      x+=card('Devis & factures',String(P.length),tbl(['N°','Type','Contact','Date','Échéance','HT','TTC','Statut',''],P.map(function(p){ var k=contactDe(c,p.contactId), st;
+          if(p.type==='Devis') st=pill(p.statut,p.statut==='Accepté'?'g':(p.statut==='Refusé'?'n':'o'))+(p.factureId?' '+pill('facturé','g'):'');
+          else st=p.statut==='Payée'?pill('Payée le '+fr(p.payeLe),'g'):(echue(p)?pill('Échue','r'):pill('À encaisser','o'));
+          var a='';
+          if(p.type==='Devis'&&p.statut==='En cours') a=btn('Accepté','admCrmDevis('+q(p.id)+','+q('Accepté')+')')+btn('Refusé','admCrmDevis('+q(p.id)+','+q('Refusé')+')',1)+btn('Relancer','admCrmRelance('+q(p.id)+')',1);
+          if(p.type==='Devis'&&p.statut==='Accepté'&&!p.factureId) a=btn('Facturer','admCrmFacturer('+q(p.id)+')');
+          if(p.type==='Facture'&&p.statut!=='Payée') a=btn('Encaissée','admCrmPaye('+q(p.id)+')')+(echue(p)?btn('Relancer','admCrmRelance('+q(p.id)+')',1):'');
+          return [E(p.num||'—'),E(p.type),E(nomC(k)),fr(p.date),p.echeance?fr(p.echeance):'—',money(num(p.ht)),money(ttc(p)),st+((p.relances||[]).length?'<br><small>'+p.relances.length+' relance(s), dernière le '+fr(p.relances.slice(-1)[0])+'</small>':''),a+btn('Modifier','admCrmPiece(null,'+q(p.id)+')',1)]; }),'Aucun devis ni facture.'),btn('Nouveau devis','admCrmPiece('+q('Devis')+')',1)+btn('Nouvelle facture','admCrmPiece('+q('Facture')+')'));
+    }
+    if(t.cur==='ach'){
+      var wf=((K.R(co.id).workflow)||{}), wfOn=typeof window.admWfNouvelle==='function', ST={attente:['À valider','o'],dirigeant:['Accord du dirigeant','o'],valide:['Validée','g'],refuse:['Refusée','r']};
+      x=card('Demandes d’achat','seuil : accord du dirigeant au-dessus de '+money(num(wf.seuil==null?5000:wf.seuil))+' HT',tbl(['Reçue le','Demande','Montant HT','Étape','Bon de commande'],ach.slice().sort(function(a,b){ return b.ts-a.ts; }).map(function(d){ var s=ST[d.statut]||[d.statut,'n']; return [fr(new Date(d.ts)),E((d.data||{}).objet||d.libelle)+((d.data||{}).fournisseur?'<br><small>'+E(d.data.fournisseur)+'</small>':''),money(num((d.data||{}).montant)),pill(s[0],s[1]),d.bc?btn(E(d.bc),'admWfBc('+q(d.id)+')',1):'—']; }),'Aucune demande d’achat.'),wfOn?btn('Circuit (Workflow)','admGo('+q('mworkflow')+')',1)+btn('Nouvelle demande d’achat','admWfNouvelle('+q('Achat')+')'):'')
+        +'<p class="adm-p0">Les demandes d’achat suivent le circuit de MARQ WORKFLOW : validation automatique sous le seuil, accord du dirigeant au-dessus, puis bon de commande numéroté.</p>';
+    }
+    if(t.cur==='ao'){
+      var b=c.boamp, A=b.avis.slice().sort(function(a1,a2){ return (a1.limite||'9')>(a2.limite||'9')?1:-1; }), STA=['Nouveau','À étudier','Réponse en cours','Déposée','Écarté'];
+      x=card('Veille BOAMP',b.maj?'dernière recherche le '+fr(new Date(b.maj))+' à '+pad(new Date(b.maj).getHours())+'h'+pad(new Date(b.maj).getMinutes()):'jamais lancée',
+          '<div class="frow"><div><label for="adm-bo-m">Mots-clés (séparés par des virgules)</label><input id="adm-bo-m" value="'+E(b.mots)+'" placeholder="gros œuvre, réhabilitation" onchange="admCrmBoCfg()"></div><div><label for="adm-bo-d">Départements</label><input id="adm-bo-d" value="'+E(b.deps)+'" placeholder="59, 62" onchange="admCrmBoCfg()"></div></div>'
+          +tbl(['Avis','Acheteur','Parution','Date limite','Pertinence','Suivi',''],A.map(function(a){ var l=dOf(a.limite), pas=l&&jours(l)<0;
+            return [E(a.objet)+(a.idweb?'<br><small>'+E(a.idweb)+'</small>':''),E(a.acheteur||'—'),a.parution?fr(a.parution):'—',l?(pas?pill(fr(l)+' — passée','n'):(jours(l)<=7?pill(fr(l),'r'):fr(l))):'—',pill(a.pert||'—',a.pert==='Forte'?'g':(a.pert==='Moyenne'?'o':'n')),
+              '<select class="adm-in" aria-label="Suivi de l’avis" onchange="admCrmBoSt('+q(a.id)+',this.value)">'+STA.map(function(s){ return '<option'+(s===a.statut?' selected':'')+'>'+s+'</option>'; }).join('')+'</select>',
+              (a.url?'<a class="btn btn-sm btn-ghost" href="'+E(a.url)+'" target="_blank" rel="noopener">Voir l’avis</a>':'')+btn('Retirer','admCrmBoSuppr('+q(a.id)+')',1)]; }),'Aucun avis. Renseignez les mots-clés puis lancez la recherche.'),
+          btn('Ajouter un avis','admCrmBoAjout()',1)+btn('Rechercher sur le BOAMP','admCrmBoamp()'))
+        +'<p class="adm-p0">Recherche sur les avis publiés au BOAMP (données ouvertes de la DILA). La pertinence tient compte des mots-clés trouvés dans l’objet et des départements.</p>';
+    }
+    if(t.cur==='imp'){
+      x=card('Importer des contacts','fichier CSV, séparateur « ; » ou « , »','<p class="adm-p0">Colonnes reconnues : raison sociale (ou société, client, nom), SIREN, contact, e-mail, téléphone, ville, type (client, prospect, fournisseur). Les doublons (même SIREN ou même nom) sont mis à jour, pas recréés.</p><input type="file" id="adm-imp-cf" accept=".csv,text/csv,text/plain" onchange="admCrmFichier(this,'+q('contacts')+')"><label for="adm-imp-c">ou collez le contenu</label><textarea id="adm-imp-c" rows="4" placeholder="raison sociale;siren;email;ville"></textarea>',btn('Importer les contacts','admCrmImport('+q('contacts')+')'))
+        +card('Reprendre les devis et factures','fichier CSV exporté du logiciel de facturation','<p class="adm-p0">Colonnes reconnues : type (devis / facture), numéro, client, date, échéance, montant HT, TVA (taux), statut (en cours, accepté, refusé, payée). Un client inconnu est créé ; une pièce déjà présente (même type et même numéro) est mise à jour.</p><input type="file" id="adm-imp-pf" accept=".csv,text/csv,text/plain" onchange="admCrmFichier(this,'+q('pieces')+')"><label for="adm-imp-p">ou collez le contenu</label><textarea id="adm-imp-p" rows="4" placeholder="type;numero;client;date;echeance;montant ht;tva;statut"></textarea>',btn('Reprendre les pièces','admCrmImport('+q('pieces')+')'));
+    }
+    return '<div class="adm-wrap">'+K.tete('mcrm')+t.html+x+'</div>'; }
+
+  /* ---------- contacts & échanges ---------- */
+  var TYPES=['Client','Prospect','Fournisseur'];
+  window.admCrmContact=function(id){ var c=C(cid()), k=id?contactDe(c,id):{type:'Client'}; if(!k) return;
+    openModal(id?'Modifier le contact':'Nouveau contact','<div class="frow"><div><label for="adm-ck-r">Raison sociale ou nom</label><input id="adm-ck-r" value="'+E(k.raison||'')+'"></div><div><label for="adm-ck-t">Type</label>'+sel('adm-ck-t',TYPES,k.type||'Client')+'</div></div>'
+      +'<div class="frow"><div><label for="adm-ck-s">SIREN</label><input id="adm-ck-s" inputmode="numeric" value="'+E(k.siren||'')+'"></div><div><label for="adm-ck-c">Interlocuteur</label><input id="adm-ck-c" value="'+E(k.contact||'')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-ck-e">E-mail</label><input id="adm-ck-e" type="email" value="'+E(k.email||'')+'"></div><div><label for="adm-ck-p">Téléphone</label><input id="adm-ck-p" inputmode="tel" value="'+E(k.tel||'')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-ck-v">Ville</label><input id="adm-ck-v" value="'+E(k.ville||'')+'"></div><div></div></div>',
+      (id?'<button class="btn btn-ghost" onclick="admCrmContactSuppr('+q(id)+')">Supprimer</button>':'')+'<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admCrmContactOk('+(id?q(id):'')+')">Enregistrer</button>'); };
+  window.admCrmContactOk=function(id){ var c=C(cid()), o={raison:val('adm-ck-r'),type:val('adm-ck-t'),siren:val('adm-ck-s').replace(/\s/g,''),contact:val('adm-ck-c'),email:val('adm-ck-e'),tel:val('adm-ck-p'),ville:val('adm-ck-v')};
+    if(!o.raison&&!o.contact) return T('Indiquez la raison sociale ou le nom.'); if(o.siren&&!/^\d{9}$/.test(o.siren)) return T('Le SIREN compte 9 chiffres.');
+    if(o.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.email)) return T('Adresse e-mail invalide.');
+    if(id) Object.assign(contactDe(c,id),o); else { o.id=nid('ct'); o.echanges=[]; c.contacts.push(o); } sv(); closeModal(); T('Contact enregistré.'); rr(); };
+  window.admCrmContactSuppr=function(id){ var c=C(cid()); if(c.pieces.some(function(p){ return p.contactId===id; })) return T('Ce contact a des devis ou factures : il ne peut pas être supprimé.');
+    c.contacts=c.contacts.filter(function(k){ return k.id!==id; }); sv(); closeModal(); rr(); };
+  window.admCrmEchange=function(id){ var c=C(cid()), k=contactDe(c,id); if(!k) return; var H=(k.echanges||[]).slice().reverse();
+    openModal('Échanges — '+E(nomC(k)),(H.length?'<div class="adm-list crm-ech">'+H.map(function(e){ return '<div><b>'+fr(e.date)+'</b> '+E(e.texte)+'</div>'; }).join('')+'</div>':'<p class="adm-p0">Aucun échange noté.</p>')+'<div class="frow"><div><label for="adm-ce-d">Date</label><input id="adm-ce-d" type="date" value="'+iso(t0())+'"></div><div></div></div><label for="adm-ce-x">Échange (appel, rendez-vous, e-mail…)</label><textarea id="adm-ce-x" rows="3"></textarea>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-pri" onclick="admCrmEchangeOk('+q(id)+')">Noter l’échange</button>'); };
+  window.admCrmEchangeOk=function(id){ var c=C(cid()), k=contactDe(c,id); if(!k) return; var x=val('adm-ce-x'), d=val('adm-ce-d'); if(!x) return T('Décrivez l’échange.');
+    k.echanges=k.echanges||[]; k.echanges.push({date:d||iso(t0()),texte:x}); k.echanges.sort(function(a,b){ return a.date>b.date?1:-1; }); sv(); closeModal(); rr(); };
+
+  /* ---------- devis & factures ---------- */
+  window.admCrmPiece=function(type,id){ var c=C(cid()); if(!c.contacts.length) return T('Ajoutez d’abord un contact.');
+    var p=id?c.pieces.filter(function(z){ return z.id===id; })[0]:{type:type||'Devis',num:numero(c,type||'Devis'),date:iso(t0()),echeance:'',ht:'',tva:20,contactId:c.contacts[0].id}; if(!p) return;
+    if(!id&&p.type==='Facture'){ var e=new Date(t0()); e.setDate(e.getDate()+30); p.echeance=iso(e); }
+    openModal(id?(p.type==='Devis'?'Modifier le devis':'Modifier la facture'):(p.type==='Devis'?'Nouveau devis':'Nouvelle facture'),'<div class="frow"><div><label for="adm-cp-n">Numéro</label><input id="adm-cp-n" value="'+E(p.num||'')+'"></div><div><label for="adm-cp-c">Contact</label><select id="adm-cp-c">'+c.contacts.map(function(k){ return '<option value="'+E(k.id)+'"'+(k.id===p.contactId?' selected':'')+'>'+E(nomC(k))+'</option>'; }).join('')+'</select></div></div>'
+      +'<div class="frow"><div><label for="adm-cp-d">Date</label><input id="adm-cp-d" type="date" value="'+E(p.date||'')+'"></div><div><label for="adm-cp-e">'+(p.type==='Devis'?'Valable jusqu’au':'Échéance')+'</label><input id="adm-cp-e" type="date" value="'+E(p.echeance||'')+'"></div></div>'
+      +'<div class="frow"><div><label for="adm-cp-h">Montant HT (€)</label><input id="adm-cp-h" inputmode="decimal" value="'+E(p.ht)+'"></div><div><label for="adm-cp-t">TVA (%)</label>'+sel('adm-cp-t',['20','10','5.5','0'],String(p.tva==null?20:p.tva))+'</div></div>'
+      +'<label for="adm-cp-o">Objet</label><input id="adm-cp-o" value="'+E(p.objet||'')+'">',
+      (id?'<button class="btn btn-ghost" onclick="admCrmPieceSuppr('+q(id)+')">Supprimer</button>':'')+'<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admCrmPieceOk('+q(p.type)+','+(id?q(id):'null')+')">Enregistrer</button>'); };
+  window.admCrmPieceOk=function(type,id){ var c=C(cid()), o={num:val('adm-cp-n'),contactId:val('adm-cp-c'),date:val('adm-cp-d'),echeance:val('adm-cp-e'),ht:num(val('adm-cp-h')),tva:num(val('adm-cp-t')),objet:val('adm-cp-o')};
+    if(!o.num||!o.date||!o.ht) return T('Indiquez le numéro, la date et le montant HT.');
+    if(c.pieces.some(function(p){ return p.id!==id&&p.type===type&&p.num===o.num; })) return T('Ce numéro existe déjà.');
+    if(id) Object.assign(c.pieces.filter(function(p){ return p.id===id; })[0],o); else { o.id=nid('pc'); o.type=type; o.statut=type==='Devis'?'En cours':'À encaisser'; o.relances=[]; c.pieces.push(o); }
+    sv(); closeModal(); T((type==='Devis'?'Devis':'Facture')+' enregistré'+(type==='Devis'?'':'e')+'.'); rr(); };
+  window.admCrmPieceSuppr=function(id){ var c=C(cid()), p=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!p) return;
+    if(p.type==='Facture'&&p.statut==='Payée') return T('Une facture encaissée ne se supprime pas.');
+    c.pieces=c.pieces.filter(function(z){ return z.id!==id; }); c.pieces.forEach(function(z){ if(z.factureId===id) delete z.factureId; }); sv(); closeModal(); rr(); };
+  window.admCrmDevis=function(id,st){ var c=C(cid()), p=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!p||p.type!=='Devis') return; p.statut=st; p.decision=iso(t0()); sv(); T('Devis '+st.toLowerCase()+'.'); rr(); };
+  window.admCrmFacturer=function(id){ var c=C(cid()), d=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!d||d.statut!=='Accepté'||d.factureId) return;
+    var e=new Date(t0()); e.setDate(e.getDate()+30); var f={id:nid('pc'),type:'Facture',num:numero(c,'Facture'),contactId:d.contactId,date:iso(t0()),echeance:iso(e),ht:d.ht,tva:d.tva,objet:d.objet||('Devis '+d.num),statut:'À encaisser',relances:[],devisId:d.id};
+    c.pieces.push(f); d.factureId=f.id; sv(); T('Facture '+f.num+' créée à partir du devis '+d.num+'.'); rr(); };
+  window.admCrmPaye=function(id){ var c=C(cid()), p=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!p) return; p.statut='Payée'; p.payeLe=iso(t0()); sv(); T('Facture encaissée.'); rr(); };
+  window.admCrmRelance=function(id){ var co=K.cur(), c=C(co.id), p=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!p) return; var k=contactDe(c,p.contactId), n=(p.relances||[]).length+1, txt;
+    var sig='\n\n'+K.nom(co)+(co.president?'\n'+co.president:'');
+    if(p.type==='Devis') txt='Objet : notre devis '+p.num+' du '+fr(p.date)+'\n\nBonjour'+(k&&k.contact?' '+k.contact:'')+',\n\nNous revenons vers vous au sujet de notre devis '+p.num+' d’un montant de '+money(num(p.ht))+' HT'+(p.objet?' ('+p.objet+')':'')+'. Avez-vous pu en prendre connaissance ? Nous restons à votre disposition pour tout complément ou ajustement.\n\nBien cordialement,'+sig;
+    else if(n===1) txt='Objet : facture '+p.num+' — rappel\n\nBonjour,\n\nSauf erreur de notre part, la facture '+p.num+' du '+fr(p.date)+', d’un montant de '+money(ttc(p))+' TTC, arrivée à échéance le '+fr(p.echeance)+', reste impayée. Nous vous remercions de bien vouloir procéder à son règlement.\n\nSi le paiement a été effectué entre-temps, merci de ne pas tenir compte de ce message.\n\nBien cordialement,'+sig;
+    else if(n===2) txt='Objet : facture '+p.num+' — deuxième relance\n\nMadame, Monsieur,\n\nMalgré notre précédent rappel, la facture '+p.num+' du '+fr(p.date)+' ('+money(ttc(p))+' TTC, échue le '+fr(p.echeance)+') demeure impayée. Nous vous prions de régulariser sous huit jours.\n\nNous rappelons qu’en application de l’article L441-10 du Code de commerce, tout retard de paiement entraîne des pénalités de retard et une indemnité forfaitaire de 40 € pour frais de recouvrement.\n\nCordialement,'+sig;
+    else txt='Objet : MISE EN DEMEURE DE PAYER — facture '+p.num+'\nLettre recommandée avec accusé de réception\n\nMadame, Monsieur,\n\nNos relances des '+(p.relances||[]).map(fr).join(' et ')+' sont restées sans effet. Nous vous mettons en demeure de nous régler, sous quinze jours à compter de la réception de la présente, la somme de '+money(ttc(p))+' TTC au titre de la facture '+p.num+' du '+fr(p.date)+', échue le '+fr(p.echeance)+', majorée des pénalités de retard et de l’indemnité forfaitaire de 40 € pour frais de recouvrement (article L441-10 du Code de commerce).\n\nÀ défaut, nous engagerons une procédure de recouvrement (injonction de payer) sans autre avis.\n\nVeuillez agréer, Madame, Monsieur, nos salutations distinguées.'+sig;
+    openModal((p.type==='Devis'?'Relance du devis ':(n>=3?'Mise en demeure — ':'Relance n° '+n+' — '))+E(p.num),'<textarea id="adm-doc" class="adm-doc" rows="16" aria-label="Courrier de relance">'+E(txt)+'</textarea>'+(k&&k.email?'<p class="adm-p0">Destinataire : '+E(k.email)+'</p>':''),
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-ghost" onclick="admDocCopier()">Copier le texte</button><button class="btn btn-pri" onclick="admCrmRelanceOk('+q(id)+')">Marquer envoyée</button>'); };
+  window.admCrmRelanceOk=function(id){ var c=C(cid()), p=c.pieces.filter(function(z){ return z.id===id; })[0]; if(!p) return; p.relances=p.relances||[]; p.relances.push(iso(t0())); sv(); closeModal(); T('Relance enregistrée.'); rr(); };
+
+  /* ---------- BOAMP ---------- */
+  function lireCfg(c){ var m=document.getElementById('adm-bo-m'), d=document.getElementById('adm-bo-d'); if(m) c.boamp.mots=m.value.trim(); if(d) c.boamp.deps=d.value.trim(); }
+  window.admCrmBoCfg=function(){ var c=C(cid()); lireCfg(c); sv(); };
+  function liste(s){ return String(s||'').split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean); }
+  function champ(r,k){ var v=r[k]; if(v&&typeof v==='object'&&!Array.isArray(v)) v=v.libelle||v.valeur||JSON.stringify(v); return v; }
+  function pertinence(objet,deps,mots,depsV){ var o=norm(objet), n=mots.filter(function(m){ return o.indexOf(norm(m))>=0; }).length, dm=!depsV.length||deps.some(function(d){ return depsV.indexOf(String(d).trim())>=0; });
+    return (n>=2||(n>=1&&dm&&depsV.length))?'Forte':(n>=1?'Moyenne':'Faible'); }
+  window.admCrmBoamp=function(){ var co=K.cur(); if(!co) return; var c=C(co.id); lireCfg(c); var mots=liste(c.boamp.mots), deps=liste(c.boamp.deps);
+    if(!mots.length) return T('Indiquez au moins un mot-clé.');
+    var where='('+mots.map(function(m){ return '"'+m.replace(/"/g,'')+'"'; }).join(' OR ')+') AND datelimitereponse >= date\''+iso(t0())+'\'';
+    var url='https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records?order_by=dateparution%20desc&limit=60&where='+encodeURIComponent(where);
+    T('Recherche sur le BOAMP…');
+    return fetch(url).then(function(r){ if(!r.ok) throw new Error('réponse '+r.status); return r.json(); }).then(function(j){ var R=(j&&(j.results||j.records))||[], nb=0;
+      R.forEach(function(x){ x=x.record?(x.record.fields||x.record):x; var id=String(champ(x,'idweb')||champ(x,'id')||''); if(!id) return;
+        var dp=champ(x,'code_departement'); dp=Array.isArray(dp)?dp.map(String):(dp?String(dp).split(/[,;]/).map(function(s){ return s.trim(); }):[]);
+        if(deps.length&&dp.length&&!dp.some(function(d){ return deps.indexOf(d)>=0; })) return;
+        var o={id:id,idweb:id,objet:String(champ(x,'objet')||'(sans objet)'),acheteur:String(champ(x,'nomacheteur')||''),parution:String(champ(x,'dateparution')||'').slice(0,10),limite:String(champ(x,'datelimitereponse')||'').slice(0,10),deps:dp,url:String(champ(x,'url_avis')||('https://www.boamp.fr/pages/avis/?q=idweb:%22'+encodeURIComponent(id)+'%22'))};
+        o.pert=pertinence(o.objet+' '+[].concat(champ(x,'descripteur_libelle')||[]).join(' '),dp,mots,deps);
+        var ex=c.boamp.avis.filter(function(a){ return a.id===id; })[0]; if(ex){ o.statut=ex.statut; o.note=ex.note; Object.assign(ex,o); } else { o.statut='Nouveau'; c.boamp.avis.push(o); nb++; } });
+      c.boamp.maj=Date.now(); sv(); T(nb?nb+' nouvel(s) avis trouvé(s).':'Aucun nouvel avis.'); rr(); return nb; })
+    .catch(function(e){ T('BOAMP injoignable ('+(e&&e.message||'réseau')+') : ajoutez les avis à la main ou réessayez plus tard.'); return -1; }); };
+  window.admCrmBoSt=function(id,v){ var c=C(cid()), a=c.boamp.avis.filter(function(x){ return x.id===id; })[0]; if(!a) return; a.statut=v; sv(); rr(); };
+  window.admCrmBoSuppr=function(id){ var c=C(cid()); c.boamp.avis=c.boamp.avis.filter(function(x){ return x.id!==id; }); sv(); rr(); };
+  window.admCrmBoAjout=function(){ openModal('Ajouter un avis de marché','<label for="adm-ba-o">Objet</label><input id="adm-ba-o"><div class="frow"><div><label for="adm-ba-a">Acheteur</label><input id="adm-ba-a"></div><div><label for="adm-ba-l">Date limite de réponse</label><input id="adm-ba-l" type="date"></div></div><label for="adm-ba-u">Lien de l’avis</label><input id="adm-ba-u" type="url" placeholder="https://www.boamp.fr/…">',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admCrmBoAjoutOk()">Ajouter</button>'); };
+  window.admCrmBoAjoutOk=function(){ var c=C(cid()), o={id:nid('ao'),objet:val('adm-ba-o'),acheteur:val('adm-ba-a'),limite:val('adm-ba-l'),url:val('adm-ba-u'),parution:iso(t0()),statut:'À étudier',pert:'—'};
+    if(!o.objet||!o.limite) return T('Indiquez l’objet et la date limite.'); if(o.url&&!/^https?:\/\//.test(o.url)) return T('Le lien doit commencer par https://');
+    c.boamp.avis.push(o); sv(); closeModal(); rr(); };
+
+  /* ---------- import CSV ---------- */
+  function csv(txt){ txt=String(txt||'').replace(/^﻿/,''); var first=txt.split(/\r?\n/)[0]||'', sep=(first.split(';').length>=first.split(',').length)?';':',', rows=[], row=[], f='', i=0, qo=false;
+    for(;i<txt.length;i++){ var ch=txt[i]; if(qo){ if(ch==='"'){ if(txt[i+1]==='"'){ f+='"'; i++; } else qo=false; } else f+=ch; }
+      else if(ch==='"') qo=true; else if(ch===sep){ row.push(f); f=''; } else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&txt[i+1]==='\n') i++; row.push(f); f=''; if(row.some(function(x){ return x.trim(); })) rows.push(row); row=[]; } else f+=ch; }
+    row.push(f); if(row.some(function(x){ return x.trim(); })) rows.push(row); return rows; }
+  function cols(h,map){ var H=h.map(norm), o={}; Object.keys(map).forEach(function(k){ for(var i=0;i<H.length;i++){ if(map[k].some(function(a){ return H[i]===a||H[i].indexOf(a)===0; })){ o[k]=i; break; } } }); return o; }
+  function dateCsv(s){ s=String(s||'').trim(); var m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); if(m){ var y=+m[3]; if(y<100) y+=2000; return y+'-'+pad(+m[2])+'-'+pad(+m[1]); } m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[0]:''; }
+  function trouveContact(c,raison,siren){ var n=norm(raison); return c.contacts.filter(function(k){ return (siren&&k.siren===siren)||(n&&norm(k.raison||k.contact)===n); })[0]; }
+  window.admCrmFichier=function(inp,kind){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(){ var t=document.getElementById(kind==='contacts'?'adm-imp-c':'adm-imp-p'); if(t) t.value=String(r.result||''); T('Fichier chargé : vérifiez puis importez.'); }; r.readAsText(f,'utf-8'); };
+  window.admCrmImport=function(kind,texte){ var c=C(cid()), t=texte!=null?texte:val(kind==='contacts'?'adm-imp-c':'adm-imp-p'), R=csv(t); if(R.length<2) return T('Le fichier doit contenir une ligne d’en-têtes et au moins une ligne.');
+    var cr=0, mj=0, ig=0;
+    if(kind==='contacts'){ var m=cols(R[0],{raison:['raison sociale','raison','societe','client','entreprise','nom'],siren:['siren','siret'],contact:['contact','interlocuteur'],email:['e mail','email','mail','courriel'],tel:['telephone','tel','portable'],ville:['ville','commune'],type:['type','categorie']});
+      if(m.raison==null&&m.contact==null) return T('Colonne « raison sociale » introuvable.');
+      R.slice(1).forEach(function(l){ function g(k){ return m[k]!=null?String(l[m[k]]||'').trim():''; } var siren=g('siren').replace(/\D/g,'').slice(0,9), o={raison:g('raison'),siren:/^\d{9}$/.test(siren)?siren:'',contact:g('contact'),email:g('email'),tel:g('tel'),ville:g('ville')};
+        var ty=norm(g('type')); o.type=/prosp/.test(ty)?'Prospect':(/fourn/.test(ty)?'Fournisseur':'Client'); if(!o.raison&&!o.contact){ ig++; return; }
+        var ex=trouveContact(c,o.raison||o.contact,o.siren); if(ex){ Object.keys(o).forEach(function(k){ if(o[k]) ex[k]=o[k]; }); mj++; } else { o.id=nid('ct'); o.echanges=[]; c.contacts.push(o); cr++; } }); }
+    else { var p=cols(R[0],{type:['type','nature'],num:['numero','num','n','reference','piece'],client:['client','raison sociale','societe','tiers','nom'],date:['date'],echeance:['echeance','date echeance','validite'],ht:['montant ht','ht','total ht','montant'],tva:['tva','taux'],statut:['statut','etat']});
+      if(p.num==null||p.ht==null) return T('Colonnes « numéro » et « montant HT » introuvables.');
+      R.slice(1).forEach(function(l){ function g(k){ return p[k]!=null?String(l[p[k]]||'').trim():''; } var ty=/devis/.test(norm(g('type'))||'')?'Devis':(/fact/.test(norm(g('type')))?'Facture':(/^d/i.test(g('num'))?'Devis':'Facture'));
+        var nu=g('num'), ht=num(g('ht')), d=dateCsv(g('date')); if(!nu||!ht||!d){ ig++; return; }
+        var raison=g('client')||'(client non précisé)', k=trouveContact(c,raison,''); if(!k){ k={id:nid('ct'),raison:raison,type:'Client',echanges:[]}; c.contacts.push(k); }
+        var st=norm(g('statut')), statut=ty==='Devis'?(/accept|sign/.test(st)?'Accepté':(/refus|perdu/.test(st)?'Refusé':'En cours')):(/pay|regl|encaiss|sold/.test(st)?'Payée':'À encaisser');
+        var tv=g('tva').replace('%',''), o={type:ty,num:nu,contactId:k.id,date:d,echeance:dateCsv(g('echeance')),ht:ht,tva:tv===''?20:num(tv),statut:statut};
+        if(o.statut==='Payée') o.payeLe=o.echeance||o.date;
+        var ex=c.pieces.filter(function(z){ return z.type===ty&&z.num===nu; })[0]; if(ex){ Object.assign(ex,o); mj++; } else { o.id=nid('pc'); o.relances=[]; c.pieces.push(o); cr++; } }); }
+    sv(); T(cr+' créé(s), '+mj+' mis à jour'+(ig?', '+ig+' ligne(s) ignorée(s)':'')+'.'); var el=document.getElementById(kind==='contacts'?'adm-imp-c':'adm-imp-p'); if(el) el.value=''; rr(); return {cr:cr,mj:mj,ig:ig}; };
+
+  var css=document.createElement('style'); css.id='mq-admin-742-css'; css.textContent=[
+    '.crm-k{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:900px){.crm-k{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.crm-ech{max-height:220px;overflow:auto;margin-bottom:8px;gap:6px}.crm-ech div{font-size:12.5px}'
+  ].join('\n'); document.head.appendChild(css);
+  admModule('mcrm',{lbl:'CRM',sub:'Clients, ventes & achats',ic:'users',page:page,bilan:bilan});
+  window.admCrmBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
 })();
 </script>
 </body>
