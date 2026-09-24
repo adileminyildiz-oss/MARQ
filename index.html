@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=748;
+var LAST_VER=749;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -56206,8 +56206,8 @@ function testLienSignature() {
         +'<p class="adm-p0">Les courriers de relance et la mise en demeure sont dans MARQ CRM ; la déclaration de sinistre dans MARQ CONTROL ; le bon de commande dans MARQ WORKFLOW.</p>';
     }
     if(t.cur==='sig'){ var L=d.sig.slice().sort(function(a,b){ return (b.envoye||'')>(a.envoye||'')?1:-1; });
-      x=card('Signatures','circuit Mar’q',tbl(['Document','Signataires','Envoyé le','État',''],L.map(function(g){ var ns=g.signataires.filter(function(s){ return s.statut==='signé'; }).length;
-          return [E(g.titre),g.signataires.map(function(s,i){ return s.statut==='signé'?E(s.nom)+' '+pill('signé le '+fr(s.date),'g'):E(s.nom)+(g.statut==='en cours'?' '+btn('Marquer signé','admDocSigne('+q(g.id)+','+i+')',1):''); }).join('<br>'),fr(g.envoye)+((g.relances||[]).length?'<br><small>'+g.relances.length+' relance(s)</small>':''),g.statut==='signé'?pill('Signé','g'):(g.statut==='annulé'?pill('Annulé','n'):pill(ns+' sur '+g.signataires.length,'o')),g.statut==='en cours'?btn('Relancer','admDocRelance('+q(g.id)+')',1)+btn('Annuler','admDocSigAnnuler('+q(g.id)+')',1):'']; }),'Aucun document en signature. Générez un modèle puis « Envoyer en signature ».'));
+      x=card('Signatures',(window.admDocYsSub?window.admDocYsSub():'circuit Mar’q'),tbl(['Document','Signataires','Envoyé le','État',''],L.map(function(g){ var ns=g.signataires.filter(function(s){ return s.statut==='signé'; }).length;
+          return [E(g.titre),g.signataires.map(function(s,i){ return s.statut==='signé'?E(s.nom)+' '+pill('signé le '+fr(s.date),'g'):E(s.nom)+(s.ys?' <small>'+E(s.ys.statut==='refusé'?'Yousign : refusé':'Yousign : lien envoyé')+'</small>':'')+(g.statut==='en cours'?' '+btn('Marquer signé','admDocSigne('+q(g.id)+','+i+')',1):''); }).join('<br>'),fr(g.envoye)+((g.relances||[]).length?'<br><small>'+g.relances.length+' relance(s)</small>':''),g.statut==='signé'?pill('Signé','g'):(g.statut==='annulé'?pill('Annulé','n'):pill(ns+' sur '+g.signataires.length,'o')),g.statut==='en cours'?(window.admDocYsBtn?window.admDocYsBtn(g):'')+btn('Relancer','admDocRelance('+q(g.id)+')',1)+btn('Annuler','admDocSigAnnuler('+q(g.id)+')',1):'']; }),'Aucun document en signature. Générez un modèle puis « Envoyer en signature ».'));
     }
     if(t.cur==='cof'){ var qn=String(window.__admDocQ||'').toLowerCase(), cat=window.__admDocCat, Ds=d.docs.filter(function(x_){ return (!cat||x_.cat===cat)&&(!qn||(x_.titre+' '+(x_.texte||'')).toLowerCase().indexOf(qn)>=0); }).sort(function(a,b){ return (b.date||'')>(a.date||'')?1:-1; });
       var parCat=CATS.map(function(c_){ return [c_,d.docs.filter(function(x_){ return x_.cat===c_; }).length]; });
@@ -56965,6 +56965,69 @@ function testLienSignature() {
     '.ptd-st{flex:none;font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.2);white-space:nowrap}.ptd-st.ok{border-color:#3f8f5a;color:#8fd6a6}.ptd-st.ko{border-color:#8f4a3f;color:#ffb3a6}.ptd-st.warn{border-color:#8f7a3f;color:#f2d38a}',
     '@media(max-width:420px){.ptd-l li{flex-direction:column;gap:6px}.ptd-st{align-self:flex-start;white-space:normal}}'
   ].join('\n'); document.head.appendChild(css);
+})();
+</script>
+<script id="mq-admin-749">
+/* v749 — MARQ DOC : signature électronique par Yousign quand il est configuré.
+   Décision de départ : « Signature : circuit actuel par défaut + prestataire
+   (Yousign/Docusign) si configuré ». Mar'q sait déjà envoyer une demande de
+   signature qualifiée à Yousign par le proxy de la boîte (Paramètres ›
+   Intégrations) ; MARQ DOC s'en sert désormais : pour chaque signataire qui
+   n'a pas signé, e-mail et téléphone (authentification par SMS, pré-remplis
+   depuis la fiche société, MARQ RH ou MARQ CRM) puis envoi ; « Vérifier »
+   interroge Yousign et marque signé ce qui l'est (document versé signé au
+   coffre quand tous ont signé) ; vérification automatique à l'ouverture de
+   l'onglet Signatures ; refus ou expiration signalés. Sans Yousign, le
+   circuit Mar'q reste le seul proposé. 100 % additif. */
+(function(){
+  if(window.__admin749||!window.__admKit) return; window.__admin749=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, iso=K.iso, t0=K.today0, T=K.T, sv=K.sv, rr=K.rr, btn=K.btn, val=K.val;
+  function actif(){ try{ return typeof ysActif==='function'&&!!ysActif(); }catch(e){ return false; } }
+  function cfg(){ try{ return demSyncCfg()||{}; }catch(e){ return {}; } }
+  function D(id){ var r=K.R(id), d=r.doc=r.doc||{}; d.docs=d.docs||[]; d.sig=d.sig||[]; return d; }
+  function sigDe(co,id){ return D(co.id).sig.filter(function(g){ return g.id===id; })[0]; }
+  function nomPropre(n){ return String(n||'').replace(/\s*\([^)]*\)\s*$/,'').trim(); }
+  function telOk(t){ return String(t||'').replace(/\D/g,'').length>=9; }
+  function mailOk(m){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(m||'').trim()); }
+  function devine(co,g,s){ var n=nomPropre(s.nom).toLowerCase(), r=K.R(co.id), o={email:s.email||'',tel:s.tel||''};
+    if(co.president&&n===String(co.president).trim().toLowerCase()){ o.email=o.email||co.email||''; o.tel=o.tel||co.telephone||co.tel||''; }
+    ((r.rh||{}).salaries||[]).forEach(function(z){ if(((z.prenom||'')+' '+(z.nom||'')).trim().toLowerCase()===n){ o.email=o.email||z.email||''; o.tel=o.tel||z.tel||z.telephone||''; } });
+    ((r.crm||{}).contacts||[]).forEach(function(k){ if(String(k.contact||k.raison||'').trim().toLowerCase()===n){ o.email=o.email||k.email||''; o.tel=o.tel||k.tel||k.telephone||''; } });
+    return o; }
+  window.admDocYsSub=function(){ return actif()?'circuit Mar’q ou signature électronique Yousign':'circuit Mar’q · Yousign non configuré (Paramètres › Intégrations)'; };
+  window.admDocYsBtn=function(g){ if(!actif()) return ''; var att=g.signataires.filter(function(s){ return s.statut!=='signé'; }), env=att.filter(function(s){ return s.ys&&s.ys.srId&&s.ys.statut!=='refusé'; });
+    return (env.length<att.length?btn('Yousign','admDocYs('+q(g.id)+')',1):'')+(env.length?btn('Vérifier','admDocYsVerif('+q(g.id)+')',1):''); };
+  window.admDocYs=function(id){ var co=K.cur(); if(!co) return; var g=sigDe(co,id); if(!g) return; if(!actif()) return T('Yousign n’est pas configuré (Paramètres › Intégrations).');
+    var doc=D(co.id).docs.filter(function(x){ return x.id===g.docId; })[0]; if(!doc||!doc.texte) return T('Seuls les documents rédigés dans Mar’q peuvent partir chez Yousign.');
+    var L=g.signataires.map(function(s,i){ return {s:s,i:i}; }).filter(function(x){ return x.s.statut!=='signé'&&!(x.s.ys&&x.s.ys.srId&&x.s.ys.statut!=='refusé'); });
+    if(!L.length) return T('Tous les signataires ont déjà reçu leur lien.');
+    openModal('Signature électronique — Yousign','<p class="adm-p0">'+E(g.titre)+'. Chaque signataire reçoit un lien Yousign par e-mail et un code par SMS.</p>'+L.map(function(x){ var o=devine(co,g,x.s);
+        return '<div class="ys-s"><b>'+E(x.s.nom)+'</b><div class="frow"><div><label for="ys-m-'+x.i+'">E-mail</label><input id="ys-m-'+x.i+'" type="email" value="'+E(o.email)+'"></div><div><label for="ys-t-'+x.i+'">Téléphone portable</label><input id="ys-t-'+x.i+'" type="tel" value="'+E(o.tel)+'" placeholder="06 12 34 56 78"></div></div></div>'; }).join(''),
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admDocYsEnvoyer('+q(id)+')">Envoyer chez Yousign</button>'); };
+  function htmlDoc(co,doc){ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>'+E(doc.titre)+'</title></head><body style="font-family:Georgia,serif;font-size:12pt;line-height:1.5;margin:2cm;white-space:pre-wrap">'+E(doc.texte)+'</body></html>'; }
+  window.admDocYsEnvoyer=function(id){ var co=K.cur(); if(!co) return Promise.resolve(0); var g=sigDe(co,id); if(!g) return Promise.resolve(0); var c=cfg();
+    var doc=D(co.id).docs.filter(function(x){ return x.id===g.docId; })[0]; var L=[], err='';
+    g.signataires.forEach(function(s,i){ var m=document.getElementById('ys-m-'+i), t=document.getElementById('ys-t-'+i); if(!m||!t) return; var em=m.value.trim(), te=t.value.trim();
+      if(!mailOk(em)) err=err||'E-mail invalide pour '+s.nom+'.'; else if(!telOk(te)) err=err||'Téléphone portable requis pour '+s.nom+' (code SMS).'; L.push({s:s,em:em,te:te}); });
+    if(err){ T(err); return Promise.resolve(0); }
+    if(!L.length||!doc){ closeModal(); return Promise.resolve(0); }
+    T('Envoi chez Yousign…'); var ok=0, ko=0;
+    return Promise.all(L.map(function(x){ var n=nomPropre(x.s.nom).split(/\s+/), prenom=n.shift()||'', nom=n.join(' ')||prenom;
+      var body={action:'yousign',key:c.key||'',filename:String(doc.titre||'document').replace(/[^\w\-]+/g,'_').slice(0,80)+'.pdf',html:htmlDoc(co,doc),signerPrenom:prenom,signerNom:nom,signerEmail:x.em,signerTel:x.te};
+      return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),cache:'no-store'}).then(function(r){ return r.text(); }).then(function(t){ var j=null; try{ j=JSON.parse(t); }catch(e){}
+        if(j&&(j.signatureRequestId||j.signerUrl)){ x.s.email=x.em; x.s.tel=x.te; x.s.ys={srId:j.signatureRequestId||'',signerUrl:j.signerUrl||'',envoye:iso(t0()),statut:'envoyé'}; ok++; } else ko++; }).catch(function(){ ko++; }); }))
+      .then(function(){ if(ok) g.canal='Yousign'; sv(); closeModal(); T(ok?ok+' lien(s) de signature envoyé(s) par Yousign'+(ko?' ; '+ko+' échec(s) : vérifiez le proxy.':'.'):'Envoi impossible : vérifiez la configuration Yousign.'); rr(); return ok; }); };
+  window.admDocYsVerif=function(id,silencieux){ var co=K.cur(); if(!co) return Promise.resolve(0); var g=sigDe(co,id); if(!g||g.statut!=='en cours') return Promise.resolve(0); var c=cfg(); if(!c.url) return Promise.resolve(0);
+    var L=g.signataires.map(function(s,i){ return {s:s,i:i}; }).filter(function(x){ return x.s.statut!=='signé'&&x.s.ys&&x.s.ys.srId&&x.s.ys.statut!=='refusé'; }); var n=0, bad=0;
+    return Promise.all(L.map(function(x){ var u=c.url+(c.url.indexOf('?')>=0?'&':'?')+'action=yousign_status&key='+encodeURIComponent(c.key||'')+'&id='+encodeURIComponent(x.s.ys.srId);
+      return fetch(u,{cache:'no-store'}).then(function(r){ return r.text(); }).then(function(t){ var j=null; try{ j=JSON.parse(t); }catch(e){} var st=String(j&&j.status||'');
+        if(st==='done'||st==='completed'){ x.done=1; n++; } else if(/declin|refus|expir|cancel/.test(st)){ x.s.ys.statut='refusé'; bad++; } }).catch(function(){}); }))
+      .then(function(){ L.forEach(function(x){ if(x.done) window.admDocSigne(g.id,x.i); }); if(bad) sv(); if(!silencieux||n||bad) T((n?n+' signature(s) confirmée(s) par Yousign.':'Aucune nouvelle signature.')+(bad?' '+bad+' refus ou expiration : relancez ou renvoyez.':'')); if(n||bad) rr(); return n; }); };
+  var _render=window.render;
+  if(typeof _render==='function') window.render=function(){ var r=_render.apply(this,arguments); try{ var p=(typeof state!=='undefined'&&state&&state.page)||''; var co=p==='mdoc'?K.cur():null;
+      if(co&&actif()&&(window.__admTab||{}).mdoc==='sig'&&Date.now()-(window.__admDocYsTs||0)>300000){ window.__admDocYsTs=Date.now(); D(co.id).sig.filter(function(g){ return g.statut==='en cours'&&g.signataires.some(function(s){ return s.ys&&s.ys.srId; }); }).forEach(function(g){ setTimeout(function(){ admDocYsVerif(g.id,true); },50); }); } }catch(e){} return r; };
+  var css=document.createElement('style'); css.id='mq-admin-749-css'; css.textContent='.ys-s{border-top:1px solid var(--line-soft);padding:8px 0}.ys-s:first-of-type{border-top:0}.ys-s b{font-size:13px}';
+  document.head.appendChild(css);
 })();
 </script>
 </body>
