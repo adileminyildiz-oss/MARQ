@@ -79,7 +79,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 11. modules non livrés : signalés, non cliquables ; Legal cliquable
   r=await ev(()=>{ const off=[...document.querySelectorAll('.adm-tile.off')].length; const on=[...document.querySelectorAll('button.adm-tile')].map(b=>b.textContent); return {off,on}; });
-  A(r.off+r.on.length===11&&r.on.some(x=>/MARQ LEGAL/.test(x))&&r.off===0,'tuiles : les onze modules livrés sont ouverts, aucun « En préparation »',JSON.stringify(r));
+  A(r.off+r.on.length===12&&r.on.some(x=>/MARQ LEGAL/.test(x))&&r.on.some(x=>/MARQ FICHE/.test(x))&&r.off===0,'tuiles : les onze modules et la fiche technique ouverts, aucun « En préparation »',JSON.stringify(r));
 
   // 11b. onglet actif lisible
   r=await ev(()=>{ go('mlegal'); admTab('mlegal','ag'); const t=document.querySelector('.adm-tab.on'); const c=getComputedStyle(t); return {bg:c.backgroundColor,fill:c.webkitTextFillColor,col:c.color}; });
