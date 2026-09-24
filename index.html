@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=750;
+var LAST_VER=751;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -45382,7 +45382,7 @@ function testLienSignature() {
   try{ var _s=window.save;
     if(typeof _s==='function'&&!_s.__rg){
       window.save=function(){ var r=_s.apply(this,arguments);
-        if(!dedans){ clearTimeout(t); t=setTimeout(function(){
+        if(!dedans&&!t){ t=setTimeout(function(){ t=null;
           try{ var n=window.journauxRogner(); if(n){ dedans=true; try{ _s.call(window); } finally { dedans=false; } } }catch(e){} },1000); }
         return r; };
       window.save.__rg=1; } }catch(e){}
@@ -55008,13 +55008,16 @@ function testLienSignature() {
   function nom(c){ return (c&&(c.denomination||((c.prenom?c.prenom+' ':'')+(c.nom||''))))||'(sans nom)'; }
   function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
   function curId(){ var id=P().adminEnt; return id&&ents().some(function(c){ return c.id===id; })?id:null; }
+  /* v751 : début du suivi — rien d'antérieur n'est signalé en retard */
+  function suivi(id){ var r=DB.admin&&DB.admin[id]; return r&&r.suiviDepuis?dOf(r.suiviDepuis):null; }
+  function avantSuivi(id,d){ var s=suivi(id); return !!(s&&d&&d<s); }
   function cur(){ var id=curId(); return id?(DB.clients||[]).filter(function(c){ return c.id===id; })[0]:null; }
   function R(id){ DB.admin=DB.admin||{}; var r=DB.admin[id]=DB.admin[id]||{}; var L=r.legal=r.legal||{};
     L.decisions=L.decisions||[]; L.titres=L.titres||[]; L.be=L.be||[]; L.actes=L.actes||[]; L.ag=L.ag||{}; L.registres=L.registres||{}; L.kbis=L.kbis||{};
     r.reporting=r.reporting||{}; r.reporting.mois=r.reporting.mois||{}; r.workflow=r.workflow||{}; r.workflow.queue=r.workflow.queue||[]; return r; }
   window.admEntChoisir=function(id){ if(id&&!ents().some(function(c){ return c.id===id; })) return T('Inscrivez d’abord ce dossier à l’Administration.'); P().adminEnt=id||null; sv(); rr(); };
   window.admEntChanger=function(){ P().adminEnt=null; sv(); rr(); };
-  window.admInscrire=function(id,ouvrir){ var I=inscrits(); if(!toutes().some(function(c){ return c.id===id; })) return; if(I.indexOf(id)<0) I.push(id); R(id); if(ouvrir) P().adminEnt=id; sv(); T('Dossier inscrit à l’Administration.'); rr(); };
+  window.admInscrire=function(id,ouvrir){ var I=inscrits(); if(!toutes().some(function(c){ return c.id===id; })) return; if(I.indexOf(id)<0) I.push(id); var r0=R(id); if(!r0.suiviDepuis) r0.suiviDepuis=iso(today0()); if(ouvrir) P().adminEnt=id; sv(); T('Dossier inscrit à l’Administration.'); rr(); };
   window.admRetirer=function(id){ var c=toutes().filter(function(x){ return x.id===id; })[0]; if(!c) return;
     var go_=function(){ P().adminInscrits=inscrits().filter(function(x){ return x!==id; }); if(P().adminEnt===id) P().adminEnt=null; sv(); T('Dossier retiré de l’Administration (ses données sont conservées).'); rr(); };
     if(typeof uiConfirm==='function') uiConfirm('Retirer '+nom(c)+' de l’Administration ? Ses registres et suivis sont conservés et reviennent s’il est de nouveau inscrit.',go_); else go_(); };
@@ -55027,6 +55030,11 @@ function testLienSignature() {
     var id=(typeof uid==='function')?uid('c'):'c'+Date.now(); DB.clients=DB.clients||[]; DB.clients.unshift({id:id,clientType:'entreprise',denomination:n,forme:val('adm-ds-f')||'SAS',associes:[],docVars:{},createdAt:(typeof today==='function'?today():'')});
     d.clientIds=d.clientIds||[]; if(d.clientIds.indexOf(id)<0) d.clientIds.push(id); var I=inscrits(); if(I.indexOf(id)<0) I.push(id); R(id); P().adminEnt=id; sv(); closeModal(); T('Fiche société créée et inscrite.'); rr(); };
   window.admEntFiche=function(){ var c=cur(); if(!c) return; try{ state.cliSel=c.id; }catch(e){} try{ go('clients'); }catch(e){} };
+  window.admSuivi=function(){ var c=cur(); if(!c) return; var s=suivi(c.id);
+    openModal('Début du suivi — '+E(nom(c)),'<p class="adm-p0">Les échéances antérieures à cette date (TVA, acomptes, DSN, chiffres du mois) ne sont pas signalées en retard : elles relèvent de la période précédant la prise en charge du dossier. Laissez vide pour suivre tout l’historique.</p><div class="frow"><div><label for="adm-sd">Suivi depuis le</label><input id="adm-sd" type="date" value="'+(s?iso(s):'')+'"></div><div></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admSuiviOk()">Enregistrer</button>'); };
+  window.admSuiviOk=function(){ var c=cur(); if(!c) return; var v=val('adm-sd'), d=v?dOf(v):null; if(v&&!d) return T('Date invalide.'); if(d&&d>today0()) return T('La date de début du suivi ne peut pas être dans le futur.');
+    var r=R(c.id); if(d) r.suiviDepuis=iso(d); else delete r.suiviDepuis; sv(); closeModal(); T(d?'Suivi depuis le '+fr(d)+'.':'Tout l’historique est suivi.'); rr(); };
   window.admEntCreer=function(){ try{ go('clients'); }catch(e){} try{ cliNew('entreprise'); }catch(e){} };
 
   /* ---------------- exercice & assemblée ---------------- */
@@ -55114,21 +55122,28 @@ function testLienSignature() {
   function bilanCalcul(c){ var lb=legalBilan(c), al=lb.alertes.slice(), dom=[['Juridique',lb.score]];
     Object.keys(EXT).forEach(function(id){ try{ var b=EXT[id].bilan&&EXT[id].bilan(c); if(!b) return; (b.alertes||[]).forEach(function(a){ a.mod=a.mod||id; al.push(a); }); (b.domaines||[]).forEach(function(d){ dom.push(d); }); }catch(e){} });
     return {alertes:al.sort(function(a,b){ var o={r:0,o:1,g:2}; return (a.date-b.date)||(o[a.niv]-o[b.niv]); }),dom:dom}; }
+  /* v751 : retards répétés d'une même obligation regroupés en une ligne */
+  function grouper(al){ var out=[], G={};
+    al.forEach(function(a){ if(a.grp&&a.niv==='r'&&a.date&&jours(a.date)<0){ var k=(a.mod||'')+'|'+a.grp; if(G[k]){ G[k].items.push(a); return; } G[k]={items:[a]}; out.push(G[k]); } else out.push(a); });
+    return out.map(function(x){ if(!x.items) return x; var L=x.items, f=L[0], l=L[L.length-1]; if(L.length===1) return f;
+      return {niv:'r',mod:f.mod,date:f.date,titre:L.length+' '+f.grp+' en retard',detail:'de « '+f.titre+' » à « '+l.titre+' »'}; }); }
+  window.admAlertesGroupees=function(id){ var c=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return c?grouper(bilanGlobal(c).alertes):[]; };
   var DOMS=['Juridique','Fiscal','Social','Assurances','KYC / LCB-FT','Qualité','Archivage'];
   function pageEntreprise(){ var c=cur(); if(!c) return vide(); var r=R(c.id), b=bilanGlobal(c);
     var cp=((c.cp||'')+' '+(c.ville||'')).trim(), siege=[c.siege,cp].filter(Boolean).join(', ');
     var sal=(c.salaries||[]).length;
     var champs=[['Dirigeant',c.president||''],['Siège',siege],['Activité',(c.activites||[]).join(', ')],['Capital',c.capital?money(num(c.capital)):''],['Effectif',sal?sal+' salarié'+(sal>1?'s':''):''],['Régime',c.regime||''],['Clôture',(function(){ var k=cloture(c); return pad(k.j)+'/'+pad(k.m); })()]];
     var id='<div class="adm-id"><div class="adm-id-h"><div><div class="adm-nom">'+E(nom(c))+'</div><div class="adm-sub">'+E(String(c.forme||'').toUpperCase()||'—')+(c.siren?' · SIREN '+E(String(c.siren).replace(/(\d{3})(?=\d)/g,'$1 ')):' · SIREN non renseigné')+'</div></div></div>'
-      +'<div class="adm-id-g">'+champs.map(function(k){ return '<div><span>'+k[0]+'</span>'+(k[1]?'<b>'+E(k[1])+'</b>':'<button type="button" class="adm-lk" onclick="admEntFiche()">à compléter</button>')+'</div>'; }).join('')+'</div></div>';
-    var al=b.alertes;
+      +'<div class="adm-id-g">'+champs.map(function(k){ return '<div><span>'+k[0]+'</span>'+(k[1]?'<b>'+E(k[1])+'</b>':'<button type="button" class="adm-lk" onclick="admEntFiche()">à compléter</button>')+'</div>'; }).join('')
+      +(function(){ var s=suivi(c.id); return '<div><span>Suivi depuis</span><button type="button" class="adm-lk" onclick="admSuivi()">'+(s?fr(s):'tout l’historique')+'</button></div>'; })()+'</div></div>';
+    var al=grouper(b.alertes);
     var ech=card('Échéances & alertes',String(al.length),al.length?'<div class="adm-list" data-no-kebab>'+al.map(function(x){ return '<button type="button" class="adm-row" onclick="admGo('+q(x.mod)+')"><span class="adm-dot adm-d-'+x.niv+'"></span><span class="adm-dd">'+frc(x.date)+'</span><span class="adm-tx"><b>'+E(x.titre)+'</b><i>'+E(x.detail)+'</i></span></button>'; }).join('')+'</div>':'<div class="adm-vide">Aucune échéance ni alerte.</div>');
     var M=(typeof window.admRepMois==='function'&&window.admRepMois(c.id))||r.reporting.mois, an=String(today0().getFullYear()), ks=Object.keys(M).filter(function(k){ return k.slice(0,4)===an; }).sort();
     var kpi;
     if(!ks.length) kpi='<div class="adm-vide">Aucun chiffre saisi pour '+an+'.</div>'+btn('Saisir les chiffres du mois','admChiffres()');
     else { var sum=function(f){ return ks.reduce(function(s,k){ return s+num(M[k][f]); },0); }; var ca=sum('ca'), chg=sum('ch'), last=M[ks[ks.length-1]];
       var serie=function(f){ return ks.map(function(k){ return num(M[k][f]); }); };
-      var K=[['Chiffre d’affaires '+an,money(ca),ks.length+' mois saisi'+(ks.length>1?'s':''),serie('ca')],['Marge',ca?(Math.round((ca-chg)*1000/ca)/10).toString().replace('.',',')+' %':'—','CA − charges : '+money(ca-chg),ks.map(function(k){ var a=num(M[k].ca); return a?(a-num(M[k].ch))/a:0; })],['Masse salariale',money(sum('ms')),'cumul '+an,serie('ms')],['Encours clients',money(num(last.enc)),'à fin '+ks[ks.length-1].slice(5)+'/'+an,serie('enc')]];
+      var K=[['Chiffre d’affaires '+an,money(ca),ks.length+' mois saisi'+(ks.length>1?'s':''),serie('ca')],['Marge',ca&&chg?(Math.round((ca-chg)*1000/ca)/10).toString().replace('.',',')+' %':'—',chg?'CA − charges : '+money(ca-chg):'charges non saisies',ks.map(function(k){ var a=num(M[k].ca); return a?(a-num(M[k].ch))/a:0; })],['Masse salariale',money(sum('ms')),'cumul '+an,serie('ms')],['Encours clients',money(num(last.enc)),'à fin '+ks[ks.length-1].slice(5)+'/'+an,serie('enc')]];
       kpi='<div class="adm-kpis">'+K.map(function(k){ return '<div class="adm-k"><span>'+k[0]+'</span><b>'+k[1]+'</b><i>'+E(k[2])+'</i>'+spark(k[3])+'</div>'; }).join('')+'</div>'; }
     var kc=card('Chiffres clés','saisie mensuelle',kpi,ks.length?btn('Saisir un mois','admChiffres()',1):'');
     var Q=r.workflow.queue.filter(function(x){ return x.statut==='attente'||x.statut==='dirigeant'; });
@@ -55261,7 +55276,7 @@ function testLienSignature() {
     navGroupe(); };
   window.admBilanGlobal=function(id){ var c=toutes().filter(function(x){ return x.id===id; })[0]; return c?bilanGlobal(c):null; };
   window.__admKit={E:E,q:q,pad:pad,iso:iso,today0:today0,dOf:dOf,fr:fr,frc:frc,jours:jours,addM:addM,num:num,money:money,nid:nid,sv:sv,rr:rr,T:T,val:val,ic:ic,ICO:ICO,
-    pill:pill,tbl:tbl,card:card,btn:btn,tabs:tabs,sel:sel,selecteur:selecteur,vide:vide,R:R,cur:cur,curId:curId,nom:nom,legalBilan:legalBilan,
+    pill:pill,tbl:tbl,card:card,btn:btn,tabs:tabs,sel:sel,selecteur:selecteur,vide:vide,R:R,cur:cur,curId:curId,nom:nom,suivi:suivi,avantSuivi:avantSuivi,legalBilan:legalBilan,
     tete:function(m,sousTitre){ var c=cur(), d=MODS.filter(function(x){ return x[0]===m; })[0]||['','','','','dash']; return '<div class="adm-top" data-no-kebab>'+selecteur(c)+'<span class="adm-sp"></span>'+btn('Page Entreprise','admGo('+q('entreprise')+')',1)+'</div><div class="adm-head"><span class="adm-hi">'+ic(d[4])+'</span><div><b>'+d[1]+'</b><span>'+d[2]+' · '+E(nom(c))+(sousTitre?' · '+sousTitre:'')+'</span></div></div>'; }};
   /* Les pages de l'administration passent par la chaîne de rendu normale (traitements communs
      d'après rendu : cartes repliables, menus « ⋮ », animation) : le rendu de base affiche, pour une
@@ -55531,7 +55546,8 @@ function testLienSignature() {
   function caAnnee(c,f,y){ if(f.caManuel&&f.caManuel[y]) return num(f.caManuel[y]); var M=(K.R(c.id).reporting||{}).mois||{}, s=0; Object.keys(M).forEach(function(k){ if(k.slice(0,4)===String(y)) s+=num(M[k].ca); }); var t=0; Object.keys(f.mois).forEach(function(k){ if(k.slice(0,4)===String(y)){ var v=f.mois[k]; t+=num(v.b20)+num(v.b10)+num(v.b55); } }); return Math.max(s,t); }
 
   function bilan(c){ var f=F(c.id), L=obligations(c,f), t=t0(), al=[], echues=0, faites=0;
-    L.forEach(function(o){ var dj=jours(o.date); if(dj<0){ echues++; if(o.fait) faites++; else al.push({niv:'r',date:o.date,titre:o.lbl,detail:'en retard depuis '+(-dj)+' j · '+o.detail}); } else if(!o.fait&&dj<=15) al.push({niv:dj<=3?'r':'o',date:o.date,titre:o.lbl,detail:(dj===0?'aujourd’hui':'avant le '+K.fr(o.date))+' · '+o.detail}); });
+    var GRP={tva:'déclarations de TVA',isa:'acomptes d’IS',rsj:'acomptes de TVA',rsd:'acomptes de TVA'};
+    L.forEach(function(o){ if(!o.fait&&K.avantSuivi&&K.avantSuivi(c.id,o.date)) return; var dj=jours(o.date); if(dj<0){ echues++; if(o.fait) faites++; else al.push({niv:'r',date:o.date,titre:o.lbl,detail:'en retard depuis '+(-dj)+' j · '+o.detail,grp:GRP[o.id.split('-')[0]]}); } else if(!o.fait&&dj<=15) al.push({niv:dj<=3?'r':'o',date:o.date,titre:o.lbl,detail:(dj===0?'aujourd’hui':'avant le '+K.fr(o.date))+' · '+o.detail}); });
     return {alertes:al,domaines:[['Fiscal',echues?Math.round(faites*100/echues):100]],L:L}; }
   window.admFiscalBilan=function(id){ var c=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return c?bilan(c):null; };
 
@@ -55553,7 +55569,7 @@ function testLienSignature() {
             +'<div class="adm-row">'+(dep?btn('Annuler le dépôt','admFisFait('+q('tva-'+k)+')',1):btn('Marquer la CA3 déposée','admFisFait('+q('tva-'+k)+')'))+'<a class="btn btn-sm btn-ghost" href="https://www.impots.gouv.fr/professionnel" target="_blank" rel="noopener">Espace professionnel</a></div>')+'</div>'; }
     }
     if(t.cur==='cal'){
-      h=card('Obligations des 12 derniers et 12 prochains mois','',tbl(['Échéance','Obligation','Détail','État',''],b.L.map(function(o){ var dj=jours(o.date), st=o.fait?pill('Fait le '+fr(o.fait),'g'):(dj<0?pill('En retard','r'):(dj<=15?pill('Dans '+dj+' j','o'):pill('À venir','n')));
+      h=card('Obligations des 12 derniers et 12 prochains mois','',tbl(['Échéance','Obligation','Détail','État',''],b.L.map(function(o){ var dj=jours(o.date), st=o.fait?pill('Fait le '+fr(o.fait),'g'):K.avantSuivi&&K.avantSuivi(c.id,o.date)?pill('Avant le suivi','n'):(dj<0?pill('En retard','r'):(dj<=15?pill('Dans '+dj+' j','o'):pill('À venir','n')));
         return [fr(o.date),E(o.lbl),E(o.detail),st,btn(o.fait?'Annuler':'Fait','admFisFait('+q(o.id)+')',1)]; }),'Aucune obligation.'));
     }
     if(t.cur==='is'){
@@ -56028,8 +56044,8 @@ function testLienSignature() {
   function bilan(co){ var P=PY(co.id), al=[]; if(P.conf.externe) return {alertes:[]};
     var d=t0(); d.setDate(1);
     for(var i=1;i<=3;i++){ var x=new Date(d); x.setMonth(x.getMonth()-i); var m=mk(x); if(!actifs(co.id,m).length) continue; var o=P.mois[m]||{}, ech=echeance(P,m), j=jours(ech);
-      if((o.dsn||{}).deposee) continue;
-      if(j<0) al.push({niv:'r',date:ech,titre:'DSN de '+lib(m)+' non déposée',detail:'échéance dépassée depuis '+(-j)+' j'});
+      if((o.dsn||{}).deposee) continue; if(K.avantSuivi&&K.avantSuivi(co.id,ech)) continue;
+      if(j<0) al.push({niv:'r',date:ech,titre:'DSN de '+lib(m)+' non déposée',detail:'échéance dépassée depuis '+(-j)+' j',grp:'DSN non déposées'});
       else if(j<=10) al.push({niv:j<=3?'r':'o',date:ech,titre:'DSN de '+lib(m)+' à déposer',detail:'avant le '+fr(ech)+(o.valide?'':' · bulletins à valider')}); }
     RHs(co.id).salaries.filter(function(s){ return s.actif!==false&&!/Intérim|Stage/.test(s.contrat||''); }).forEach(function(s){ var pi=PI(s);
       if(!(num(pi.taux)>0)||!nirOk(pi.nir)) al.push({niv:'o',date:t0(),titre:'Paie — fiche à compléter : '+nomSal(s),detail:[!(num(pi.taux)>0)?'taux horaire':'',!nirOk(pi.nir)?'NIR':''].filter(Boolean).join(' et ')+' manquant'}); });
@@ -56340,7 +56356,7 @@ function testLienSignature() {
   /* ---------- bilan ---------- */
   function bilan(co){ var al=[], R_=RP(co.id), t=t0();
     if(R_.fec&&Math.abs(R_.fec.debit-R_.fec.credit)>0.01) al.push({niv:'r',date:t,titre:'FEC déséquilibré',detail:'débit '+money(R_.fec.debit)+' ≠ crédit '+money(R_.fec.credit)+' : fichier à vérifier'});
-    if(t.getDate()>=10){ var p=new Date(t.getFullYear(),t.getMonth()-1,1), m=mk(p.getFullYear(),p.getMonth()+1); if(!mois(co,m)) al.push({niv:'o',date:new Date(t.getFullYear(),t.getMonth(),10),titre:'Chiffres de '+libM(m)+' à saisir',detail:'ni FEC, ni saisie, ni données Mar’q pour ce mois'}); }
+    if(t.getDate()>=10){ var p=new Date(t.getFullYear(),t.getMonth()-1,1), m=mk(p.getFullYear(),p.getMonth()+1); var d10=new Date(t.getFullYear(),t.getMonth(),10); if(!mois(co,m)&&!(K.avantSuivi&&K.avantSuivi(co.id,d10))) al.push({niv:'o',date:d10,titre:'Chiffres de '+libM(m)+' à saisir',detail:'ni FEC, ni saisie, ni données Mar’q pour ce mois'}); }
     var A=annee(co,t.getFullYear()).filter(function(x){ return x.v; }); if(A.length>=3){ var ca=A.reduce(function(s,x){ return s+x.v.ca; },0), ch=A.reduce(function(s,x){ return s+x.v.ch; },0); if(ca-ch<0) al.push({niv:'o',date:t,titre:'Résultat cumulé négatif',detail:money(ca-ch)+' sur '+A.length+' mois'}); }
     return {alertes:al}; }
 
@@ -56363,7 +56379,7 @@ function testLienSignature() {
       function k(l,v,s){ return '<div class="adm-k"><span>'+l+'</span><b>'+v+'</b>'+(s?'<i>'+s+'</i>':'')+'</div>'; }
       x=card('Tableau de bord '+y,D_.length+' mois renseigné'+(D_.length>1?'s':''),'<div class="adm-top" data-no-kebab>'+selA+'</div>'
         +'<div class="adm-kpis rep-k">'+k('Chiffre d’affaires',money(ca),Bn.length&&caN1?(ca>=caN1?'+':'')+String(Math.round((ca-caN1)*1000/caN1)/10).replace('.',',')+' % sur la même période de '+(y-1):'cumul de l’année')
-          +k('Résultat estimé',money(ca-ch),ca?'marge '+String(Math.round((ca-ch)*1000/ca)/10).replace('.',',')+' %':'')
+          +k('Résultat estimé',money(ca-ch),ca&&!ch?'charges non saisies':ca?'marge '+String(Math.round((ca-ch)*1000/ca)/10).replace('.',',')+' %':'')
           +k('Masse salariale',money(ms),ca?String(Math.round(ms*1000/ca)/10).replace('.',',')+' % du chiffre d’affaires':'')
           +k('Trésorerie',tr?money(tr.v.treso):'—',tr?'fin '+libM(tr.m)+' (FEC)':'disponible avec le FEC')
           +k('Encours clients',der?money(der.v.enc):'—',dso!=null?'délai moyen d’encaissement : '+dso+' j':'')+'</div>'+graph(A),btn('Saisir un mois','admChiffres()',1));
