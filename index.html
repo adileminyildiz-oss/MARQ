@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=749;
+var LAST_VER=750;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -9761,7 +9761,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     /* Boutons de reformulation (Corriger / Raccourcir / Plus pro) retirés — inutiles.
        On ne garde que la dictée si disponible. */
     if(!SR) return '';
-    return '<div class="iatb" data-for="'+id+'"><button type="button" class="btn btn-sm btn-ghost ia-mic" onclick="iaMic(\''+id+'\',this)" title="Dicter">🎤</button></div>';
+    return '<div class="iatb" data-for="'+id+'"><button type="button" class="btn btn-sm btn-ghost ia-mic" onclick="iaMic(\''+id+'\',this)" title="Dicter" aria-label="Dicter"></button></div>';
   }
   var _uid=0;
   function decorer(){
@@ -55103,7 +55103,15 @@ function testLienSignature() {
 
   /* ---------------- Page Entreprise ---------------- */
   var EXT={};
-  function bilanGlobal(c){ var lb=legalBilan(c), al=lb.alertes.slice(), dom=[['Juridique',lb.score]];
+  /* v750 : bilans mis en cache d'un affichage à l'autre (recherche dans l'écran de choix, retours sur la
+     Page Entreprise) ; invalidés à chaque enregistrement de la base, au changement de jour et au bout d'une minute. */
+  var BC={rev:0,m:{}};
+  (function(){ var s0=window.save; if(typeof s0==='function'&&!s0.__admBilanRev){ var w=function(){ BC.rev++; return s0.apply(this,arguments); }; w.__admBilanRev=1; window.save=w; } })();
+  function bilanGlobal(c){ var k=c&&c.id, j=today0().getTime(), e=k&&BC.m[k];
+    if(e&&e.rev===BC.rev&&e.j===j&&e.db===DB&&Date.now()-e.t<60000) return {alertes:e.v.alertes.slice(),dom:e.v.dom.slice()};
+    var v=bilanCalcul(c); if(k) BC.m[k]={rev:BC.rev,j:j,db:DB,t:Date.now(),v:v}; return {alertes:v.alertes.slice(),dom:v.dom.slice()}; }
+  window.admBilanCacheVider=function(){ BC.m={}; };
+  function bilanCalcul(c){ var lb=legalBilan(c), al=lb.alertes.slice(), dom=[['Juridique',lb.score]];
     Object.keys(EXT).forEach(function(id){ try{ var b=EXT[id].bilan&&EXT[id].bilan(c); if(!b) return; (b.alertes||[]).forEach(function(a){ a.mod=a.mod||id; al.push(a); }); (b.domaines||[]).forEach(function(d){ dom.push(d); }); }catch(e){} });
     return {alertes:al.sort(function(a,b){ var o={r:0,o:1,g:2}; return (a.date-b.date)||(o[a.niv]-o[b.niv]); }),dom:dom}; }
   var DOMS=['Juridique','Fiscal','Social','Assurances','KYC / LCB-FT','Qualité','Archivage'];
@@ -55125,7 +55133,7 @@ function testLienSignature() {
     var kc=card('Chiffres clés','saisie mensuelle',kpi,ks.length?btn('Saisir un mois','admChiffres()',1):'');
     var Q=r.workflow.queue.filter(function(x){ return x.statut==='attente'||x.statut==='dirigeant'; });
     var wf=MODS.some(function(m){ return m[0]==='mworkflow'&&m[5]; });
-    var val=card('Validations en attente',String(Q.length),Q.length?'<div class="adm-list">'+Q.map(function(x){ return '<div class="adm-v"><span class="adm-vk">'+E(x.type)+'</span><span class="adm-tx"><b>'+E(x.libelle)+'</b><i>'+E((x.statut==='dirigeant'?'Accord du dirigeant attendu · ':'')+(x.detail||''))+'</i></span>'+(wf?btn('Traiter','admGo('+q('mworkflow')+')',1):'')+'</div>'; }).join('')+'</div>':'<div class="adm-vide">Rien à valider. Les demandes du client (absence, achat, embauche, sinistre) arrivent ici.</div>',wf?btn('Nouvelle demande','admWfNouvelle()',1):'');
+    var val=card('Validations en attente',String(Q.length),Q.length?'<div class="adm-list">'+Q.map(function(x){ return '<div class="adm-v"><span class="adm-vk">'+E(x.type)+'</span><span class="adm-tx"><b>'+E(x.libelle)+'</b><i>'+E((x.portail?'Envoyée depuis l’espace client · ':'')+(x.statut==='dirigeant'?'Accord du dirigeant attendu · ':'')+(x.detail||''))+'</i></span>'+(wf?btn('Traiter','admGo('+q('mworkflow')+')',1):'')+'</div>'; }).join('')+'</div>':'<div class="adm-vide">Rien à valider. Les demandes du client (absence, achat, embauche, sinistre) arrivent ici.</div>',wf?btn('Nouvelle demande','admWfNouvelle()',1):'');
     var ev=b.dom.filter(function(d){ return d[1]!=null; }), sc=ev.length?Math.round(ev.reduce(function(s,d){ return s+d[1]; },0)/ev.length):null;
     var col=function(v){ return v>=80?'var(--adm-g)':v>=65?'var(--adm-o)':'var(--adm-r)'; };
     var score=card('Score de conformité',ev.length+' domaine'+(ev.length>1?'s':'')+' évalué'+(ev.length>1?'s':''),'<div class="adm-sc">'+(sc==null?'<div class="adm-gauge" style="--v:0;--c:var(--line-soft)"><b>—</b></div>':'<div class="adm-gauge" style="--v:'+sc+';--c:'+col(sc)+'"><b>'+sc+'</b><span>/ 100</span></div>')
