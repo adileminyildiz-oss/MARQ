@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=745;
+var LAST_VER=747;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55250,6 +55250,7 @@ function testLienSignature() {
     try{ if(def.ic&&ICO[def.ic]) IC[def.ic]=IC[def.ic]||ICO[def.ic]; }catch(e){}
     try{ if(!PAGES.some(function(x){ return x.id===id; })){ var ord=navItems(), prev=ord[ord.indexOf(id)-1], k=PAGES.findIndex(function(x){ return x.id===prev; }); PAGES.splice(k>=0?k+1:PAGES.length,0,{id:id,lbl:def.lbl,ic:def.ic||'dash',sub:def.sub}); } }catch(e){}
     navGroupe(); };
+  window.admBilanGlobal=function(id){ var c=toutes().filter(function(x){ return x.id===id; })[0]; return c?bilanGlobal(c):null; };
   window.__admKit={E:E,q:q,pad:pad,iso:iso,today0:today0,dOf:dOf,fr:fr,frc:frc,jours:jours,addM:addM,num:num,money:money,nid:nid,sv:sv,rr:rr,T:T,val:val,ic:ic,ICO:ICO,
     pill:pill,tbl:tbl,card:card,btn:btn,tabs:tabs,sel:sel,selecteur:selecteur,vide:vide,R:R,cur:cur,curId:curId,nom:nom,legalBilan:legalBilan,
     tete:function(m,sousTitre){ var c=cur(), d=MODS.filter(function(x){ return x[0]===m; })[0]||['','','','','dash']; return '<div class="adm-top" data-no-kebab>'+selecteur(c)+'<span class="adm-sp"></span>'+btn('Page Entreprise','admGo('+q('entreprise')+')',1)+'</div><div class="adm-head"><span class="adm-hi">'+ic(d[4])+'</span><div><b>'+d[1]+'</b><span>'+d[2]+' · '+E(nom(c))+(sousTitre?' · '+sousTitre:'')+'</span></div></div>'; }};
@@ -55445,7 +55446,7 @@ function testLienSignature() {
     openModal('Déclarer un sinistre','<div class="frow"><div><label for="adm-sd">Date du sinistre</label><input id="adm-sd" type="date" value="'+iso(t0())+'"></div><div><label for="adm-sc">Contrat concerné</label><select id="adm-sc">'+(x.assurances.length?x.assurances.map(function(a){ return '<option value="'+E(a.id)+'">'+E(a.type+' · '+(a.assureur||''))+'</option>'; }).join(''):'<option value="">Aucun contrat enregistré</option>')+'</select></div></div><label for="adm-sn">Nature</label><input id="adm-sn" placeholder="Ex. dégât des eaux sur chantier"><label for="adm-sx">Circonstances</label><textarea id="adm-sx" rows="3"></textarea>',
       '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admSinistreOk()">Enregistrer</button>'); };
   window.admSinistreOk=function(){ var x=cc(); if(!x) return; var o={id:nid('sin'),date:val('adm-sd'),contratId:val('adm-sc'),nature:val('adm-sn'),description:val('adm-sx'),statut:'À déclarer'}; if(!o.date||!o.nature) return T('Indiquez la date et la nature du sinistre.'); x.sinistres.push(o); sv(); closeModal(); T('Sinistre enregistré : déclaration à faire sous 5 jours ouvrés.'); rr(); };
-  window.admSinStatut=function(id,v){ var x=cc(); if(!x) return; var s=x.sinistres.filter(function(o){ return o.id===id; })[0]; if(!s) return; s.statut=v; if(v==='Déclaré'&&!s.declareLe) s.declareLe=iso(t0()); sv(); rr(); };
+  window.admSinStatut=function(id,v){ var x=cc(); if(!x) return; var s=x.sinistres.filter(function(o){ return o.id===id; })[0]; if(!s) return; s.statut=v; if(v==='Déclaré'&&!s.declareLe) s.declareLe=iso(t0()); if(v==='Clos'&&!s.closLe) s.closLe=iso(t0()); sv(); rr(); };
   window.admSinCourrier=function(id){ var c=K.cur(), x=cc(); if(!x) return; var s=x.sinistres.filter(function(o){ return o.id===id; })[0]; if(!s) return; var a=x.assurances.filter(function(o){ return o.id===s.contratId; })[0]||{};
     var txt=K.nom(c)+(c.siege?'\n'+c.siege+' '+((c.cp||'')+' '+(c.ville||'')).trim():'')+'\n\n'+(a.assureur||'[Assureur]')+'\nService sinistres\n\nObjet : déclaration de sinistre'+(a.police?' — contrat n° '+a.police:'')+' ('+(a.type||'')+')\n\nMadame, Monsieur,\n\nNous vous déclarons le sinistre survenu le '+fr(s.date)+' : '+(s.nature||'')+'.\n\nCirconstances : '+(s.description||'……')+'\n\nNous tenons à votre disposition les éléments justificatifs (photographies, devis, factures) et restons à la disposition de votre expert.\n\nNous vous prions d’agréer, Madame, Monsieur, nos salutations distinguées.\n\n'+(c.president||'')+(c.presidentFonction?', '+c.presidentFonction:'');
     openModal('Courrier de déclaration de sinistre','<textarea id="adm-doc" class="adm-doc" rows="18" aria-label="Courrier">'+E(txt)+'</textarea><p class="adm-p0">À envoyer en recommandé avec accusé de réception ou par l’espace assuré. Passez ensuite le sinistre au statut « Déclaré ».</p>',
@@ -56402,6 +56403,405 @@ function testLienSignature() {
   admModule('mreporting',{lbl:'Reporting',sub:'Pilotage dirigeant',ic:'trend',page:page,bilan:bilan});
   window.admRepBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
   window.admRepConso=function(id,m){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?mois(co,m):null; };
+})();
+</script>
+<script id="mq-admin-746">
+/* v746 — MARQ ARCHIVE : durées légales et purge guidée.
+   Inventaire de ce que les modules conservent pour la société (factures et
+   devis du CRM, prospects, décisions du Workflow, paie et DSN, dossiers des
+   salariés sortis, notes disciplinaires, sinistres clos, documents du
+   coffre, FEC, veille des marchés), chacun avec sa durée de conservation
+   et son point de départ (clôture de l'exercice, fin du mois, départ du
+   salarié…). Les éléments arrivés à échéance sont regroupés par lot ; la
+   purge se fait lot par lot, élément par élément, avec le nom de la
+   personne qui l'autorise et une confirmation ; rien n'est effacé sans
+   accord. Gel d'un élément (litige, contrôle) qui l'exclut de la purge.
+   Journal des purges conservé. Domaine Archivage noté ; alerte sur la Page
+   Entreprise. Les registres, statuts et procès-verbaux se conservent
+   pendant toute la vie de la société et ne sont jamais proposés.
+   100 % additif. */
+(function(){
+  if(window.__admin746||!window.admModule||!window.__admKit) return; window.__admin746=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, num=K.num, money=K.money, pad=K.pad;
+  function AR(id){ var r=K.R(id), a=r.archive=r.archive||{}; a.gel=a.gel||{}; a.journal=a.journal||[]; return a; }
+  function cid(){ return K.curId(); }
+  function plusAns(d,n){ var x=new Date(d); x.setFullYear(x.getFullYear()+n); return x; }
+  function clotureApres(co,d){ var s=String(co.clotureExercice||'31/12'), m=s.match(/(\d{1,2})\/(\d{1,2})/), j=m?+m[1]:31, mo=m?+m[2]:12, c=new Date(d.getFullYear(),mo-1,j); if(c<d) c=new Date(d.getFullYear()+1,mo-1,j); return c; }
+  var RULES=[
+    {k:'fact',lbl:'Factures et pièces comptables',duree:'10 ans à compter de la clôture de l’exercice',base:'art. L123-22 du Code de commerce',ans:10},
+    {k:'devis',lbl:'Devis refusés ou restés sans suite',duree:'5 ans',base:'prescription commerciale, art. L110-4 du Code de commerce',ans:5},
+    {k:'prosp',lbl:'Prospects sans échange',duree:'3 ans après le dernier échange',base:'recommandation CNIL (données de prospection)',ans:3},
+    {k:'wf',lbl:'Décisions du circuit de validation (hors achats)',duree:'5 ans',base:'prescription de droit commun, art. 2224 du Code civil',ans:5},
+    {k:'paie',lbl:'Bulletins de paie (double employeur) et DSN',duree:'6 ans à compter de la fin du mois',base:'bulletins : 5 ans (art. L3243-4 du Code du travail) ; DSN : droit de reprise fiscal',ans:6},
+    {k:'sal',lbl:'Dossier et registre des salariés sortis',duree:'5 ans après le départ',base:'art. R1221-26 du Code du travail',ans:5},
+    {k:'disc',lbl:'Notes disciplinaires et sensibles',duree:'3 ans',base:'sanction de plus de 3 ans non invocable, art. L1332-5 du Code du travail',ans:3},
+    {k:'sin',lbl:'Sinistres clos',duree:'2 ans après la clôture',base:'prescription biennale, art. L114-1 du Code des assurances',ans:2},
+    {k:'doc',lbl:'Documents du coffre (hors juridique)',duree:'selon la rubrique : social 5 ans, fiscal 6 ans, clients & achats 10 ans, assurances 5 ans, qualité 5 ans',base:'durées civiles, sociales et fiscales',ans:null},
+    {k:'fec',lbl:'Fichier des écritures comptables (FEC)',duree:'10 ans à compter de la fin de la période',base:'art. L123-22 du Code de commerce',ans:10},
+    {k:'ao',lbl:'Veille des marchés publics écartée ou passée',duree:'1 an après la date limite',base:'aucune obligation : durée interne',ans:1}
+  ];
+  var PERM=[['Statuts, procès-verbaux, registre des décisions','toute la vie de la société, puis 5 ans'],['Registre des mouvements de titres, bénéficiaires effectifs','toute la vie de la société'],['Documents de vigilance (KYC / LCB-FT)','5 ans après la fin de la relation, art. L561-12 du Code monétaire et financier']];
+  var DOCANS={Social:5,Fiscal:6,'Clients & achats':10,Assurances:5,'Qualité':5};
+  function rule(k){ return RULES.filter(function(r){ return r.k===k; })[0]; }
+
+  /* ---------- inventaire ---------- */
+  function inventaire(co){ var r=K.R(co.id), L=[], a=AR(co.id);
+    function add(k,id,titre,depart,ech,del){ if(!depart||!ech) return; L.push({k:k,id:k+':'+id,titre:titre,depart:depart,ech:ech,del:del,gel:a.gel[k+':'+id]||null}); }
+    var crm=r.crm||{};
+    (crm.pieces||[]).forEach(function(p){ var d=dOf(p.date); if(!d) return;
+      if(p.type==='Facture'||(p.type==='Devis'&&p.statut==='Accepté')) add('fact',p.id,(p.type==='Facture'?'Facture ':'Devis accepté ')+(p.num||''),d,plusAns(clotureApres(co,d),10),function(){ crm.pieces=crm.pieces.filter(function(x){ return x.id!==p.id; }); });
+      else add('devis',p.id,'Devis '+(p.num||'')+' ('+(p.statut||'')+')',d,plusAns(d,5),function(){ crm.pieces=crm.pieces.filter(function(x){ return x.id!==p.id; }); }); });
+    (crm.contacts||[]).forEach(function(k){ if(k.type!=='Prospect') return; if((crm.pieces||[]).some(function(p){ return p.contactId===k.id; })) return; var e=(k.echanges||[]).slice(-1)[0], d=e&&dOf(e.date); if(!d) return;
+      add('prosp',k.id,'Prospect '+(k.raison||k.contact||''),d,plusAns(d,3),function(){ crm.contacts=crm.contacts.filter(function(x){ return x.id!==k.id; }); }); });
+    ((crm.boamp||{}).avis||[]).forEach(function(v){ var l=dOf(v.limite); if(!l||!(v.statut==='Écarté'||jours(l)<0)) return; add('ao',v.id,'Avis '+(v.objet||'').slice(0,60),l,plusAns(l,1),function(){ crm.boamp.avis=crm.boamp.avis.filter(function(x){ return x.id!==v.id; }); }); });
+    var wf=(r.workflow||{}); (wf.queue||[]).forEach(function(w){ if(w.statut!=='valide'&&w.statut!=='refuse') return; var d=new Date(w.ts); var ach=w.type==='Achat'&&w.statut==='valide';
+      add(ach?'fact':'wf',w.id,(ach?'Bon de commande '+(w.bc||''):w.type+' — '+(w.libelle||'')).slice(0,90),d,ach?plusAns(clotureApres(co,d),10):plusAns(d,5),function(){ wf.queue=wf.queue.filter(function(x){ return x.id!==w.id; }); }); });
+    var py=r.paye||{}; Object.keys(py.mois||{}).forEach(function(m){ var o=py.mois[m]; if(!o||!o.valide) return; var p=m.split('-'), fin=new Date(+p[0],+p[1],0);
+      add('paie',m,'Paie de '+['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][+p[1]-1]+' '+p[0]+((o.dsn||{}).deposee?' (bulletins et DSN)':' (bulletins)'),fin,plusAns(fin,6),function(){ delete py.mois[m]; }); });
+    var rh=r.rh||{}; (rh.salaries||[]).forEach(function(s){ var f=dOf(s.fin); if(!f||jours(f)>=0) return;
+      add('sal',s.id,'Dossier de '+((s.prenom||'')+' '+(s.nom||'')).trim(),f,plusAns(f,5),function(){ rh.salaries=rh.salaries.filter(function(x){ return x.id!==s.id; }); rh.absences=(rh.absences||[]).filter(function(x){ return x.salarieId!==s.id; }); rh.notes=(rh.notes||[]).filter(function(x){ return x.salarieId!==s.id; }); }); });
+    (rh.notes||[]).forEach(function(n){ var d=dOf(n.date); add('disc',n.id,'Note '+(n.type||'').toLowerCase()+' du '+fr(n.date),d,plusAns(d,3),function(){ rh.notes=rh.notes.filter(function(x){ return x.id!==n.id; }); }); });
+    var ct=r.control||{}; (ct.sinistres||[]).forEach(function(s){ if(s.statut!=='Clos') return; var d=dOf(s.closLe||s.date); add('sin',s.id,'Sinistre '+(s.nature||'')+' du '+fr(s.date),d,plusAns(d,2),function(){ ct.sinistres=ct.sinistres.filter(function(x){ return x.id!==s.id; }); }); });
+    var dc=r.doc||{}; (dc.docs||[]).forEach(function(x){ var n=DOCANS[x.cat], d=dOf(x.date); if(!n||!d) return; add('doc',x.id,x.titre+' ('+x.cat.toLowerCase()+')',d,plusAns(d,n),function(){ dc.docs=dc.docs.filter(function(z){ return z.id!==x.id; }); (dc.sig||[]).forEach(function(g){ if(g.docId===x.id&&g.statut==='en cours') g.statut='annulé'; }); }); });
+    var rp=r.reporting||{}; if(rp.fec&&dOf(rp.fec.au)){ var au=dOf(rp.fec.au); add('fec','fec','FEC '+(rp.fec.nom||'')+' ('+fr(rp.fec.du)+' → '+fr(rp.fec.au)+')',au,plusAns(au,10),function(){ delete rp.fec; }); }
+    return L; }
+  function echus(L){ return L.filter(function(x){ return jours(x.ech)<=0&&!x.gel; }); }
+
+  /* ---------- bilan ---------- */
+  function bilan(co){ var L=inventaire(co), E_=echus(L), vieux=E_.filter(function(x){ return jours(x.ech)<-30; }), al=[];
+    if(E_.length){ var lots={}; E_.forEach(function(x){ lots[x.k]=(lots[x.k]||0)+1; }); al.push({niv:vieux.length?'o':'g',date:E_.map(function(x){ return x.ech; }).sort(function(a,b){ return a-b; })[0],titre:'Archivage — '+E_.length+' élément'+(E_.length>1?'s':'')+' arrivé'+(E_.length>1?'s':'')+' à échéance',detail:Object.keys(lots).map(function(k){ return lots[k]+' × '+rule(k).lbl.toLowerCase(); }).join(' ; ')+' · purge à examiner'}); }
+    return {alertes:al,domaines:[['Archivage',L.length?Math.round((L.length-vieux.length)*100/L.length):null]]}; }
+
+  /* ---------- page ---------- */
+  function page(){ var co=K.cur(); if(!co) return K.vide(); var a=AR(co.id), L=inventaire(co), Ech=echus(L), t=K.tabs('marchive',[['dur','Durées légales'],['pur','À purger',Ech.length?String(Ech.length):''],['gel','Gels',Object.keys(a.gel).length?String(Object.keys(a.gel).length):''],['jr','Journal']]), x='';
+    if(t.cur==='dur'){ x=card('Durées de conservation','calculées automatiquement pour '+E(K.nom(co)),tbl(['Catégorie','Durée','Base','Éléments','Prochaine échéance'],RULES.map(function(r_){ var I=L.filter(function(z){ return z.k===r_.k; }), nx=I.filter(function(z){ return !z.gel; }).map(function(z){ return z.ech; }).sort(function(a1,b1){ return a1-b1; })[0];
+          return ['<b>'+E(r_.lbl)+'</b>',E(r_.duree),'<small>'+E(r_.base)+'</small>',String(I.length),nx?(jours(nx)<=0?pill(fr(nx)+' — échue','o'):fr(nx)):'—']; })))
+        +card('Conservés sans limite','jamais proposés à la purge',tbl(['Documents','Durée'],PERM.map(function(p){ return [E(p[0]),E(p[1])]; })));
+    }
+    if(t.cur==='pur'){ var lots={}; Ech.forEach(function(z){ (lots[z.k]=lots[z.k]||[]).push(z); });
+      x=card('Éléments arrivés à échéance','purge guidée · rien n’est effacé sans votre accord',Object.keys(lots).length?'<div class="adm-list">'+Object.keys(lots).map(function(k){ var r_=rule(k), I=lots[k].sort(function(a1,b1){ return a1.ech-b1.ech; });
+          return '<div class="arc-lot"><div class="arc-lh"><b>'+E(r_.lbl)+'</b><span>'+I.length+' élément'+(I.length>1?'s':'')+' · '+E(r_.duree)+'</span>'+btn('Examiner','admArcLot('+q(k)+')',1)+'</div></div>'; }).join('')+'</div>':'<div class="adm-vide">Aucun élément arrivé à échéance.</div>');
+    }
+    if(t.cur==='gel'){ var G=L.filter(function(z){ return z.gel; });
+      x=card('Éléments gelés','exclus de la purge (litige, contrôle, demande du client)',tbl(['Élément','Catégorie','Échéance','Motif',''],G.map(function(z){ return [E(z.titre),E(rule(z.k).lbl),fr(z.ech),E(z.gel.motif)+'<br><small>le '+fr(z.gel.date)+'</small>',btn('Lever le gel','admArcDegel('+q(z.id)+')',1)]; }),'Aucun élément gelé.'));
+    }
+    if(t.cur==='jr'){ x=card('Journal des purges',String(a.journal.length),tbl(['Date','Lot','Éléments','Autorisé par','Détail'],a.journal.slice().reverse().map(function(j){ return [fr(j.date),E(j.lot),String(j.n),E(j.par),'<small>'+E((j.titres||[]).slice(0,6).join(' · ')+((j.titres||[]).length>6?' …':''))+'</small>']; }),'Aucune purge.'))+'<p class="adm-p0">Le journal des purges est conservé : il prouve la destruction des données à leur échéance (RGPD, principe de limitation de la conservation).</p>'; }
+    return '<div class="adm-wrap">'+K.tete('marchive')+t.html+x+'</div>'; }
+
+  window.admArcLot=function(k){ var co=K.cur(); if(!co) return; var r_=rule(k), I=echus(inventaire(co)).filter(function(z){ return z.k===k; }); if(!I.length) return T('Rien à purger dans ce lot.');
+    openModal('Purge — '+E(r_.lbl),'<p class="adm-p0">'+E(r_.duree)+' · '+E(r_.base)+'. Décochez ce qui doit être conservé ; un élément peut aussi être gelé.</p><div class="arc-items">'+I.map(function(z){ return '<label class="arc-it"><input type="checkbox" class="arc-cb" value="'+E(z.id)+'" checked style="width:auto"><span><b>'+E(z.titre)+'</b><i>depuis le '+fr(z.depart)+' · échéance '+fr(z.ech)+'</i></span><button type="button" class="btn btn-sm btn-ghost" onclick="event.preventDefault();admArcGel('+q(z.id)+')">Geler</button></label>'; }).join('')+'</div>'
+      +'<label for="adm-arc-par">Purge autorisée par (nom et qualité)</label><input id="adm-arc-par" value="'+E(co.president?co.president+', '+(co.presidentFonction||'dirigeant'):'')+'">',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admArcPurger('+q(k)+')">Purger la sélection</button>'); };
+  window.admArcPurger=function(k){ var co=K.cur(); if(!co) return; var ids=[].slice.call(document.querySelectorAll('.arc-cb:checked')).map(function(c){ return c.value; }), par=val('adm-arc-par');
+    if(!ids.length) return T('Aucun élément sélectionné.'); if(!par) return T('Indiquez qui autorise la purge.');
+    var go_=function(){ var I=echus(inventaire(co)).filter(function(z){ return z.k===k&&ids.indexOf(z.id)>=0; }), titres=[];
+      I.forEach(function(z){ try{ z.del(); titres.push(z.titre); }catch(e){} }); var a=AR(co.id); a.journal.push({date:iso(t0()),lot:rule(k).lbl,n:titres.length,par:par,titres:titres}); sv(); closeModal(); T(titres.length+' élément(s) purgé(s) ; purge inscrite au journal.'); rr(); };
+    if(typeof uiConfirm==='function') uiConfirm('Effacer définitivement '+ids.length+' élément(s) ? Cette opération ne peut pas être annulée.',go_); else go_(); };
+  window.admArcGel=function(id){ var co=K.cur(); if(!co) return; closeModal();
+    openModal('Geler l’élément','<label for="adm-arc-m">Motif du gel</label><input id="adm-arc-m" placeholder="ex. litige en cours avec le client, contrôle URSSAF">','<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admArcGelOk('+q(id)+')">Geler</button>'); };
+  window.admArcGelOk=function(id){ var co=K.cur(); if(!co) return; var m=val('adm-arc-m'); if(!m) return T('Indiquez le motif du gel.'); AR(co.id).gel[id]={motif:m,date:iso(t0())}; sv(); closeModal(); T('Élément gelé : il ne sera pas proposé à la purge.'); rr(); };
+  window.admArcDegel=function(id){ var co=K.cur(); if(!co) return; delete AR(co.id).gel[id]; sv(); rr(); };
+
+  var css=document.createElement('style'); css.id='mq-admin-746-css'; css.textContent=[
+    '.arc-lot{border-bottom:1px solid var(--line-soft);padding:6px 2px}.arc-lot:last-child{border-bottom:0}.arc-lh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.arc-lh b{font-size:13px}.arc-lh span{font-size:12px;opacity:.8;flex:1;min-width:160px}',
+    '.arc-items{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto;margin:8px 0 10px}.arc-it{display:flex;align-items:center;gap:8px;padding:5px 4px;border-bottom:1px solid var(--line-soft)}.arc-it span{display:flex;flex-direction:column;flex:1;min-width:0}.arc-it b{font-size:12.5px;font-weight:600;overflow-wrap:anywhere}.arc-it i{font-style:normal;font-size:11.5px;opacity:.8}'
+  ].join('\n'); document.head.appendChild(css);
+  admModule('marchive',{lbl:'Archive',sub:'Archivage légal',ic:'box',page:page,bilan:bilan});
+  window.admArcInventaire=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?inventaire(co).map(function(z){ return {k:z.k,id:z.id,titre:z.titre,depart:iso(z.depart),ech:iso(z.ech),gel:!!z.gel}; }):[]; };
+  window.admArcBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
+})();
+</script>
+<script id="mq-admin-747">
+/* v747 — MARQ IA : rédiger, lire les pièces, analyser un appel d'offres.
+   Trois outils branchés sur les données de la société :
+   - Rédiger : courrier, relance de paiement (factures du CRM), réclamation,
+     réponse à un courrier reçu, note au dirigeant (alertes des modules),
+     trame de mémoire technique (analyse d'un appel d'offres), e-mail.
+     Passe par l'IA du cabinet (iaAsk, clé côté serveur) quand elle est
+     branchée ; sinon un brouillon type est produit avec les données de la
+     société. Rien n'est inventé : ce qui manque reste « [à compléter] ».
+   - Lire une pièce : PDF ou image (lecteur de pièces de Mar'q) ou texte
+     collé ; type reconnu, SIREN / SIRET contrôlés, TVA intracom, IBAN,
+     numéro, montants, échéance ; rubrique proposée ; classement au coffre,
+     échéance suivie (alerte sur la Page Entreprise), réponse rédigée,
+     contrat d'assurance mis au registre.
+   - Analyser un AO : avis de la veille BOAMP (CRM) et règlement de la
+     consultation ; date limite, procédure, lots, critères et pondération,
+     visite, variantes, durée, montant ; pièces exigées confrontées à ce
+     que Mar'q détient (K-bis et attestations au coffre, assurances en
+     cours, références facturées) ; avis Go / No-go motivé.
+   100 % additif. */
+(function(){
+  if(window.__admin747||!window.admModule||!window.__admKit) return; window.__admin747=1;
+  var K=window.__admKit, E=K.E, q=K.q, fr=K.fr, dOf=K.dOf, iso=K.iso, t0=K.today0, jours=K.jours, pill=K.pill, tbl=K.tbl, card=K.card, btn=K.btn, val=K.val, T=K.T, sv=K.sv, rr=K.rr, num=K.num, money=K.money, nid=K.nid, sel=K.sel;
+  var CATS=['Juridique','Social','Fiscal','Clients & achats','Assurances','Qualité','Divers'];
+  function IA(id){ var r=K.R(id), a=r.ia=r.ia||{}; a.redac=a.redac||[]; a.lectures=a.lectures||[]; a.ao=a.ao||[]; return a; }
+  function mode(){ try{ return typeof iaMode==='function'?iaMode():'off'; }catch(e){ return 'off'; } }
+  function qualite(co){ return co.presidentFonction||({sas:'Président',sasu:'Président',sa:'Directeur général',sarl:'Gérant',eurl:'Gérant',sci:'Gérant',snc:'Gérant'})[String(co.forme||'').toLowerCase()]||'Dirigeant'; }
+  function siege(co){ return [co.siege,((co.cp||'')+' '+(co.ville||'')).trim()].filter(Boolean).join(', '); }
+  function tete(co){ return [K.nom(co)+(co.forme?' — '+String(co.forme).toUpperCase():''),siege(co),co.siren?'SIREN '+co.siren:'',co.email||''].filter(Boolean).join('\n'); }
+  function signe(co){ return (co.president||'[Nom du signataire]')+'\n'+qualite(co)+' — '+K.nom(co); }
+  function lieuDate(co){ return (co.ville||'[Ville]')+', le '+fr(t0()); }
+  function ctxTexte(co){ var r=K.R(co.id), sal=((r.rh||{}).salaries||[]).filter(function(s){ return s.actif!==false; }).length;
+    return ['Société : '+K.nom(co),'Forme : '+(co.forme||'—'),'SIREN : '+(co.siren||'—'),'Siège : '+(siege(co)||'—'),'Dirigeant : '+(co.president||'—')+' ('+qualite(co)+')','Activité : '+((co.activites||[]).join(', ')||'—'),'Effectif : '+(sal||(co.salaries||[]).length||0)].join('\n'); }
+  function crm(co){ var c=K.R(co.id).crm||{}; c.pieces=c.pieces||[]; c.contacts=c.contacts||[]; return c; }
+  function contact(co,id){ return crm(co).contacts.filter(function(k){ return k.id===id; })[0]||null; }
+  function ttc(p){ return Math.round(num(p.ht)*(1+num(p.tva)/100)*100)/100; }
+
+  /* ---------- Rédiger ---------- */
+  var TYPES=[
+    {k:'courrier',lbl:'Courrier',champs:[['dest','Destinataire (nom, adresse)','area'],['objet','Objet'],['points','Points à aborder','area']]},
+    {k:'relance',lbl:'Relance de paiement',champs:[['fact','Facture concernée','fact'],['ton','Ton','ton']]},
+    {k:'reclam',lbl:'Réclamation / contestation',champs:[['dest','Destinataire (nom, adresse)','area'],['objet','Objet'],['faits','Faits','area'],['demande','Ce que vous demandez','area']]},
+    {k:'reponse',lbl:'Réponse à un courrier reçu',champs:[['dest','Destinataire (nom, adresse)','area'],['recu','Courrier reçu (texte ou résumé)','area'],['position','Votre position','area']]},
+    {k:'note',lbl:'Note au dirigeant',champs:[['sujet','Sujet'],['elements','Éléments (laissez vide pour reprendre les alertes des modules)','area']]},
+    {k:'memoire',lbl:'Trame de mémoire technique',champs:[['ao','Appel d’offres analysé','ao'],['moyens','Moyens humains et matériels','area'],['methodo','Méthodologie et organisation','area']]},
+    {k:'mail',lbl:'E-mail court',champs:[['dest','Destinataire'],['objet','Objet'],['message','Message à transmettre','area']]}
+  ];
+  function typ(k){ return TYPES.filter(function(t){ return t.k===k; })[0]; }
+  function ac(s){ s=String(s||'').trim(); return s||'[à compléter]'; }
+  function lignes(s){ return String(s||'').split(/\n+/).map(function(x){ return x.trim(); }).filter(Boolean); }
+  function brouillon(co,k,v){ var h=tete(co)+'\n\n', f='\n\n'+lieuDate(co)+'\n\n'+signe(co);
+    if(k==='courrier') return h+ac(v.dest)+'\n\nObjet : '+ac(v.objet)+'\n\nMadame, Monsieur,\n\n'+(lignes(v.points).length?lignes(v.points).map(function(p){ return p.replace(/\.?$/,'.'); }).join('\n\n'):'[à compléter]')+'\n\nNous restons à votre disposition pour tout renseignement complémentaire.\n\nVeuillez agréer, Madame, Monsieur, l’expression de nos salutations distinguées.'+f;
+    if(k==='relance'){ var p=crm(co).pieces.filter(function(x){ return x.id===v.fact; })[0], kk=p&&contact(co,p.contactId), m=p?ttc(p):0, ech=p&&(p.echeance||p.date), n=Math.max(1,(p&&p.relances?p.relances.length:0)+1), ton=v.ton||(n>=3?'Mise en demeure':n===2?'Ferme':'Courtois');
+      var dest=kk?[kk.raison||kk.contact,kk.adresse].filter(Boolean).join('\n'):'[Client]';
+      var obj=ton==='Mise en demeure'?'Mise en demeure de payer — facture '+(p?p.num:'[n°]'):'Relance — facture '+(p?p.num:'[n°]')+' du '+(p?fr(p.date):'[date]');
+      var corps=ton==='Mise en demeure'
+        ?'Malgré nos précédentes relances, la facture n° '+(p?p.num:'[n°]')+' du '+(p?fr(p.date):'[date]')+', d’un montant de '+money(m)+' TTC, demeure impayée.\n\nNous vous mettons en demeure de régler cette somme sous huit jours à compter de la réception de la présente. À défaut, nous engagerons les procédures de recouvrement utiles, sans autre avis.\n\nConformément à l’article L441-10 du Code de commerce, des pénalités de retard et l’indemnité forfaitaire de 40 € pour frais de recouvrement sont exigibles.'
+        :(ton==='Ferme'?'Sauf erreur de notre part, la facture n° '+(p?p.num:'[n°]')+' du '+(p?fr(p.date):'[date]')+', d’un montant de '+money(m)+' TTC, arrivée à échéance le '+fr(ech)+', reste impayée malgré notre premier rappel.\n\nNous vous remercions d’en effectuer le règlement dans les meilleurs délais. Nous vous rappelons que des pénalités de retard et une indemnité forfaitaire de 40 € sont exigibles (art. L441-10 du Code de commerce).'
+        :'Sauf erreur ou omission de notre part, la facture n° '+(p?p.num:'[n°]')+' du '+(p?fr(p.date):'[date]')+', d’un montant de '+money(m)+' TTC, arrivée à échéance le '+fr(ech)+', n’a pas encore été réglée.\n\nNous vous remercions de bien vouloir procéder à son règlement. Si celui-ci est en cours, nous vous prions de ne pas tenir compte de ce message.');
+      return h+dest+'\n\n'+(ton==='Mise en demeure'?'Lettre recommandée avec accusé de réception\n\n':'')+'Objet : '+obj+'\n\nMadame, Monsieur,\n\n'+corps+'\n\nVeuillez agréer, Madame, Monsieur, l’expression de nos salutations distinguées.'+f; }
+    if(k==='reclam') return h+ac(v.dest)+'\n\nLettre recommandée avec accusé de réception\n\nObjet : '+ac(v.objet)+'\n\nMadame, Monsieur,\n\nNous revenons vers vous au sujet de l’affaire citée en objet.\n\n'+ac(v.faits)+'\n\nEn conséquence, nous vous demandons : '+ac(v.demande).replace(/\.?$/,'.')+'\n\nNous vous remercions de nous faire connaître votre réponse sous quinze jours. À défaut, nous nous réservons la possibilité de faire valoir nos droits.\n\nVeuillez agréer, Madame, Monsieur, l’expression de nos salutations distinguées.'+f;
+    if(k==='reponse'){ var ref=lignes(v.recu)[0]||''; return h+ac(v.dest)+'\n\nObjet : Votre courrier'+(ref?' — '+ref.slice(0,80):'')+'\n\nMadame, Monsieur,\n\nNous accusons réception de votre courrier et vous en remercions.\n\n'+ac(v.position)+'\n\nNous restons à votre disposition pour tout échange complémentaire.\n\nVeuillez agréer, Madame, Monsieur, l’expression de nos salutations distinguées.'+f; }
+    if(k==='note'){ var el=lignes(v.elements); if(!el.length){ try{ el=(window.admBilanGlobal?window.admBilanGlobal(co.id).alertes:[]).slice(0,12).map(function(a){ return fr(a.date)+' — '+a.titre+(a.detail?' : '+a.detail:''); }); }catch(e){} }
+      return 'NOTE AU DIRIGEANT\n\n'+K.nom(co)+'\nÀ l’attention de '+(co.president||'[dirigeant]')+'\nDate : '+fr(t0())+'\nObjet : '+ac(v.sujet||'Points d’attention')+'\n\n'+(el.length?el.map(function(x){ return '• '+x; }).join('\n'):'Aucun point en attente.')+'\n\nActions proposées :\n• [à compléter]\n\nLe cabinet reste à votre disposition pour en parler.'; }
+    if(k==='memoire'){ var A=IA(co.id).ao.filter(function(x){ return x.id===v.ao; })[0], an=A?A.analyse:{};
+      var crit=(an.criteres||[]).map(function(c){ return c.lib+(c.poids?' ('+c.poids+' %)':''); });
+      return 'MÉMOIRE TECHNIQUE\n\n'+(A?A.objet:'[Objet du marché]')+'\n'+(A&&A.acheteur?'Acheteur : '+A.acheteur+'\n':'')+'Candidat : '+K.nom(co)+(co.siren?' — SIREN '+co.siren:'')+'\n\n'
+        +'1. Présentation de l’entreprise\n'+K.nom(co)+(co.forme?', '+String(co.forme).toUpperCase():'')+(co.capital?' au capital de '+money(num(co.capital)):'')+', '+(siege(co)||'[siège]')+'. Activité : '+((co.activites||[]).join(', ')||'[à compléter]')+'.\n\n'
+        +'2. Compréhension du besoin\n[Reformulez le besoin de l’acheteur et ses enjeux.]'+((an.lots||[]).length?'\nLots visés : '+an.lots.join(' ; ')+'.':'')+'\n\n'
+        +'3. Moyens humains et matériels\n'+ac(v.moyens)+'\n\n'
+        +'4. Méthodologie et organisation\n'+ac(v.methodo)+'\n\n'
+        +'5. Planning d’exécution\n'+(an.duree?'Durée du marché : '+an.duree+'.\n':'')+'[Phases, jalons, délais.]\n\n'
+        +'6. Qualité, sécurité et environnement\n[Démarche qualité, prévention, gestion des déchets.]\n\n'
+        +'7. Références\n'+((an.refs||[]).length?an.refs.map(function(r_){ return '• '+r_; }).join('\n'):'[Trois références comparables.]')
+        +(crit.length?'\n\nCritères de jugement à couvrir : '+crit.join(' ; ')+'.':''); }
+    if(k==='mail') return 'À : '+ac(v.dest)+'\nObjet : '+ac(v.objet)+'\n\nBonjour,\n\n'+ac(v.message)+'\n\nBien cordialement,\n\n'+(co.president||'[Nom]')+'\n'+K.nom(co)+(co.telephone?'\n'+co.telephone:'');
+    return ''; }
+  var SYS='Tu es l’assistant de rédaction d’un cabinet d’expertise comptable français. Tu rédiges en français soutenu, sans familiarité, des documents prêts à signer. Tu n’inventes aucun fait, montant, date ni référence : ce qui manque est écrit « [à compléter] ». Tu respectes le droit français cité. Tu rends uniquement le texte du document.';
+  function champHTML(co,f,v){ var id='adm-ia-'+f[0], x=v[f[0]]||'';
+    if(f[2]==='area') return '<label for="'+id+'">'+E(f[1])+'</label><textarea id="'+id+'" rows="3">'+E(x)+'</textarea>';
+    if(f[2]==='ton') return '<label for="'+id+'">'+E(f[1])+'</label>'+sel(id,['','Courtois','Ferme','Mise en demeure'],x).replace('<option>','<option value="">Selon le nombre de relances</option><option hidden>');
+    if(f[2]==='fact'){ var P=crm(co).pieces.filter(function(p){ return p.type==='Facture'&&p.statut!=='Payée'&&p.statut!=='Annulée'; });
+      return '<label for="'+id+'">'+E(f[1])+'</label><select id="'+id+'">'+(P.length?P.map(function(p){ var kk=contact(co,p.contactId); return '<option value="'+E(p.id)+'"'+(p.id===x?' selected':'')+'>'+E((p.num||'')+' — '+(kk?kk.raison||kk.contact:'')+' — '+money(ttc(p))+' TTC')+'</option>'; }).join(''):'<option value="">Aucune facture impayée au CRM</option>')+'</select>'; }
+    if(f[2]==='ao'){ var L=IA(co.id).ao; return '<label for="'+id+'">'+E(f[1])+'</label><select id="'+id+'">'+(L.length?L.slice().reverse().map(function(a){ return '<option value="'+E(a.id)+'"'+(a.id===x?' selected':'')+'>'+E(a.objet.slice(0,90))+'</option>'; }).join(''):'<option value="">Aucun appel d’offres analysé</option>')+'</select>'; }
+    return '<label for="'+id+'">'+E(f[1])+'</label><input id="'+id+'" value="'+E(x)+'">'; }
+  window.admIaRedac=function(k,pre){ var co=K.cur(); if(!co) return; var t=typ(k); if(!t) return; var v=pre||{};
+    openModal(E(t.lbl),'<div class="ia-f">'+t.champs.map(function(f){ return '<div>'+champHTML(co,f,v)+'</div>'; }).join('')+'</div><p class="adm-p0">'+(mode()==='live'?'Le texte est rédigé par l’IA du cabinet à partir de ces éléments et de la fiche société.':'IA non branchée : un brouillon type est rédigé avec la fiche société. Branchez l’IA dans Paramètres › IA pour une rédaction libre.')+'</p>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admIaRediger('+q(k)+')">Rédiger</button>'); };
+  window.admIaRediger=function(k){ var co=K.cur(); if(!co) return; var t=typ(k), v={}; t.champs.forEach(function(f){ v[f[0]]=val('adm-ia-'+f[0]); });
+    if(k==='relance'&&!v.fact) return T('Choisissez la facture à relancer.');
+    if(k==='memoire'&&!v.ao) return T('Analysez d’abord un appel d’offres (onglet « Analyser un AO »).');
+    var local=brouillon(co,k,v), titre=t.lbl+(v.objet?' — '+v.objet:(v.sujet?' — '+v.sujet:''));
+    if(k==='relance'){ var p=crm(co).pieces.filter(function(x){ return x.id===v.fact; })[0]; titre='Relance — facture '+(p?p.num:''); }
+    if(k==='memoire'){ var A=IA(co.id).ao.filter(function(x){ return x.id===v.ao; })[0]; titre='Mémoire technique — '+(A?A.objet.slice(0,60):''); }
+    var user='Document à rédiger : '+t.lbl+'.\n\nDonnées de la société :\n'+ctxTexte(co)+'\n\nÉléments fournis :\n'+t.champs.map(function(f){ return f[1]+' : '+(v[f[0]]||'—'); }).join('\n')+'\n\nBrouillon de départ (à améliorer, sans rien inventer) :\n'+local;
+    window.__admIaGen={k:k,titre:titre};
+    var fin=function(txt,src){ window.__admIaGen.src=src; openModal(E(titre),'<textarea id="adm-ia-doc" class="adm-doc" rows="18" aria-label="Document">'+E(txt)+'</textarea><p class="adm-p0">'+(src==='IA'?'Rédigé par l’IA : relisez chaque fait, date et montant avant d’envoyer.':'Brouillon type : complétez les passages « [à compléter] ».')+'</p><label for="adm-ia-cat">Rubrique du coffre</label>'+sel('adm-ia-cat',CATS,k==='relance'||k==='memoire'?'Clients & achats':'Divers'),
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button><button class="btn btn-ghost" onclick="admIaCopier()">Copier</button><button class="btn btn-pri" onclick="admIaGarder()">Enregistrer au coffre</button>'); };
+    if(mode()==='off') return fin(local,'Modèle');
+    T('Rédaction en cours…');
+    try{ iaAsk({system:SYS,user:user,temperature:0.3,label:'MARQ IA — '+t.lbl,demo:function(){ return local; }},function(r){ if(r&&r.ok&&r.text&&!r.demo) fin(r.text,'IA'); else fin(local,'Modèle'); }); }catch(e){ fin(local,'Modèle'); } };
+  window.admIaCopier=function(){ var ta=document.getElementById('adm-ia-doc'); if(!ta) return; try{ navigator.clipboard.writeText(ta.value).then(function(){ T('Texte copié.'); },function(){ ta.select(); document.execCommand('copy'); T('Texte copié.'); }); }catch(e){ ta.select(); try{ document.execCommand('copy'); }catch(_e){} T('Texte copié.'); } };
+  function coffre(co,titre,cat,texte,fichier){ var r=K.R(co.id), d=r.doc=r.doc||{}; d.docs=d.docs||[]; d.sig=d.sig||[]; var o={id:nid('dc'),titre:titre,cat:cat||'Divers',date:iso(t0())}; if(texte) o.texte=texte; if(fichier) o.fichier=fichier; d.docs.push(o); return o; }
+  window.admIaGarder=function(){ var co=K.cur(), g=window.__admIaGen, ta=document.getElementById('adm-ia-doc'); if(!co||!g||!ta) return; if(!ta.value.trim()) return T('Le document est vide.');
+    var o=coffre(co,g.titre,val('adm-ia-cat'),ta.value); IA(co.id).redac.push({id:nid('ir'),type:g.k,titre:g.titre,date:iso(t0()),src:g.src,docId:o.id}); sv(); closeModal(); T('Document enregistré au coffre (MARQ DOC).'); rr(); };
+
+  /* ---------- Lire une pièce ---------- */
+  function luhn(s){ var t=0; for(var i=0;i<s.length;i++){ var n=+s[s.length-1-i]; if(i%2){ n*=2; if(n>9) n-=9; } t+=n; } return t%10===0; }
+  function montant(s){ return num(String(s).replace(/[\s  .](?=\d{3}(\D|$))/g,'')); }
+  function dateIso(s){ var m=String(s).match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if(!m) return ''; var y=+m[3]; if(y<100) y+=2000; return y+'-'+K.pad(+m[2])+'-'+K.pad(+m[1]); }
+  var MOIS={janvier:1,'février':2,fevrier:2,mars:3,avril:4,mai:5,juin:6,juillet:7,'août':8,aout:8,septembre:9,octobre:10,novembre:11,'décembre':12,decembre:12};
+  function dateLong(s){ var m=String(s).match(/(\d{1,2})(?:er)?\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)\s+(\d{4})/i); return m?m[3]+'-'+K.pad(MOIS[m[2].toLowerCase()]||MOIS[m[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')])+'-'+K.pad(+m[1]):''; }
+  var DT='(\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{2,4}|\\d{1,2}(?:er)?\\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre)\\s+\\d{4})';
+  function dAny(s){ return dateIso(s)||dateLong(s); }
+  var MT='(\\d{1,3}(?:[\\s\\u00a0\\u202f.]\\d{3})*(?:,\\d{2})|\\d+(?:[.,]\\d{2})?)\\s*(?:€|eur)';
+  function lire(txt){ var t=String(txt||''), f=t.replace(/\s+/g,' '), L=f.toLowerCase(), o={};
+    var TY=[['Mise en demeure',/mise en demeure/],['Avoir',/\bavoir\b.{0,40}n[°o]|facture d.avoir/],['Facture',/\bfacture\b/],['Devis',/\bdevis\b|proposition commerciale/],['Avis d’imposition',/avis d.imp[ôo]t|avis de cotisation fonci[èe]re|avis de taxe|cotisation fonci[èe]re des entreprises|imp[ôo]ts\.gouv/],['Attestation URSSAF',/attestation de vigilance|urssaf/],['Attestation fiscale',/attestation de r[ée]gularit[ée] fiscale/],['Extrait K-bis',/extrait k ?bis|registre du commerce et des soci[ée]t[ée]s/],['Attestation d’assurance',/attestation d.assurance|certificat d.assurance|nous soussign[ée]s.{0,60}assur/],['Contrat',/\bcontrat\b|conditions particuli[èe]res/]];
+    o.type='Courrier'; for(var i=0;i<TY.length;i++){ if(TY[i][1].test(L)){ o.type=TY[i][0]; break; } }
+    var S=[], m, re=/\b(\d{3}[\s.]?\d{3}[\s.]?\d{3}(?:[\s.]?\d{5})?)\b/g; while((m=re.exec(f))){ var d=m[1].replace(/[\s.]/g,''); if((d.length===9||d.length===14)&&luhn(d)&&S.indexOf(d)<0) S.push(d); }
+    o.sirens=S.map(function(x){ return x.slice(0,9); }).filter(function(x,i,a){ return a.indexOf(x)===i; }); o.siret=S.filter(function(x){ return x.length===14; })[0]||'';
+    m=f.match(/\bFR\s?[0-9A-Z]{2}\s?\d{3}\s?\d{3}\s?\d{3}\b/i); if(m) o.tva=m[0].replace(/\s/g,'').toUpperCase();
+    m=f.match(/\b(FR\d{2}(?:\s?[0-9A-Z]{4}){5}\s?[0-9A-Z]{3})\b/i); if(m) o.iban=m[1].replace(/\s/g,'').toUpperCase();
+    m=f.match(/(?:facture|avoir|devis|r[ée]f[ée]rence|avis)\s*(?:n[°o]|num[ée]ro)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_.]{2,24})/i); if(m) o.numero=m[1].replace(/[.]$/,'');
+    function mt(rx){ var mm=f.match(new RegExp(rx+'[^0-9€]{0,30}'+MT,'i')); return mm?montant(mm[1]):null; }
+    o.ttc=mt('(?:total\\s*t\\.?t\\.?c\\.?|net\\s*[àa]\\s*payer|montant\\s*(?:total\\s*)?(?:[àa]\\s*payer|d[ûu]|restant\\s*d[ûu])|reste\\s*[àa]\\s*payer|somme\\s*de|total\\s*[àa]\\s*payer)');
+    o.ht=mt('(?:total\\s*h\\.?t\\.?|montant\\s*h\\.?t\\.?|base\\s*h\\.?t\\.?)'); o.tvaM=mt('(?:total\\s*)?t\\.?v\\.?a\\.?(?:\\s*\\d+[.,]?\\d*\\s*%)?');
+    if(o.ttc==null&&o.ht!=null&&o.tvaM!=null) o.ttc=Math.round((o.ht+o.tvaM)*100)/100;
+    m=f.match(new RegExp('(?:[ée]ch[ée]ance|date\\s*limite(?:\\s*de\\s*paiement)?|[àa]\\s*payer\\s*(?:avant|au\\s*plus\\s*tard)\\s*le|au\\s*plus\\s*tard\\s*le|avant\\s*le|valable\\s*jusqu.au|p[ée]riode\\s*de\\s*validit[ée].{0,20}au|sous\\s*huit\\s*jours.{0,10}le)\\s*[:\\-]?\\s*'+DT,'i')); if(m) o.echeance=dAny(m[1]);
+    m=f.match(new RegExp('(?:[àa]\\s*jour\\s*au|du|en\\s*date\\s*du|le|date\\s*(?:de\\s*(?:la\\s*)?facture|d.[ée]mission)?)\\s*[:\\-]?\\s*'+DT,'i')); if(m) o.date=dAny(m[1]);
+    var cat={'Facture':'Clients & achats','Avoir':'Clients & achats','Devis':'Clients & achats','Avis d’imposition':'Fiscal','Attestation fiscale':'Fiscal','Attestation URSSAF':'Social','Extrait K-bis':'Juridique','Attestation d’assurance':'Assurances','Contrat':'Divers','Mise en demeure':'Divers','Courrier':'Divers'}; o.cat=cat[o.type]||'Divers';
+    if(o.type==='Attestation d’assurance'){ o.assurance=/d[ée]cennale/.test(L)?'Décennale':/responsabilit[ée] civile professionnelle|rc pro/.test(L)?'RC professionnelle':/responsabilit[ée] civile|rc exploitation/.test(L)?'RC exploitation':/multirisque/.test(L)?'Multirisque locaux':/flotte|v[ée]hicule/.test(L)?'Flotte automobile':'Autre'; m=f.match(/(?:police|contrat)\s*n[°o]\s*[:\-]?\s*([A-Z0-9\-\/]{4,24})/i); if(m) o.police=m[1]; }
+    return o; }
+  function resumeLocal(o){ var p=[o.type]; if(o.numero) p.push('n° '+o.numero); if(o.date) p.push('du '+fr(o.date)); if(o.ttc!=null) p.push('montant '+money(o.ttc)+(o.ht!=null?' (HT '+money(o.ht)+', TVA '+money(o.tvaM||0)+')':'')); if(o.echeance) p.push('échéance '+fr(o.echeance)); return p.join(', ')+'.'; }
+  function avert(co,o){ var W=[];
+    if(o.sirens.length&&co.siren&&['Extrait K-bis','Attestation URSSAF','Attestation fiscale','Avis d’imposition','Attestation d’assurance'].indexOf(o.type)>=0&&o.sirens.indexOf(String(co.siren).replace(/\s/g,''))<0) W.push('Le SIREN de la pièce ('+o.sirens.join(', ')+') n’est pas celui de la société : vérifiez qu’elle la concerne.');
+    if(o.type==='Extrait K-bis'&&o.date&&jours(dOf(o.date))<-90) W.push('K-bis de plus de trois mois : il n’est plus accepté pour une candidature ou une banque.');
+    if(o.type==='Attestation URSSAF'&&o.date&&jours(dOf(o.date))<-183) W.push('Attestation de vigilance de plus de six mois : à renouveler.');
+    if(o.ht!=null&&o.tvaM!=null&&o.ttc!=null&&Math.abs(o.ht+o.tvaM-o.ttc)>0.05) W.push('HT + TVA ne donne pas le TTC : relisez les montants.');
+    if(o.echeance&&jours(dOf(o.echeance))<0&&o.type!=='Attestation d’assurance') W.push('Échéance dépassée depuis le '+fr(o.echeance)+'.');
+    if(o.type==='Attestation d’assurance'&&o.echeance&&jours(dOf(o.echeance))<0) W.push('Attestation expirée le '+fr(o.echeance)+'.');
+    return W; }
+  window.admIaLireTexte=function(txt,nom,fichier){ var co=K.cur(); if(!co) return null; if(!String(txt||'').trim()) { T('Aucun texte lisible dans la pièce : collez son contenu.'); return null; }
+    var o=lire(txt), rec={id:nid('il'),date:iso(t0()),nom:nom||'Texte collé',type:o.type,champs:o,resume:resumeLocal(o),avert:avert(co,o),ech:o.echeance||'',traite:false,cat:o.cat,classe:'',texte:String(txt).slice(0,20000)};
+    if(fichier&&fichier.length<1.5*1024*1024*1.37) rec.fichier=fichier;
+    IA(co.id).lectures.push(rec); sv(); window.__admIaVue=rec.id;
+    if(mode()==='live'){ try{ iaAsk({system:'Tu résumes en trois phrases au plus, en français, une pièce reçue par une entreprise : nature, émetteur, ce qui est demandé et avant quand. Tu n’inventes rien.',user:String(txt).slice(0,6000),temperature:0.1,label:'MARQ IA — lecture',demo:function(){ return rec.resume; }},function(r){ if(r&&r.ok&&r.text&&!r.demo){ rec.resumeIA=r.text; sv(); rr(); } }); }catch(e){} }
+    rr(); return rec; };
+  window.admIaLireFichier=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; if(f.size>8*1024*1024) return T('Fichier trop lourd (8 Mo au plus).');
+    var r=new FileReader(); r.onload=function(){ var url=String(r.result||''); T('Lecture de la pièce…');
+      var lu=function(txt){ if(!String(txt||'').trim()) return T('Aucun texte lisible (pièce scannée ?) : collez son contenu dans la zone de texte.'); admIaLireTexte(txt,f.name,url); T('Pièce lue.'); };
+      if(typeof window.espOcrRead==='function') window.espOcrRead(url,lu); else if(/^text\//.test(f.type)) lu(atob(url.split(',')[1]||'')); else T('Lecteur de pièces indisponible : collez le texte.'); };
+    r.readAsDataURL(f); inp.value=''; };
+  window.admIaLireColle=function(){ var t=val('adm-ia-colle'); if(!t) return T('Collez le texte de la pièce.'); var r_=admIaLireTexte(t,'Texte collé'); if(r_){ var e=document.getElementById('adm-ia-colle'); if(e) e.value=''; } };
+  function lect(id){ var co=K.cur(); return co?IA(co.id).lectures.filter(function(x){ return x.id===id; })[0]:null; }
+  window.admIaVoir=function(id){ window.__admIaVue=id; rr(); };
+  window.admIaClasser=function(id){ var co=K.cur(), x=lect(id); if(!x) return; var cat=val('adm-ia-cl-'+id)||x.cat;
+    var o=coffre(co,x.type+(x.champs.numero?' '+x.champs.numero:'')+(x.nom&&x.nom!=='Texte collé'?' — '+x.nom:''),cat,x.fichier?'':x.texte,x.fichier); x.classe=o.id; x.cat=cat; sv(); T('Pièce classée au coffre, rubrique « '+cat+' ».'); rr(); };
+  window.admIaEch=function(id,v){ var x=lect(id); if(!x) return; x.ech=v; sv(); rr(); };
+  window.admIaTraite=function(id){ var x=lect(id); if(!x) return; x.traite=!x.traite; sv(); rr(); };
+  window.admIaAssurance=function(id){ var co=K.cur(), x=lect(id); if(!co||!x) return; var c=x.champs; if(!x.ech) return T('Indiquez la date de fin de validité.');
+    var r=K.R(co.id), ct=r.control=r.control||{}; ct.assurances=ct.assurances||[]; var ex=ct.assurances.filter(function(a){ return a.type===c.assurance&&(!c.police||!a.police||a.police===c.police); })[0];
+    if(ex){ ex.echeance=x.ech; if(c.police) ex.police=c.police; } else ct.assurances.push({id:nid('ass'),type:c.assurance||'Autre',assureur:'',police:c.police||'',echeance:x.ech,prime:''});
+    x.traite=true; sv(); T(ex?'Échéance du contrat mise à jour (MARQ CONTROL).':'Contrat ajouté au registre des assurances (MARQ CONTROL).'); rr(); };
+  window.admIaRepondre=function(id){ var x=lect(id); if(!x) return; admIaRedac('reponse',{recu:(x.resumeIA||x.resume)+'\n\n'+x.texte.slice(0,1500)}); };
+  window.admIaLectSuppr=function(id){ var co=K.cur(); if(!co) return; var go_=function(){ var a=IA(co.id); a.lectures=a.lectures.filter(function(x){ return x.id!==id; }); if(window.__admIaVue===id) window.__admIaVue=null; sv(); rr(); }; if(typeof uiConfirm==='function') uiConfirm('Retirer cette lecture ? La pièce classée au coffre reste au coffre.',go_); else go_(); };
+
+  /* ---------- Analyser un AO ---------- */
+  var PIECES=[
+    ['dc1','Lettre de candidature (DC1)',/\bdc ?1\b|lettre de candidature/],['dc2','Déclaration du candidat (DC2)',/\bdc ?2\b|d[ée]claration du candidat/],['dume','DUME',/\bdume\b|document unique de march[ée] europ[ée]en/],
+    ['ae','Acte d’engagement',/acte d.engagement|\battri ?1\b/],['prix','Pièces financières (BPU / DPGF / DQE)',/\bbpu\b|\bdpgf\b|\bdqe\b|bordereau des prix|d[ée]composition du prix/],
+    ['kbis','Extrait K-bis de moins de 3 mois',/k ?bis|extrait d.immatriculation/],['urssaf','Attestation de vigilance URSSAF',/urssaf|attestation de vigilance/],['fisc','Attestation de régularité fiscale',/r[ée]gularit[ée] fiscale|attestation fiscale|imp[ôo]ts/],
+    ['rc','Attestation d’assurance responsabilité civile',/responsabilit[ée] civile|\brc ?pro/],['dec','Attestation d’assurance décennale',/d[ée]cennale/],
+    ['refs','Références de moins de 3 à 5 ans',/r[ée]f[ée]rences/],['memoire','Mémoire technique',/m[ée]moire technique|note m[ée]thodologique|m[ée]moire justificatif/],
+    ['qualif','Qualifications / certifications',/qualibat|qualifelec|\brge\b|iso ?9001|certification|qualification professionnelle/],['cv','CV de l’équipe',/\bcv\b|curriculum/],['rib','RIB',/\brib\b|relev[ée] d.identit[ée] bancaire/]];
+  function coffreDoc(co,rx,moisMax){ var d=((K.R(co.id).doc||{}).docs||[]).filter(function(x){ return rx.test(String(x.titre||'').toLowerCase())&&(!moisMax||jours(dOf(x.date))>=-moisMax*30.5); }); return d.sort(function(a,b){ return a.date<b.date?1:-1; })[0]||null; }
+  function etatPiece(co,k){ var r=K.R(co.id), ass=((r.control||{}).assurances||[]).filter(function(a){ var e=dOf(a.echeance); return e&&jours(e)>=0; });
+    if(k==='kbis'){ var d=coffreDoc(co,/k ?-?bis/,3); return d?['ok','au coffre, du '+fr(d.date)]:['ko','à demander (moins de 3 mois)']; }
+    if(k==='urssaf'){ var d2=coffreDoc(co,/urssaf|vigilance/,6); return d2?['ok','au coffre, du '+fr(d2.date)]:['ko','à télécharger sur urssaf.fr']; }
+    if(k==='fisc'){ var d3=coffreDoc(co,/fiscal|r[ée]gularit/,12); return d3?['ok','au coffre, du '+fr(d3.date)]:['ko','à télécharger sur impots.gouv.fr']; }
+    if(k==='rc'){ var a=ass.filter(function(x){ return /^RC/.test(x.type); })[0]; return a?['ok',a.type+' valable jusqu’au '+fr(a.echeance)]:['ko','aucun contrat RC en cours dans MARQ CONTROL']; }
+    if(k==='dec'){ var a2=ass.filter(function(x){ return x.type==='Décennale'; })[0]; return a2?['ok','valable jusqu’au '+fr(a2.echeance)]:['ko','aucune décennale en cours dans MARQ CONTROL']; }
+    if(k==='refs'){ var P=((r.crm||{}).pieces||[]).filter(function(p){ return p.type==='Facture'&&jours(dOf(p.date))>=-5*365; }), cl={}; P.forEach(function(p){ cl[p.contactId]=1; }); var n=Object.keys(cl).length; return n>=3?['ok',n+' clients facturés en 5 ans (CRM)']:['a',(n?n+' client(s) facturé(s)':'aucune facture')+' au CRM : complétez']; }
+    if(k==='dc1'||k==='dc2'||k==='dume'||k==='ae') return co.siren&&co.president&&co.siege?['a','à remplir — identité complète dans la fiche']:['ko','fiche société incomplète (SIREN, dirigeant, siège)'];
+    if(k==='memoire') return ['a','à rédiger — trame disponible'];
+    if(k==='rib') return ['a','à joindre'];
+    return ['a','à vérifier']; }
+  function analyseAO(txt,av){ var f=String(txt||'').replace(/\s+/g,' '), L=f.toLowerCase(), o={}, m;
+    m=f.match(new RegExp('(?:date\\s*(?:et\\s*heure\\s*)?limite\\s*(?:de\\s*)?(?:r[ée]ception|remise|d[ée]p[ôo]t)(?:\\s*des\\s*(?:offres|plis|candidatures))?|remise\\s*des\\s*offres)[^0-9]{0,40}'+DT+'(?:[^0-9]{0,12}(\\d{1,2}\\s*h\\s*\\d{0,2}))?','i'));
+    if(m){ o.limite=dAny(m[1]); if(m[2]) o.heure=m[2].replace(/\s/g,''); }
+    if(!o.limite&&av&&av.limite) o.limite=av.limite;
+    o.procedure=/proc[ée]dure adapt[ée]e|\bmapa\b/.test(L)?'Procédure adaptée (MAPA)':/appel d.offres ouvert/.test(L)?'Appel d’offres ouvert':/appel d.offres restreint/.test(L)?'Appel d’offres restreint':/proc[ée]dure (avec )?n[ée]goci/.test(L)?'Procédure avec négociation':/dialogue comp[ée]titif/.test(L)?'Dialogue compétitif':'';
+    o.lots=[]; var re=/lot\s*n?[°o]?\s*(\d{1,2})\s*[:\-–]\s*([^.;]{3,80}?)(?=\s*(?:lot\s*n?[°o]?\s*\d|[.;]|$))/gi; while((m=re.exec(f))){ var s='Lot '+m[1]+' : '+m[2].trim(); if(o.lots.every(function(x){ return x.indexOf('Lot '+m[1]+' ')!==0; })) o.lots.push(s); }
+    o.criteres=[]; var rc=/(prix|valeur technique|d[ée]lais?(?: d.ex[ée]cution)?|qualit[ée] technique|m[ée]moire technique|performances? environnementales?|d[ée]veloppement durable|insertion sociale)[^0-9%]{0,40}(\d{1,3})\s*%/gi;
+    while((m=rc.exec(f))){ var lib=m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase(); if(o.criteres.every(function(c){ return c.lib!==lib; })) o.criteres.push({lib:lib,poids:+m[2]}); }
+    o.poidsPrix=(o.criteres.filter(function(c){ return c.lib==='Prix'; })[0]||{}).poids||null;
+    m=f.match(/(?:montant|valeur|budget)\s*(?:total\s*)?(?:estim[ée]e?|pr[ée]visionnel)[^0-9]{0,30}(\d{1,3}(?:[\s  .]\d{3})*(?:,\d{2})?)\s*(?:€|eur)/i); if(m) o.montant=montant(m[1]);
+    m=f.match(/(?:dur[ée]e\s*(?:du\s*march[ée]|de\s*l.accord.cadre|d.ex[ée]cution)?|d[ée]lai\s*d.ex[ée]cution)\s*[:\-]?\s*(\d{1,3}\s*(?:jours|semaines|mois|ans?))/i); if(m) o.duree=m[1];
+    o.visite=/visite[^.]{0,30}obligatoire/.test(L)?'obligatoire':/visite[^.]{0,30}(facultative|conseill)/.test(L)?'facultative':'';
+    o.variantes=/variantes?\s*(ne\s*sont\s*pas\s*autoris|interdit|non\s*autoris)/.test(L)?'interdites':/variantes?\s*(sont\s*)?autoris/.test(L)?'autorisées':'';
+    o.pieces=PIECES.filter(function(p){ return p[2].test(L); }).map(function(p){ return p[0]; });
+    if(!o.pieces.length) o.pieces=['dc1','dc2','kbis','urssaf','fisc','rc','refs','memoire'];
+    return o; }
+  function verdict(co,a,av){ var pos=[], neg=[], sc=50, L=a.limite?dOf(a.limite):null;
+    if(L){ var j=jours(L); if(j<0){ neg.push('date limite dépassée'); sc-=60; } else if(j<7){ neg.push('moins de 7 jours pour répondre'); sc-=20; } else if(j>=15){ pos.push(j+' jours pour préparer l’offre'); sc+=10; } else pos.push(j+' jours pour répondre'); } else { neg.push('date limite inconnue'); sc-=5; }
+    var E_=a.pieces.map(function(k){ return etatPiece(co,k)[0]; }), ok=E_.filter(function(x){ return x==='ok'; }).length, ko=E_.filter(function(x){ return x==='ko'; }).length;
+    if(ko){ neg.push(ko+' pièce'+(ko>1?'s':'')+' à obtenir'); sc-=ko*6; } if(ok) { pos.push(ok+' pièce'+(ok>1?'s':'')+' déjà prête'+(ok>1?'s':'')); sc+=ok*3; }
+    if(a.pieces.indexOf('dec')>=0&&etatPiece(co,'dec')[0]==='ko'){ neg.push('décennale exigée et absente'); sc-=20; }
+    if(av&&av.pert){ if(av.pert==='Forte'){ pos.push('pertinence forte (veille)'); sc+=15; } else if(av.pert==='Faible'){ neg.push('pertinence faible (veille)'); sc-=15; } }
+    if(a.poidsPrix!=null){ if(a.poidsPrix>=60){ neg.push('prix pondéré à '+a.poidsPrix+' % : marge sous pression'); sc-=8; } else if(a.poidsPrix<=40){ pos.push('valeur technique prépondérante'); sc+=8; } }
+    if(a.visite==='obligatoire') neg.push('visite obligatoire à planifier');
+    sc=Math.max(0,Math.min(100,Math.round(sc))); var avis=sc>=60?'Favorable':sc>=40?'À étudier':'Défavorable';
+    if(avis==='Favorable'&&(neg.indexOf('décennale exigée et absente')>=0||(L&&jours(L)<7))) avis='À étudier';
+    return {score:sc,avis:avis,pos:pos,neg:neg}; }
+  window.admIaAO=function(avisId){ var co=K.cur(); if(!co) return; var A=((crm(co).boamp||{}).avis||[]).filter(function(v){ return v.statut!=='Écarté'; });
+    openModal('Analyser un appel d’offres','<label for="adm-ia-av">Avis de la veille (MARQ CRM)</label><select id="adm-ia-av"><option value="">Aucun — avis hors veille</option>'+A.map(function(v){ return '<option value="'+E(v.id)+'"'+(v.id===avisId?' selected':'')+'>'+E(v.objet.slice(0,90)+(v.limite?' — '+fr(v.limite):''))+'</option>'; }).join('')+'</select>'
+      +'<div class="frow"><div><label for="adm-ia-ao-o">Objet (si hors veille)</label><input id="adm-ia-ao-o"></div><div><label for="adm-ia-ao-a">Acheteur</label><input id="adm-ia-ao-a"></div></div>'
+      +'<label for="adm-ia-rc">Règlement de la consultation (texte)</label><textarea id="adm-ia-rc" rows="8" placeholder="Collez le règlement de la consultation ou l’avis complet."></textarea><label for="adm-ia-rcf" class="adm-p0">ou déposez le PDF</label><input id="adm-ia-rcf" type="file" accept=".pdf,.txt,image/*" onchange="admIaAOFichier(this)">',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" onclick="admIaAOOk()">Analyser</button>'); };
+  window.admIaAOFichier=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(){ var u=String(r.result||''); var put=function(t){ var e=document.getElementById('adm-ia-rc'); if(e){ e.value=t||''; T(t?'Règlement lu.':'Aucun texte lisible dans le PDF : collez-le.'); } }; if(typeof window.espOcrRead==='function') window.espOcrRead(u,put); else put(''); }; r.readAsDataURL(f); };
+  window.admIaAOTexte=function(txt,avisId,objet,acheteur){ var co=K.cur(); if(!co) return null; var av=avisId?((crm(co).boamp||{}).avis||[]).filter(function(v){ return v.id===avisId; })[0]:null;
+    if(!av&&!objet) { T('Choisissez un avis ou indiquez l’objet du marché.'); return null; }
+    if(!String(txt||'').trim()&&!av){ T('Collez le règlement de la consultation.'); return null; }
+    var a=analyseAO(txt,av), v=verdict(co,a,av), rec={id:nid('ia'),avisId:av?av.id:'',objet:av?av.objet:objet,acheteur:av?av.acheteur:(acheteur||''),url:av?av.url:'',date:iso(t0()),analyse:a,verdict:v,texte:String(txt||'').slice(0,20000)};
+    rec.analyse.refs=((K.R(co.id).crm||{}).pieces||[]).filter(function(p){ return p.type==='Facture'; }).slice(-3).map(function(p){ var kk=contact(co,p.contactId); return (kk?kk.raison||kk.contact:'Client')+' — '+money(num(p.ht))+' HT ('+fr(p.date)+')'; });
+    var L_=IA(co.id).ao; L_=IA(co.id).ao=L_.filter(function(x){ return !(av&&x.avisId===av.id); }); L_.push(rec);
+    if(av){ av.analyse=rec.id; if(av.statut==='Nouveau') av.statut='À étudier'; }
+    sv(); window.__admIaAoVue=rec.id;
+    if(mode()==='live'&&String(txt||'').trim()){ try{ iaAsk({system:'Tu analyses un règlement de consultation de marché public français. Réponds en JSON : {"resume":"trois phrases","risques":["..."],"points_cles":["..."]}. N’invente rien.',user:String(txt).slice(0,9000),json:true,temperature:0.1,label:'MARQ IA — analyse AO',demo:function(){ return null; }},function(r){ if(r&&r.ok&&r.data&&!r.demo){ rec.ia=r.data; sv(); rr(); } }); }catch(e){} }
+    rr(); return rec; };
+  window.admIaAOOk=function(){ var r=admIaAOTexte(val('adm-ia-rc'),val('adm-ia-av'),val('adm-ia-ao-o'),val('adm-ia-ao-a')); if(r){ closeModal(); T('Analyse terminée : '+r.verdict.avis.toLowerCase()+'.'); } };
+  window.admIaAOVoir=function(id){ window.__admIaAoVue=id; rr(); };
+  window.admIaAOStatut=function(id,s){ var co=K.cur(); if(!co) return; var x=IA(co.id).ao.filter(function(a){ return a.id===id; })[0]; if(!x) return; x.decision=s; var av=((crm(co).boamp||{}).avis||[]).filter(function(v){ return v.id===x.avisId; })[0]; if(av) av.statut=s==='Go'?'Retenu':s==='No-go'?'Écarté':av.statut; sv(); rr(); };
+  window.admIaAOSuppr=function(id){ var co=K.cur(); if(!co) return; var go_=function(){ var a=IA(co.id); a.ao=a.ao.filter(function(x){ return x.id!==id; }); if(window.__admIaAoVue===id) window.__admIaAoVue=null; sv(); rr(); }; if(typeof uiConfirm==='function') uiConfirm('Supprimer cette analyse ?',go_); else go_(); };
+
+  /* ---------- bilan ---------- */
+  function bilan(co){ var a=IA(co.id), al=[];
+    a.lectures.forEach(function(x){ var e=dOf(x.ech); if(!e||x.traite) return; var j=jours(e); if(j>15) return; al.push({niv:j<0?'r':'o',date:e,titre:x.type+(x.champs&&x.champs.numero?' '+x.champs.numero:'')+(j<0?' — échéance dépassée':' — échéance dans '+j+' jour'+(j>1?'s':'')),detail:x.resume}); });
+    a.ao.forEach(function(x){ var e=dOf(x.analyse.limite); if(!e||x.decision==='No-go'||x.decision==='Déposé') return; var j=jours(e); if(j<0||j>7||x.verdict.avis==='Défavorable') return; al.push({niv:j<=2?'r':'o',date:e,titre:'Appel d’offres — remise dans '+j+' jour'+(j>1?'s':''),detail:x.objet.slice(0,90)}); });
+    return {alertes:al,domaines:[]}; }
+
+  /* ---------- page ---------- */
+  function modeBandeau(){ var m=mode(); return '<div class="ia-mode ia-'+m+'">'+(m==='live'?'IA du cabinet branchée : rédaction libre et résumés.':m==='demo'?'Mode démonstration : brouillons types rédigés avec les données de la société. Branchez l’IA dans Paramètres › IA pour une rédaction libre.':'IA non branchée : brouillons types et lecture locale des pièces.')+'</div>'; }
+  function vueLecture(co,x){ var c=x.champs, rows=[['Type',E(x.type)],['Numéro',E(c.numero||'—')],['Date',c.date?fr(c.date):'—'],['Montant TTC',c.ttc!=null?money(c.ttc):'—'],['HT / TVA',c.ht!=null?money(c.ht)+' / '+money(c.tvaM||0):'—'],['SIREN',E((c.sirens||[]).join(', ')||'—')+(c.siret?'<br><small>SIRET '+E(c.siret)+'</small>':'')],['TVA intracom.',E(c.tva||'—')],['IBAN',E(c.iban||'—')]];
+    if(c.assurance) rows.push(['Contrat',E(c.assurance)+(c.police?' · police '+E(c.police):'')]);
+    var act=[btn(x.classe?'Classée au coffre ✓':'Classer au coffre',x.classe?'':'admIaClasser('+q(x.id)+')',1)];
+    if(/Mise en demeure|Courrier|Avis/.test(x.type)) act.push(btn('Rédiger une réponse','admIaRepondre('+q(x.id)+')',1));
+    if(c.assurance&&x.ech) act.push(btn('Mettre au registre des assurances','admIaAssurance('+q(x.id)+')',1));
+    act.push(btn(x.traite?'Rouvrir':'Marquer traité','admIaTraite('+q(x.id)+')',1));
+    return card(E(x.nom),'lue le '+fr(x.date),'<p class="ia-res">'+E(x.resumeIA||x.resume)+'</p>'+(x.avert.length?'<ul class="ia-w">'+x.avert.map(function(w){ return '<li>'+E(w)+'</li>'; }).join('')+'</ul>':'')
+      +'<div class="ia-kv">'+rows.map(function(r_){ return '<div><span>'+r_[0]+'</span><b>'+r_[1]+'</b></div>'; }).join('')+'</div>'
+      +'<div class="frow ia-row"><div><label for="adm-ia-cl-'+E(x.id)+'">Rubrique proposée</label>'+sel('adm-ia-cl-'+x.id,CATS,x.cat)+'</div><div><label for="adm-ia-ech-'+E(x.id)+'">Échéance suivie</label><input id="adm-ia-ech-'+E(x.id)+'" type="date" value="'+E(x.ech||'')+'" onchange="admIaEch('+q(x.id)+',this.value)"></div></div>'
+      +'<div class="ia-act" data-no-kebab>'+act.join('')+'</div>'); }
+  function vueAO(co,x){ var a=x.analyse, v=x.verdict, niv=v.avis==='Favorable'?'g':v.avis==='À étudier'?'o':'r';
+    var P=a.pieces.map(function(k){ var p=PIECES.filter(function(z){ return z[0]===k; })[0], e=etatPiece(co,k); return [E(p[1]),'<small>'+E(e[1])+'</small>',pill(e[0]==='ok'?'Prête':e[0]==='ko'?'Manquante':'À faire',e[0]==='ok'?'g':e[0]==='ko'?'r':'o')]; });
+    return card(E(x.objet.slice(0,110)),E(x.acheteur||''),'<div class="ia-verd ia-'+niv+'"><b>'+E(v.avis)+'</b><span>'+v.score+' / 100</span></div>'
+      +'<div class="ia-pn"><div><span>Pour</span>'+(v.pos.length?v.pos.map(function(s){ return '<i>'+E(s)+'</i>'; }).join(''):'<i>—</i>')+'</div><div><span>Contre</span>'+(v.neg.length?v.neg.map(function(s){ return '<i>'+E(s)+'</i>'; }).join(''):'<i>—</i>')+'</div></div>'
+      +(x.ia&&x.ia.resume?'<p class="ia-res">'+E(x.ia.resume)+'</p>':'')
+      +'<div class="ia-kv">'+[['Date limite',a.limite?fr(a.limite)+(a.heure?' à '+E(a.heure):''):'—'],['Procédure',E(a.procedure||'—')],['Montant estimé',a.montant?money(a.montant):'—'],['Durée',E(a.duree||'—')],['Visite',E(a.visite||'—')],['Variantes',E(a.variantes||'—')],['Critères',a.criteres.length?a.criteres.map(function(c){ return E(c.lib)+' '+c.poids+' %'; }).join(' · '):'—'],['Lots',a.lots.length?a.lots.map(E).join('<br>'):'—']].map(function(r_){ return '<div><span>'+r_[0]+'</span><b>'+r_[1]+'</b></div>'; }).join('')+'</div>'
+      +'<h3 class="ia-h3">Pièces exigées</h3>'+tbl(['Pièce','Dans Mar’q','État'],P)
+      +'<div class="ia-act" data-no-kebab>'+btn('Rédiger la trame du mémoire technique','admIaRedac('+q('memoire')+',{ao:'+q(x.id)+'})',1)+btn(x.decision==='Go'?'Retenu ✓':'Répondre (Go)','admIaAOStatut('+q(x.id)+','+q('Go')+')',1)+btn(x.decision==='No-go'?'Écarté ✓':'Écarter (No-go)','admIaAOStatut('+q(x.id)+','+q('No-go')+')',1)+btn(x.decision==='Déposé'?'Offre déposée ✓':'Offre déposée','admIaAOStatut('+q(x.id)+','+q('Déposé')+')',1)+(x.url?'<a class="btn btn-sm btn-ghost" href="'+E(x.url)+'" target="_blank" rel="noopener">Avis BOAMP</a>':'')+'</div>'); }
+  function page(){ var co=K.cur(); if(!co) return K.vide(); var a=IA(co.id), echL=a.lectures.filter(function(x){ var e=dOf(x.ech); return e&&!x.traite&&jours(e)<=15; }).length;
+    var t=K.tabs('mia',[['redac','Rédiger'],['lire','Lire une pièce',echL?String(echL):''],['ao','Analyser un AO',a.ao.length?String(a.ao.length):''],['hist','Historique']]), x='';
+    if(t.cur==='redac'){ x=card('Rédiger un document','avec la fiche de '+E(K.nom(co))+' et les données des modules','<div class="ia-tiles" data-no-kebab>'+TYPES.map(function(ty){ return '<button type="button" class="ia-tile" onclick="admIaRedac('+q(ty.k)+')"><b>'+E(ty.lbl)+'</b><span>'+E(({courrier:'Lettre à en-tête, objet, formule de politesse',relance:'Facture impayée du CRM, ton gradué, L441-10',reclam:'Recommandé, faits, demande, délai',reponse:'À partir d’une pièce lue ou d’un texte',note:'Alertes des modules résumées pour le dirigeant',memoire:'Trame reprenant l’analyse de l’appel d’offres',mail:'Message court et courtois'})[ty.k])+'</span></button>'; }).join('')+'</div>'); }
+    if(t.cur==='lire'){ var V=a.lectures.filter(function(z){ return z.id===window.__admIaVue; })[0]||a.lectures[a.lectures.length-1];
+      x=card('Lire une pièce','facture, avis, courrier, attestation, K-bis…','<div class="frow ia-row"><div><label for="adm-ia-f">Déposer le fichier (PDF ou image)</label><input id="adm-ia-f" type="file" accept=".pdf,.txt,image/*" onchange="admIaLireFichier(this)"></div></div><label for="adm-ia-colle">ou coller le texte de la pièce</label><textarea id="adm-ia-colle" rows="4"></textarea><div class="ia-act" data-no-kebab>'+btn('Lire le texte','admIaLireColle()')+'</div>')
+        +(V?vueLecture(co,V):'')
+        +card('Pièces lues',String(a.lectures.length),tbl(['Pièce','Type','Montant','Échéance',''],a.lectures.slice().reverse().map(function(z){ var e=dOf(z.ech); return [E(z.nom)+(z.id===(V&&V.id)?' <small>(affichée)</small>':''),E(z.type),z.champs.ttc!=null?money(z.champs.ttc):'—',e?(z.traite?fr(e)+' · traité':(jours(e)<0?pill(fr(e),'r'):jours(e)<=15?pill(fr(e),'o'):fr(e))):'—',btn('Voir','admIaVoir('+q(z.id)+')',1)+btn('Retirer','admIaLectSuppr('+q(z.id)+')',1)]; }),'Aucune pièce lue.')); }
+    if(t.cur==='ao'){ var W=a.ao.filter(function(z){ return z.id===window.__admIaAoVue; })[0]||a.ao[a.ao.length-1];
+      x=card('Analyser un appel d’offres','avis de la veille BOAMP ou règlement de la consultation','<p class="adm-p0">Date limite, critères, pièces exigées confrontées à ce que Mar’q détient déjà, et avis motivé.</p>',btn('Nouvelle analyse','admIaAO()'))
+        +(W?vueAO(co,W):'')
+        +card('Analyses',String(a.ao.length),tbl(['Marché','Date limite','Avis','Décision',''],a.ao.slice().reverse().map(function(z){ var n=z.verdict.avis; return [E(z.objet.slice(0,80)),z.analyse.limite?fr(z.analyse.limite):'—',pill(n+' · '+z.verdict.score,n==='Favorable'?'g':n==='À étudier'?'o':'r'),E(z.decision||'—'),btn('Voir','admIaAOVoir('+q(z.id)+')',1)+btn('Supprimer','admIaAOSuppr('+q(z.id)+')',1)]; }),'Aucune analyse.')); }
+    if(t.cur==='hist'){ var H=[].concat(a.redac.map(function(z){ return {d:z.date,k:'Rédaction',t:z.titre,s:z.src==='IA'?'IA':'Modèle type'}; }),a.lectures.map(function(z){ return {d:z.date,k:'Lecture',t:z.nom+' — '+z.type,s:z.resumeIA?'IA':'Lecture locale'}; }),a.ao.map(function(z){ return {d:z.date,k:'Appel d’offres',t:z.objet.slice(0,90),s:z.ia?'IA':'Analyse locale'}; })).sort(function(p,q_){ return p.d<q_.d?1:-1; });
+      x=card('Historique',String(H.length),tbl(['Date','Outil','Objet','Source'],H.map(function(h){ return [fr(h.d),E(h.k),E(h.t),E(h.s)]; }),'Rien pour l’instant.')); }
+    return '<div class="adm-wrap">'+K.tete('mia')+modeBandeau()+t.html+x+'</div>'; }
+
+  var css=document.createElement('style'); css.id='mq-admin-747-css'; css.textContent=[
+    '.ia-mode{font-size:12px;padding:7px 10px;border:1px solid var(--line-soft);border-radius:8px;margin:0 0 10px;opacity:.9}.ia-mode.ia-live{border-color:var(--ok,#3a7)}',
+    '.ia-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}.ia-tile{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border:1px solid var(--line-soft);border-radius:9px;background:transparent;color:inherit;cursor:pointer;min-width:0}.ia-tile:hover{border-color:var(--line)}.ia-tile b{font-size:13px}.ia-tile span{font-size:11.5px;opacity:.8}',
+    '.ia-f{display:flex;flex-direction:column;gap:6px}.ia-f textarea,.ia-f input,.ia-f select{width:100%}',
+    '.ia-res{font-size:13px;margin:0 0 8px;line-height:1.45}.ia-w{margin:0 0 8px;padding-left:18px;font-size:12px;color:var(--warn,#c80)}.ia-h3{font-size:13px;margin:12px 0 6px}',
+    '.ia-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 14px;margin:0 0 8px}.ia-kv div{display:flex;flex-direction:column;min-width:0}.ia-kv span{font-size:11px;opacity:.7}.ia-kv b{font-size:12.5px;font-weight:600;overflow-wrap:anywhere}',
+    '.ia-row{margin:4px 0}.ia-act{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}',
+    '.ia-verd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.ia-verd b{font-size:16px}.ia-verd span{font-size:12px;opacity:.8}.ia-verd.ia-g b{color:var(--ok,#3a7)}.ia-verd.ia-o b{color:var(--warn,#c80)}.ia-verd.ia-r b{color:var(--err,#c33)}',
+    '.ia-pn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}.ia-pn div{display:flex;flex-direction:column;gap:2px;min-width:0}.ia-pn span{font-size:11px;opacity:.7}.ia-pn i{font-style:normal;font-size:12.5px;overflow-wrap:anywhere}',
+    '@media(max-width:600px){.ia-pn{grid-template-columns:1fr}}'
+  ].join('\n'); document.head.appendChild(css);
+  admModule('mia',{lbl:'IA',sub:'Assistant',ic:'spark',page:page,bilan:bilan});
+  window.admIaBrouillon=function(k,v){ var co=K.cur(); return co?brouillon(co,k,v||{}):''; };
+  window.admIaLire=function(txt){ return lire(txt); };
+  window.admIaAnalyse=function(txt){ return analyseAO(txt,null); };
+  window.admIaBilan=function(id){ var co=(DB.clients||[]).filter(function(x){ return x.id===id; })[0]; return co?bilan(co):null; };
 })();
 </script>
 </body>
