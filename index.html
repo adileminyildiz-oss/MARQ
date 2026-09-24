@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=734;
+var LAST_VER=735;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -54423,6 +54423,8 @@ function testLienSignature() {
 </script>
 <script id="mq-portail-734">
 /* v734 — Portail client : refonte complète, à l'image de Mar'q.
+   v735 — Sur téléphone, la barre latérale s'ouvre en tiroir (bouton menu) ;
+   la barre d'onglets du bas est retirée.
    Le client retrouve l'allure du logiciel du cabinet : fond noir, logo, barre
    latérale à rubriques en capitales, en-tête de page avec ses indicateurs, cartes
    sombres à fin contour, boutons blancs. Quatre rubriques : Accueil, Avancement,
@@ -54450,6 +54452,8 @@ function testLienSignature() {
     check:'<path d="M5 12l4 4 10-10"/>',
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+    menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+    x:'<path d="M6 6l12 12M18 6L6 18"/>',
     camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'};
   function ic(k,n){ return '<svg class="pt-ic" viewBox="0 0 24 24" width="'+(n||18)+'" height="'+(n||18)+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(ICO[k]||'')+'</svg>'; }
   function brand(mode){ try{ return I().portBrand?I().portBrand(mode):''; }catch(e){ return ''; } }
@@ -54512,7 +54516,20 @@ function testLienSignature() {
     var h=ov.querySelector('.pt-top-t h1'), p=ov.querySelector('.pt-top-t p'); if(h) h.textContent=TITRES[t][0]; if(p) p.textContent=TITRES[t][1];
     ov.querySelectorAll('.pt-panel').forEach(function(p){ var on=p.getAttribute('data-tab')===t; p.hidden=!on; });
     ov.querySelectorAll('[data-go]').forEach(function(b){ var on=b.getAttribute('data-go')===t; b.classList.toggle('on',on); if(b.getAttribute('role')==='tab') b.setAttribute('aria-selected',on?'true':'false'); });
-    try{ var bd=ov.querySelector('.pt-body'); if(bd) bd.scrollTop=0; ov.scrollTop=0; }catch(e){} };
+    try{ var bd=ov.querySelector('.pt-body'); if(bd) bd.scrollTop=0; ov.scrollTop=0; }catch(e){}
+    window.portV2Nav(false); };
+  /* téléphone : la barre latérale devient un tiroir, ouvert par le bouton menu */
+  window.portV2Nav=function(open){ var ov=document.getElementById('portail-ov'); if(!ov||!ov.classList.contains('pt-v2-space')) return;
+    var was=ov.classList.contains('pt-nav-open'); if(open===undefined) open=!was; if(open===was) return;
+    ov.classList.toggle('pt-nav-open',!!open);
+    var mb=ov.querySelector('.pt-menu'), sd=ov.querySelector('.pt-side');
+    if(mb) mb.setAttribute('aria-expanded',open?'true':'false');
+    if(sd&&window.matchMedia&&matchMedia('(max-width:760px)').matches){ if(open){ sd.setAttribute('role','dialog'); sd.setAttribute('aria-modal','true'); } else { sd.removeAttribute('role'); sd.removeAttribute('aria-modal'); } }
+    try{ if(open){ setTimeout(function(){ try{ sd&&sd.focus({preventScroll:true}); }catch(e){} },60); }
+      else if(was&&mb&&getComputedStyle(mb).display!=='none'&&document.activeElement&&ov.querySelector('.pt-side').contains(document.activeElement)) mb.focus({preventScroll:true}); }catch(e){} };
+  document.addEventListener('keydown',function(e){ var ov=document.getElementById('portail-ov'); if(e.key==='Escape'&&ov&&ov.classList.contains('pt-nav-open')){ e.preventDefault(); window.portV2Nav(false); } });
+  function glisse(sd){ var x0=null,y0=null; sd.addEventListener('touchstart',function(e){ var t=e.touches[0]; x0=t.clientX; y0=t.clientY; },{passive:true});
+    sd.addEventListener('touchend',function(e){ if(x0==null) return; var t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0; x0=null; if(dx<-60&&Math.abs(dy)<Math.abs(dx)) window.portV2Nav(false); },{passive:true}); }
 
   function frise(x){ return '<ol class="pt-steps">'+x.etapes.map(function(s,i){
       return '<li class="'+E(s.etat)+'"><span class="pt-step-dot">'+(s.etat==='fait'?ic('check',12):(i+1))+'</span><span class="pt-step-l">'+E(s.lbl)+'</span>'+(s.etat==='encours'?'<span class="pt-step-now">En cours</span>':'')+'</li>'; }).join('')+'</ol>'; }
@@ -54537,8 +54554,7 @@ function testLienSignature() {
     function btn(t,cls){ var bas=cls!=='pt-tab'; return '<button type="button" role="tab" data-go="'+t[0]+'" class="'+cls+(t[0]===st.tab?' on':'')+'" aria-selected="'+(t[0]===st.tab)+'"'+(bas?(' aria-label="'+t[1]+'"'):'')+' onclick="portV2Tab(\''+t[0]+'\')">'+ic(t[2],bas?21:17)+'<span class="pt-tl">'+(bas?COURT[t[0]]:t[1])+'</span>'+badge(t[0])+'</button>'; }
     var side='', sec='';
     TABS.forEach(function(t){ if(t[3]!==sec){ sec=t[3]; side+='<div class="pt-sec">'+E(sec)+'</div>'; } side+=btn(t,'pt-tab'); });
-    var bottom=TABS.map(function(t){ return btn(t,'pt-tab pt-btab'); }).join('');
-    var d0=enCours[0]||L[0]||null;
+        var d0=enCours[0]||L[0]||null;
     var pills=(d0?('<div class="pt-pill"><b>'+d0.fait+' / '+d0.total+'</b><span>Étapes franchies</span></div>'):'')
       +'<div class="pt-pill"><b>'+docs.length+'</b><span>Document'+(docs.length>1?'s':'')+(nNew?(' · '+nNew+' nouveau'+(nNew>1?'x':'')):'')+'</span></div>'
       +'<div class="pt-pill'+(attendus.length?' warn':'')+'"><b>'+attendus.length+'</b><span>À faire</span></div>';
@@ -54574,16 +54590,20 @@ function testLienSignature() {
         :'<p class="pt-vide">L’envoi de documents est disponible dans votre espace en ligne.</p>');
     var panel=function(k,h){ return '<div class="pt-panel" role="tabpanel" data-tab="'+k+'"'+(st.tab===k?'':' hidden')+'>'+h+'</div>'; };
     var T=TITRES[st.tab];
+    var alerte=!!(nNew||attendus.length);
     ov.innerHTML='<div class="pt-app">'
-      +'<div class="pt-side"><div class="pt-side-brand">'+brand('sm')+'<div class="pt-side-sub">Espace client</div></div>'
+      +'<div class="pt-side" id="pt-side" tabindex="-1" aria-label="Menu de l’espace client"><div class="pt-side-brand"><div class="pt-side-b">'+brand('sm')+'<div class="pt-side-sub">Espace client</div></div>'
+      +'<button type="button" class="pt-side-x" onclick="portV2Nav(false)" aria-label="Fermer le menu" title="Fermer le menu">'+ic('x',20)+'</button></div>'
       +'<div class="pt-side-nav" role="tablist" aria-label="Rubriques">'+side+'</div>'
       +'<div class="pt-side-foot"><div class="pt-me"><span class="pt-avatar" aria-hidden="true">'+E(S(client).trim().charAt(0).toUpperCase()||'?')+'</span><span class="pt-me-n">'+E(client)+'</span></div>'
       +'<button type="button" class="pt-btn pt-btn-ghost pt-out" onclick="closePortail()">'+ic('out',16)+'<span>Se déconnecter</span></button></div></div>'
-      +'<div class="pt-body"><div class="pt-top" role="banner"><div class="pt-top-t"><h1>'+T[0]+'</h1><p>'+T[1]+'</p></div><div class="pt-pills">'+pills+'</div>'
-      +'<button type="button" class="pt-mout" onclick="closePortail()" aria-label="Se déconnecter" title="Se déconnecter">'+ic('out',18)+'</button></div>'
+      +'<div class="pt-scrim" onclick="portV2Nav(false)" aria-hidden="true"></div>'
+      +'<div class="pt-body"><div class="pt-top" role="banner"><button type="button" class="pt-menu" onclick="portV2Nav()" aria-controls="pt-side" aria-expanded="false" aria-label="Ouvrir le menu" title="Menu">'+ic('menu',22)+(alerte?'<i class="pt-menu-dot" aria-hidden="true"></i>':'')+'</button><div class="pt-top-t"><h1>'+T[0]+'</h1><p>'+T[1]+'</p></div><div class="pt-pills">'+pills+'</div>'
+      +'</div>'
       +'<div class="pt-main" role="main">'+panel('accueil',acc)+panel('dossier',dos)+panel('docs',docsH)+panel('envoyer',env)
       +'<div class="pt-foot" role="contentinfo">'+ic('shield',13)+'<span>Espace sécurisé · © '+new Date().getFullYear()+' '+E(cab())+'</span></div></div></div>'
-      +'<div class="pt-bottom" role="tablist" aria-label="Rubriques">'+bottom+'</div></div>';
+      +'</div>';
+    var sd=ov.querySelector('.pt-side'); if(sd) glisse(sd);
     var dz=document.getElementById('pt-drop');
     if(dz){ ['dragenter','dragover'].forEach(function(t){ dz.addEventListener(t,function(e){ e.preventDefault(); dz.classList.add('over'); }); });
       ['dragleave','drop'].forEach(function(t){ dz.addEventListener(t,function(e){ e.preventDefault(); dz.classList.remove('over'); }); });
@@ -54655,6 +54675,23 @@ function testLienSignature() {
       +A('.pt-drop','padding:26px 16px')+A('.pt-foot','margin-top:20px')+A('.pt-dos-meta','gap:4px 14px')
       +A('.pt-login','padding:calc(18px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))')
       +A('.pt-login-main','padding:22px 18px 20px')+A('.pt-login-side h1','font-size:21px')+'}',
+    /* tiroir latéral : le même menu qu'à l'ordinateur, glissé depuis la gauche */
+    A('.pt-menu,.pt-side-x,.pt-scrim','display:none'),
+    A('.pt-side:focus','outline:none!important'),
+    A('.pt-side-brand','display:flex;align-items:flex-start;justify-content:space-between;gap:8px'),
+    '@media(max-width:760px){'+A('.pt-bottom','display:none!important')
+      +A('.pt-side','display:flex!important;position:fixed!important;top:0!important;bottom:0!important;left:0!important;right:auto!important;width:min(86vw,300px)!important;height:auto!important;max-height:none!important;z-index:9;transform:translateX(-104%)!important;visibility:hidden!important;transition:transform .26s cubic-bezier(.2,.8,.2,1),visibility 0s linear .26s;padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;box-shadow:24px 0 60px -20px rgba(0,0,0,.95);overscroll-behavior:contain;border-right:1px solid #232327')
+      +P+'.pt-nav-open .pt-side{transform:none!important;visibility:visible!important;transition:transform .26s cubic-bezier(.2,.8,.2,1)}'
+      +A('.pt-scrim','display:block;position:fixed;inset:0;z-index:8;background:rgba(0,0,0,.62);opacity:0;pointer-events:none;transition:opacity .22s')
+      +P+'.pt-nav-open .pt-scrim{opacity:1;pointer-events:auto}'+P+'.pt-nav-open .pt-body{overflow:hidden!important}'
+      +A('.pt-side-x','display:flex;align-items:center;justify-content:center;width:44px;height:44px;margin:-6px -6px 0 0;border:0!important;border-radius:10px!important;background:transparent!important;color:#e6e8ec!important;box-shadow:none!important;flex:none;cursor:pointer')
+      +A('.pt-side .pt-tab','min-height:48px;font-size:15px')+A('.pt-side .pt-tab.on::before','left:-14px')
+      +A('.pt-menu','display:flex;align-items:center;justify-content:center;position:relative;width:44px;height:44px;flex:none;margin-left:-8px;border:0!important;border-radius:10px!important;background:transparent!important;color:#fff!important;box-shadow:none!important;cursor:pointer')
+      +A('.pt-menu:active','background:#16171c!important')
+      +A('.pt-menu-dot','position:absolute;top:9px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--pt-warn);border:2px solid #000')
+      +A('.pt-top','gap:10px')
+      +A('.pt-main','padding-bottom:calc(28px + env(safe-area-inset-bottom))!important')+'}',
+    '@media(max-width:760px) and (prefers-reduced-motion:reduce){'+A('.pt-side,.pt-scrim','transition:none!important')+'}',
     /* téléphone à l'horizontale : barre latérale compacte, en-tête resserré */
     '@media(min-width:761px) and (max-height:520px){'+A('.pt-app','grid-template-columns:208px 1fr')+A('.pt-side','padding:12px max(10px,env(safe-area-inset-left)) 10px 10px')
       +A('.pt-side-brand','padding:0 8px 8px;margin-bottom:4px')+A('.pt-sec','margin:8px 8px 2px')+A('.pt-top','min-height:52px;padding:8px 20px')+A('.pt-top-t p','display:none')
