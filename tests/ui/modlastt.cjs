@@ -1,8 +1,9 @@
 const { chromium, URL_APP } = require('./_socle.cjs');
 let ok=0,ko=0; const T=(n,c,d)=>{ if(c){ok++;console.log('  ✓ '+n);} else {ko++;console.log('  ✗ '+n+' — '+(d||''));} };
 (async()=>{ const b=await chromium.launch(); const p=await b.newPage({viewport:{width:1500,height:1000}}); const errs=[]; p.on('pageerror',e=>{ if(!/ServiceWorker/.test(e.message)) errs.push(e.message.slice(0,200)); }); p.on('dialog',d=>d.accept());
-await p.goto(URL_APP); await p.waitForTimeout(900);
-await p.evaluate(()=>{ if(typeof _authGranted==='function')_authGranted(); }); await p.waitForTimeout(2000);
+await p.goto(URL_APP);
+await p.evaluate(()=>{ if(typeof _authGranted==='function')_authGranted(); });
+await p.waitForFunction(()=>window.marqPret&&window.marqPret()&&document.querySelector('#nav .nav-btn'),{timeout:30000});
 const ev=(f,a)=>p.evaluate(f,a);
 await ev(()=>{ const D=86400000, H=3600000, now=Date.now(); DB.parametres=DB.parametres||{}; DB.parametres.prevoyance=null;
   DB.parametres.cfChaine={journal:[{ts:now-2*H,step:'Mensualités',ok:true,detail:'2 générées',mode:'automatique'},{ts:now-1*H,step:'Relances',ok:false,detail:'passerelle indisponible',mode:'manuel',qui:'Karim'}]};
