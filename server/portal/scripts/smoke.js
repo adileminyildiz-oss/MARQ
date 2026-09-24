@@ -63,7 +63,7 @@ function assert(cond, msg) {
   // sync correct : 2 clients, 2 docs (dont un pour l'autre client)
   s = await req('POST', '/admin/sync', {
     cabinet: 'AEM CONSEIL',
-    clients: [{ name: 'Dupont SARL', code: 'ABC123' }, { name: 'Autre SA', code: 'ZZZ999' }],
+    clients: [{ name: 'Dupont SARL', code: 'ABC123', admin: { inscrit: true, salaries: [{ id: 's1', nom: 'Paul Martin' }], secret: 'x' } }, { name: 'Autre SA', code: 'ZZZ999' }],
     docs: [
       { id: 'cf1', client: 'Dupont SARL', nom: 'Bilan 2024.pdf', cat: 'Bilans', date: '2025-04-01', type: 'application/pdf', size: 24, shared: true },
       { id: 'cf2', client: 'Autre SA', nom: 'Secret.pdf', cat: 'Divers', date: '2025-01-01', type: 'application/pdf', size: 10, shared: true },
@@ -84,6 +84,36 @@ function assert(cond, msg) {
   assert(l.json.cabinet === 'AEM CONSEIL', 'login renvoie le nom du cabinet');
   const token = l.json.token;
   const auth = { Authorization: 'Bearer ' + token };
+
+  /* v748 — déclarations du client */
+  const CT = { 'X-Cabinet-Token': 'secret-cabinet-test' };
+  let dd = await req('GET', '/portal/docs', null, auth);
+  assert(dd.json.admin && dd.json.admin.inscrit && dd.json.admin.salaries[0].nom === 'Paul Martin' && !dd.json.admin.secret, 'portail : espace Administration ouvert, salariés transmis, rien d’autre');
+  let dc = await req('POST', '/portal/declare', { type: 'Absence', champs: { salarieId: 's1', salarieNom: 'Paul Martin', type: 'Maladie', debut: '2026-10-01', fin: '2026-10-03', pirate: 'x' } }, auth);
+  assert(dc.status === 200 && dc.json.id, 'déclaration d’absence enregistrée');
+  const idDecl = dc.json.id;
+  dc = await req('POST', '/portal/declare', { type: 'Inconnu', champs: {} }, auth);
+  assert(dc.status === 400, 'type de déclaration inconnu refusé');
+  dc = await req('POST', '/portal/declare', { type: 'Achat', champs: { objet: 'x' } });
+  assert(dc.status === 401, 'déclaration sans jeton refusée');
+  const lAutre = await req('POST', '/portal/login', { client: 'Autre SA', code: 'ZZZ999' });
+  dc = await req('POST', '/portal/declare', { type: 'Achat', champs: { objet: 'x', montant: '10' } }, { Authorization: 'Bearer ' + lAutre.json.token });
+  assert(dc.status === 403, 'société non inscrite à l’Administration : déclarations fermées');
+  let la = await req('GET', '/admin/declarations', null, CT);
+  assert(la.json.declarations.length === 1 && la.json.declarations[0].champs.type === 'Maladie' && !la.json.declarations[0].champs.pirate && la.json.declarations[0].statut === 'recue', 'cabinet : déclaration relevée, champs inconnus écartés');
+  la = await req('GET', '/admin/declarations', null, { 'X-Cabinet-Token': 'mauvais' });
+  assert(la.status === 401, 'relève refusée sans le secret cabinet');
+  let ms = await req('POST', '/admin/declaration-status', { id: idDecl, statut: 'refusee', motif: 'Arrêt de travail manquant' }, CT);
+  assert(ms.status === 200, 'cabinet : état renvoyé au client');
+  ms = await req('POST', '/admin/declaration-status', { id: idDecl, statut: 'nimportequoi' }, CT);
+  assert(ms.status === 404, 'état inconnu refusé');
+  let mine = await req('GET', '/portal/declarations', null, auth);
+  assert(mine.json.declarations.length === 1 && mine.json.declarations[0].statut === 'refusee' && mine.json.declarations[0].motif === 'Arrêt de travail manquant', 'client : voit l’état et le motif');
+  mine = await req('GET', '/portal/declarations', null, { Authorization: 'Bearer ' + lAutre.json.token });
+  assert(mine.json.declarations.length === 0, 'client : ne voit pas les déclarations d’un autre');
+  let sd = await req('POST', '/admin/declaration-delete', { id: idDecl }, CT);
+  la = await req('GET', '/admin/declarations', null, CT);
+  assert(sd.json.ok && la.json.declarations.length === 0, 'cabinet : déclaration supprimée');
 
   // 3) docs sans jeton -> 401
   let d = await req('GET', '/portal/docs', null, {});

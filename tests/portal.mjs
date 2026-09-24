@@ -98,6 +98,38 @@ try {
   check('journal : consultation enregistrée', admin.types.indexOf('file') >= 0);
   check('boîte de réception : dépôt reçu', admin.uploads.indexOf('Facture.pdf') >= 0);
 
+  // v748 — déclarations du client (société inscrite à l'Administration) : client → serveur → cabinet → état renvoyé.
+  await page.evaluate(() => { try { _authGranted(); } catch (e) {} });
+  await page.waitForFunction(() => window.marqPret && window.marqPret() && typeof DB !== 'undefined' && !!DB, null, { timeout: 30000 });
+  const decl = await page.evaluate(async (code) => {
+    const cfg = JSON.parse(localStorage.getItem('last-portal-srv'));
+    DB.clients = (DB.clients || []).filter(c => c.id !== 'cdemo'); DB.clients.push({ id: 'cdemo', clientType: 'entreprise', denomination: 'DEMO', forme: 'sas' });
+    DB.admin = DB.admin || {}; DB.admin.cdemo = { rh: { salaries: [{ id: 's1', prenom: 'Paul', nom: 'Durand', actif: true }], absences: [], notes: [] }, workflow: { queue: [], seuil: 5000, bc: 0 }, legal: { registres: {} }, control: { sinistres: [], assurances: [] } };
+    DB.parametres.adminInscrits = ['cdemo']; save();
+    window.svcPortSyncNow(true); await new Promise(r => setTimeout(r, 900));
+    const l = await (await fetch(cfg.url + '/portal/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: 'DEMO', code }) })).json();
+    const tok = l.token;
+    const dj = await (await fetch(cfg.url + '/portal/docs', { headers: { Authorization: 'Bearer ' + tok } })).json();
+    const dc = await fetch(cfg.url + '/portal/declare', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ type: 'Absence', champs: { salarieId: 's1', salarieNom: 'Paul Durand', type: 'Maladie', debut: '2026-11-03', fin: '2026-11-05', commentaire: 'Arrêt envoyé' } }) });
+    const nv = await window.admDeclReleve(true);
+    const q = DB.admin.cdemo.workflow.queue; const d = q[0];
+    const encore = await window.admDeclReleve(true);
+    go('mworkflow'); window.admEntChoisir('cdemo'); window.admWfValider(d.id); await new Promise(r => setTimeout(r, 600));
+    const mine = await (await fetch(cfg.url + '/portal/declarations', { headers: { Authorization: 'Bearer ' + tok } })).json();
+    window.__portTok = tok; let ov = document.getElementById('portail-ov'); if (!ov) { ov = document.createElement('div'); ov.id = 'portail-ov'; document.body.appendChild(ov); }
+    window.portV2Space(ov, 'DEMO', [], true); await new Promise(r => setTimeout(r, 1200));
+    const onglet = !!ov.querySelector('[data-go="declarer"]'); window.portV2Tab('declarer'); await new Promise(r => setTimeout(r, 300));
+    const liste = (document.getElementById('ptd-liste') || {}).innerText || '';
+    return { admin: dj.admin, declOk: dc.status === 200, nv, encore, q: q.map(x => ({ t: x.type, s: x.statut, src: x.source, c: x.commentaire })), abs: DB.admin.cdemo.rh.absences.length,
+      etat: (mine.declarations || [])[0] && mine.declarations[0].statut, onglet, liste };
+  }, code);
+  if (!decl.onglet || decl.abs !== 1) console.log('  décl.:', JSON.stringify(decl).slice(0, 600));
+  check('déclarations : société inscrite ouverte, salariés transmis au portail', !!decl.admin && decl.admin.inscrit && decl.admin.salaries.length === 1);
+  check('déclarations : absence envoyée par le client (200)', decl.declOk);
+  check('déclarations : relevée par le cabinet dans MARQ WORKFLOW, une seule fois', decl.nv === 1 && decl.encore === 0 && decl.q.length === 1 && decl.q[0].src === 'Le client (espace client)' && decl.q[0].c === 'Arrêt envoyé');
+  check('déclarations : validation → absence dans MARQ RH et état « validée » renvoyé au client', decl.abs === 1 && decl.etat === 'validee');
+  check('déclarations : rubrique « Déclarer » et état visibles dans l’espace client en ligne', decl.onglet && /Validée/.test(decl.liste));
+
   // Suspension d'accès → login refusé ; réactivation → login rétabli.
   const revoke = await page.evaluate(async (code) => {
     const cfg = JSON.parse(localStorage.getItem('last-portal-srv'));

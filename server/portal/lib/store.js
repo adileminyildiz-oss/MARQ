@@ -195,6 +195,75 @@ function supprimerUpload(id) {
 }
 
 /* -------------------------------------------------------------------------
+ * Déclarations du client (v748) : absence, demande d'achat, embauche, sinistre.
+ *   declarations.json → [ { id, client, name, ts, type, champs, statut, motif, maj } ]
+ * Le client ne dépose que des champs connus, nettoyés et bornés ; le cabinet
+ * les relève, les valide dans Mar'q et renvoie l'état (reçue, en cours,
+ * validée, refusée + motif) que le client voit dans son espace.
+ * ------------------------------------------------------------------------- */
+const DECL_CHAMPS = {
+  Absence: ['salarieId', 'salarieNom', 'type', 'debut', 'fin', 'commentaire'],
+  Achat: ['objet', 'fournisseur', 'montant', 'commentaire'],
+  Embauche: ['prenom', 'nom', 'poste', 'contrat', 'entree', 'fin', 'commentaire'],
+  Sinistre: ['date', 'nature', 'lieu', 'description', 'commentaire'],
+};
+const DECL_STATUTS = { recue: 1, examen: 1, accord: 1, validee: 1, refusee: 1 };
+const MAX_DECL = 5000;
+function nettoyerAdmin(a) {
+  const txt = function (v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').slice(0, n); };
+  return {
+    inscrit: !!a.inscrit,
+    salaries: (Array.isArray(a.salaries) ? a.salaries : []).slice(0, 300).filter(function (x) { return x && x.id; })
+      .map(function (x) { return { id: txt(x.id, 60), nom: txt(x.nom, 80) }; }),
+  };
+}
+function nettoyerDeclaration(type, champs) {
+  const L = DECL_CHAMPS[type];
+  if (!L) return null;
+  const out = {};
+  L.forEach(function (k) {
+    const v = champs && champs[k];
+    if (v == null || v === '') return;
+    out[k] = String(v).replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').slice(0, k === 'description' || k === 'commentaire' ? 1500 : 160);
+  });
+  return out;
+}
+function lireDecl() { const a = lireJSON('declarations.json'); return Array.isArray(a) ? a : []; }
+function enregistrerDeclaration(clientKey, type, champs) {
+  const k = ckey(clientKey);
+  const fiche = getClient(k);
+  const c = nettoyerDeclaration(type, champs);
+  if (!c) throw new Error('type');
+  let arr = lireDecl();
+  const d = { id: 'dcl_' + Date.now().toString(36) + crypto.randomBytes(4).toString('hex'), client: k, name: (fiche && fiche.name) || k,
+    ts: Date.now(), type: type, champs: c, statut: 'recue', motif: '', maj: Date.now() };
+  arr.push(d);
+  if (arr.length > MAX_DECL) arr = arr.slice(arr.length - MAX_DECL);
+  ecrireJSON('declarations.json', arr);
+  return d;
+}
+function getDeclarations(clientKey) {
+  let arr = lireDecl();
+  if (clientKey) { const k = ckey(clientKey); arr = arr.filter(function (d) { return d.client === k; }); }
+  return arr.slice().reverse();
+}
+function majDeclaration(id, statut, motif) {
+  if (!DECL_STATUTS[statut]) return null;
+  const arr = lireDecl();
+  const d = arr.find(function (x) { return x.id === id; });
+  if (!d) return null;
+  d.statut = statut; d.motif = String(motif || '').slice(0, 600); d.maj = Date.now();
+  ecrireJSON('declarations.json', arr);
+  return d;
+}
+function supprimerDeclaration(id) {
+  const arr = lireDecl();
+  const reste = arr.filter(function (x) { return x.id !== id; });
+  ecrireJSON('declarations.json', reste);
+  return reste.length !== arr.length;
+}
+
+/* -------------------------------------------------------------------------
  * Synchronisation depuis le cabinet (endpoint /admin/sync).
  * payload = {
  *   cabinet?: string,
@@ -240,6 +309,7 @@ function syncCabinet(payload, mode) {
     if (c.code) entree.codeHash = hasherCode(c.code);
     if (typeof c.message === 'string') entree.message = c.message.slice(0, 600);
     if (Array.isArray(c.suivi)) entree.suivi = nettoyerSuivi(c.suivi);
+    if (c.admin && typeof c.admin === 'object') entree.admin = nettoyerAdmin(c.admin); else if (mode !== 'merge') delete entree.admin;
     if (entree.codeHash) clientsOut[k] = entree;
   });
   ecrireJSON('clients.json', clientsOut);
@@ -391,6 +461,7 @@ module.exports = {
   syncCabinet,
   logEvent, getEvents,
   enregistrerUpload, getUploads, getUpload, supprimerUpload,
+  enregistrerDeclaration, getDeclarations, majDeclaration, supprimerDeclaration, DECL_CHAMPS,
   revokeClient,
   enregistrerSauvegarde, listerSauvegardes, lireSauvegarde, supprimerSauvegarde,
 };

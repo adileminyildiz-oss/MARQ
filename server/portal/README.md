@@ -136,9 +136,15 @@ openssl rand -hex 32        # pour CABINET_TOKEN et JWT_SECRET
 | `POST` | `/portal/login` | `{ client, code }` | `{ token, expiresIn, client, cabinet }` |
 | `GET`  | `/portal/docs` | `Authorization: Bearer <token>` | `{ client, cabinet, message, suivi:[{ref,formalite,phrase,etapes,attendu,maj}], docs:[{id,nom,cat,date,type,size}] }` |
 | `GET`  | `/portal/file/:id` | `Authorization: Bearer <token>` | octets du fichier (`Content-Type` d'origine) |
+| `POST` | `/portal/declare` | `{ type, champs }` + Bearer | `{ ok, id }` — déclaration du client (`Absence`, `Achat`, `Embauche`, `Sinistre`) |
+| `GET`  | `/portal/declarations` | Bearer | `{ declarations:[{id,ts,type,champs,statut,motif}] }` — ses déclarations et leur état |
 
 - `/portal/file/:id` vérifie que le fichier est bien un **document partagé du
   client connecté** (sinon `403`). Cloisonnement strict entre clients.
+- `/portal/declare` n'est ouvert qu'aux sociétés que le cabinet a inscrites à
+  l'Administration (`admin.inscrit` transmis par `/admin/sync`, sinon `403`) ;
+  seuls les champs connus de chaque type sont conservés, bornés en longueur.
+  `/portal/docs` renvoie alors `admin:{ inscrit, salaries:[{id,nom}] }`.
 
 ### Cabinet (protégé par `CABINET_TOKEN`)
 
@@ -148,6 +154,9 @@ En-tête requis : `X-Cabinet-Token: <CABINET_TOKEN>` (ou `Authorization: Bearer 
 |--------|-------|-------|
 | `POST` | `/admin/sync` | état complet à publier (voir ci-dessous) |
 | `POST` | `/admin/file` | `{ id, data }` — `data` = dataURL **ou** base64 (upload isolé) |
+| `GET`  | `/admin/declarations?client=` | — relève des déclarations des clients (plus récentes d'abord) |
+| `POST` | `/admin/declaration-status` | `{ id, statut, motif }` — état renvoyé au client : `recue`, `examen`, `accord`, `validee`, `refusee` |
+| `POST` | `/admin/declaration-delete` | `{ id }` |
 
 Corps de `/admin/sync` :
 
@@ -156,7 +165,8 @@ Corps de `/admin/sync` :
   "cabinet": "AEM CONSEIL",
   "mode": "replace",                 // "replace" (défaut) remplace tout ; "merge" complète
   "clients": [
-    { "name": "Dupont SARL", "code": "ABC123" }   // code EN CLAIR -> haché côté serveur
+    { "name": "Dupont SARL", "code": "ABC123",    // code EN CLAIR -> haché côté serveur
+      "admin": { "inscrit": true, "salaries": [{ "id": "s1", "nom": "Paul Martin" }] } }  // optionnel : déclarations ouvertes
   ],
   "docs": [                          // UNIQUEMENT les documents partagés
     { "id": "cf1", "client": "Dupont SARL", "nom": "Bilan 2024.pdf",

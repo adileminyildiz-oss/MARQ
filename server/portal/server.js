@@ -11,6 +11,8 @@
  *   POST /portal/login      { client, code }  -> { token, expiresIn, cabinet }
  *   GET  /portal/docs                          -> { client, cabinet, message, suivi:[...], docs:[...] }   (auth Bearer)
  *   GET  /portal/file/:id                      -> octets du fichier                 (auth Bearer)
+ *   POST /portal/declare    { type, champs }   -> déclaration du client (absence, achat, embauche, sinistre)
+ *   GET  /portal/declarations                  -> ses déclarations et leur état      (auth Bearer)
  *
  * Endpoints cabinet (protégés par le secret CABINET_TOKEN) :
  *   POST /admin/backup, GET /admin/backups, GET /admin/backup, POST /admin/backup-delete
@@ -139,6 +141,7 @@ function portalDocs(req, res) {
     cabinet: store.getMeta().cabinet || '',
     message: (fiche && fiche.message) || '',
     suivi: (fiche && Array.isArray(fiche.suivi)) ? fiche.suivi : [],
+    admin: (fiche && fiche.admin && fiche.admin.inscrit) ? fiche.admin : null,
     docs: store.docsClient(k), // { id, nom, cat, date, type, size }
   });
 }
@@ -262,6 +265,57 @@ async function portalUpload(req, res) {
   return envoyerJSON(res, 200, { ok: true, id: entree.id, nom: entree.nom, size: entree.size });
 }
 
+// POST /portal/declare  { type, champs }  -> déclaration du client (v748)
+async function portalDeclare(req, res) {
+  const k = authClient(req, res);
+  if (!k) return;
+  const fiche = store.getClient(k);
+  if (!fiche || !fiche.admin || !fiche.admin.inscrit) return envoyerJSON(res, 403, { error: 'Les déclarations ne sont pas ouvertes pour votre espace.' });
+  let corps;
+  try { corps = JSON.parse((await lireCorps(req, 64 * 1024)).toString('utf8') || '{}'); }
+  catch (e) { return envoyerJSON(res, 400, { error: 'Déclaration trop longue ou invalide.' }); }
+  if (!store.DECL_CHAMPS[corps.type]) return envoyerJSON(res, 400, { error: 'Type de déclaration inconnu.' });
+  let d;
+  try { d = store.enregistrerDeclaration(k, corps.type, corps.champs || {}); }
+  catch (e) { return envoyerJSON(res, 400, { error: 'Déclaration invalide.' }); }
+  try { store.logEvent(k, 'declaration', { docId: d.id, docNom: d.type, ip: ipClient(req) }); } catch (e) {}
+  return envoyerJSON(res, 200, { ok: true, id: d.id });
+}
+
+// GET /portal/declarations  -> déclarations du client connecté (état compris)
+function portalDeclarations(req, res) {
+  const k = authClient(req, res);
+  if (!k) return;
+  return envoyerJSON(res, 200, { declarations: store.getDeclarations(k).map(function (d) {
+    return { id: d.id, ts: d.ts, type: d.type, champs: d.champs, statut: d.statut, motif: d.motif, maj: d.maj }; }) });
+}
+
+// GET /admin/declarations?client=<nom>
+function adminDeclarations(req, res, query) {
+  if (!verifierCabinet(req, res)) return;
+  return envoyerJSON(res, 200, { declarations: store.getDeclarations(query.client) });
+}
+
+// POST /admin/declaration-status  { id, statut, motif }
+async function adminDeclarationStatus(req, res) {
+  if (!verifierCabinet(req, res)) return;
+  let corps;
+  try { corps = JSON.parse((await lireCorps(req, 16 * 1024)).toString('utf8') || '{}'); }
+  catch (e) { return envoyerJSON(res, 400, { error: 'JSON invalide.' }); }
+  const d = store.majDeclaration(String(corps.id || ''), String(corps.statut || ''), corps.motif);
+  if (!d) return envoyerJSON(res, 404, { error: 'Déclaration introuvable ou état inconnu.' });
+  return envoyerJSON(res, 200, { ok: true, statut: d.statut });
+}
+
+// POST /admin/declaration-delete  { id }
+async function adminDeclarationDelete(req, res) {
+  if (!verifierCabinet(req, res)) return;
+  let corps;
+  try { corps = JSON.parse((await lireCorps(req, 4 * 1024)).toString('utf8') || '{}'); }
+  catch (e) { return envoyerJSON(res, 400, { error: 'JSON invalide.' }); }
+  return envoyerJSON(res, 200, { ok: store.supprimerDeclaration(String(corps.id || '')) });
+}
+
 // GET /admin/uploads?client=<nom>  -> liste des pièces déposées par les clients
 function adminUploads(req, res, query) {
   if (!verifierCabinet(req, res)) return;
@@ -329,11 +383,16 @@ const serveur = http.createServer(function (req, res) {
     if (mf && req.method === 'GET') return portalFile(req, res, decodeURIComponent(mf[1]));
 
     if (chemin === '/portal/upload' && req.method === 'POST') return portalUpload(req, res);
+    if (chemin === '/portal/declare' && req.method === 'POST') return portalDeclare(req, res);
+    if (chemin === '/portal/declarations' && req.method === 'GET') return portalDeclarations(req, res);
 
     if (chemin === '/admin/sync' && req.method === 'POST') return adminSync(req, res);
     if (chemin === '/admin/file' && req.method === 'POST') return adminFile(req, res);
     if (chemin === '/admin/events' && req.method === 'GET') return adminEvents(req, res, parsed.query || {});
     if (chemin === '/admin/uploads' && req.method === 'GET') return adminUploads(req, res, parsed.query || {});
+    if (chemin === '/admin/declarations' && req.method === 'GET') return adminDeclarations(req, res, parsed.query || {});
+    if (chemin === '/admin/declaration-status' && req.method === 'POST') return adminDeclarationStatus(req, res);
+    if (chemin === '/admin/declaration-delete' && req.method === 'POST') return adminDeclarationDelete(req, res);
     if (chemin === '/admin/upload-delete' && req.method === 'POST') return adminUploadDelete(req, res);
     if (chemin === '/admin/revoke' && req.method === 'POST') return adminRevoke(req, res);
     if (chemin === '/admin/backup' && req.method === 'POST') return adminBackup(req, res);
