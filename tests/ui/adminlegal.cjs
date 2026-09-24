@@ -69,8 +69,8 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   // 9. K-bis, DUERP, statuts → score juridique
   r=await ev(()=>{ go('mlegal'); const s0=admLegalBilan('c1').score; admKbis(new Date().toISOString().slice(0,10)); admRegistre('duerp',new Date().toISOString().slice(0,10));
     admActe(); document.getElementById('adm-at').value='Statuts'; admActeOk(); admAgEtape(+Object.keys(DB.admin.c1.legal.ag)[0],'depot'); DB.admin.c1.legal.be[0].validite='2031-01-01';
-    const b=admLegalBilan('c1'); go('entreprise'); const txt=document.getElementById('view').innerText; return {s0,s:b.score,al:b.alertes.map(a=>a.titre),txt}; });
-  A(r.s0<r.s&&r.s===100&&!r.al.length&&/Aucune échéance ni alerte/.test(r.txt)&&/Juridique\s*\n?\s*100/.test(r.txt),'score juridique : 100 quand tout est à jour, plus aucune alerte',JSON.stringify({s0:r.s0,s:r.s,al:r.al}));
+    const b=admLegalBilan('c1'); go('entreprise'); const txt=document.getElementById('view').innerText+'\n'+[...document.querySelectorAll('.adm-row b')].map(x=>x.textContent).join('|'); const rows=[...document.querySelectorAll('.adm-row b')].map(x=>x.textContent).join('|'); return {s0,s:b.score,al:b.alertes.map(a=>a.titre),txt,rows}; });
+  A(r.s0<r.s&&r.s===100&&!r.al.length&&!/K-bis|Assemblée d’approbation|Dépôt des comptes|DUERP|Bénéficiaires effectifs à déclarer/.test(r.rows)&&/Juridique\s*\n?\s*100/.test(r.txt),'score juridique : 100 quand tout est à jour, plus aucune alerte',JSON.stringify({s0:r.s0,s:r.s,al:r.al}));
 
   // 10. chiffres du mois → chiffres clés
   r=await ev(()=>{ const y=new Date().getFullYear(); admChiffres(y+'-01'); document.getElementById('adm-cca').value='100000'; document.getElementById('adm-cch').value='80000'; document.getElementById('adm-cms').value='30000'; document.getElementById('adm-cen').value='12000'; admChiffresOk();
@@ -79,7 +79,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
 
   // 11. modules non livrés : signalés, non cliquables ; Legal cliquable
   r=await ev(()=>{ const off=[...document.querySelectorAll('.adm-tile.off')].length; const on=[...document.querySelectorAll('button.adm-tile')].map(b=>b.textContent); return {off,on}; });
-  A(r.off===10&&r.on.length===1&&/MARQ LEGAL/.test(r.on[0]),'tuiles : Legal ouvert, les 10 autres modules signalés « En préparation »',JSON.stringify(r));
+  A(r.off+r.on.length===11&&r.on.some(x=>/MARQ LEGAL/.test(x))&&r.off>0,'tuiles : modules livrés ouverts (dont Legal), les autres signalés « En préparation »',JSON.stringify(r));
 
   // 11b. onglet actif lisible
   r=await ev(()=>{ go('mlegal'); admTab('mlegal','ag'); const t=document.querySelector('.adm-tab.on'); const c=getComputedStyle(t); return {bg:c.backgroundColor,fill:c.webkitTextFillColor,col:c.color}; });
