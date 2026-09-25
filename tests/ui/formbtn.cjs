@@ -19,6 +19,9 @@
  *    porte un nom accessible, aucun ne sort du cadre, un bouton désactivé se
  *    voit et le bandeau dit pourquoi.
  *
+ * v759 : la barre (et non plus seulement ses boutons) est calée sur le
+ * cadre des cartes, pour que tout le module respecte le cadrage de la page.
+ *
  * Le seuil d'alignement est à 1 px : la conversion de zoom laisse un arrondi
  * sous-pixel, rien de plus.
  */
@@ -47,10 +50,13 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
       return {wrap:R('.fi-wrap'), dedans:R('.fi-actions-in'), barre:R('.fi-actions'), vue:R('#view')};
     });
     if(!g.wrap||!g.dedans||!g.barre||!g.vue){ A(false, larg+' px : la barre d’actions est rendue'); continue; }
-    const dg=Math.abs(g.dedans.l-g.wrap.l), dd=Math.abs(g.dedans.r-g.wrap.r);
-    A(dg<=1, larg+' px : les boutons commencent au bord gauche du contenu ('+dg.toFixed(1)+' px)');
-    A(dd<=1, larg+' px : les boutons s’arrêtent au bord droit du contenu ('+dd.toFixed(1)+' px)');
-    A(Math.abs(g.barre.r-g.vue.r)<=1, larg+' px : la barre ne passe pas sous l’ascenseur',
+    /* depuis v759 la barre elle-même est posée sur le cadre des cartes
+       (bords de .fi-wrap) : les boutons restent à l'intérieur de ce cadre */
+    const dg=Math.abs(g.barre.l-g.wrap.l), dd=Math.abs(g.barre.r-g.wrap.r);
+    A(dg<=1, larg+' px : la barre commence au bord gauche du contenu ('+dg.toFixed(1)+' px)');
+    A(dd<=1, larg+' px : la barre s’arrête au bord droit du contenu ('+dd.toFixed(1)+' px)');
+    A(g.dedans.l>=g.barre.l-1&&g.dedans.r<=g.barre.r+1, larg+' px : les boutons restent dans la barre');
+    A(g.barre.r<=g.vue.r+1, larg+' px : la barre ne passe pas sous l’ascenseur',
       'barre '+g.barre.r.toFixed(0)+' contre vue '+g.vue.r.toFixed(0));
   }
   await pg.setViewportSize({width:1500,height:1000}); await poser();

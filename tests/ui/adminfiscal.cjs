@@ -54,7 +54,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
   A(/20 750,00\s€/.test(r.a)&&/5 000,00\s€/.test(r.a)&&/25 000,00\s€/.test(r.b)&&/aucun/.test(r.c),'IS : 20 750 € (15 % puis 25 %), 25 000 € sans taux PME, acomptes au quart, aucun sous 3 000 €',[r.a,r.b].join(' || ').replace(/\s+/g,' '));
 
   // 6. Page Entreprise et téléphone
-  r=await ev(()=>{ admFisTva('jour','24'); go('entreprise'); return [...document.querySelectorAll('.adm-row')].some(x=>/mfiscal/.test(x.getAttribute('onclick'))); });
+  r=await ev(()=>{ /* jour choisi pour que la prochaine échéance tombe dans les 15 jours, quelle que soit la date du jour */ var cible=new Date(Date.now()+3*864e5); admFisTva('jour',String(Math.min(cible.getDate(),28))); go('entreprise'); return [...document.querySelectorAll('.adm-row')].some(x=>/mfiscal/.test(x.getAttribute('onclick'))); });
   A(r,'échéances fiscales proches cliquables depuis la Page Entreprise');
   await p.setViewportSize({width:390,height:844}); await p.waitForTimeout(250);
   for(const t of ['tva','cal','is','loc']){ r=await ev(t=>{ go('mfiscal'); admTab('mfiscal',t); const o=[]; document.querySelectorAll('.adm-wrap *').forEach(e=>{ const q=e.getBoundingClientRect(); if(q.width&&q.right>innerWidth+1&&!e.closest('.adm-tw')&&!e.closest('.adm-mbar')) o.push(e.className||e.tagName); }); return {o:o.slice(0,5),hs:document.documentElement.scrollWidth>innerWidth}; },t);

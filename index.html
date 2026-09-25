@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=758;
+var LAST_VER=759;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -55144,7 +55144,7 @@ function testLienSignature() {
   function pageEntreprise(){ var c=cur(); if(!c) return vide(); var r=R(c.id), b=bilanGlobal(c);
     var cp=((c.cp||'')+' '+(c.ville||'')).trim(), siege=[c.siege,cp].filter(Boolean).join(', ');
     var sal=(c.salaries||[]).length;
-    var champs=[['Dirigeant',c.president||''],['Siège',siege],['Activité',(c.activites||[]).join(', ')],['Capital',c.capital?money(num(c.capital)):''],['Effectif',sal?sal+' salarié'+(sal>1?'s':''):''],['Régime',c.regime||''],['Clôture',(function(){ var k=cloture(c); return pad(k.j)+'/'+pad(k.m); })()]];
+    var champs=[['Dirigeant',c.president||''],['Siège',siege],['Activité',(c.activites||[]).join(', ')],['Capital',c.capital?money(num(c.capital)):''],['Effectif',sal?sal+' salarié'+(sal>1?'s':''):(+c.effectif>0?c.effectif+' salarié'+(+c.effectif>1?'s':'')+' prévu'+(+c.effectif>1?'s':''):'')],['Régime',c.regime||''],['Clôture',(function(){ var k=cloture(c); return pad(k.j)+'/'+pad(k.m); })()]];
     var id='<div class="adm-id"><div class="adm-id-h"><div><div class="adm-nom">'+E(nom(c))+'</div><div class="adm-sub">'+E(String(c.forme||'').toUpperCase()||'—')+(c.siren?' · SIREN '+E(String(c.siren).replace(/(\d{3})(?=\d)/g,'$1 ')):' · SIREN non renseigné')+'</div></div></div>'
       +'<div class="adm-id-g">'+champs.map(function(k){ return '<div><span>'+k[0]+'</span>'+(k[1]?'<b>'+E(k[1])+'</b>':'<button type="button" class="adm-lk" onclick="admEntFiche()">à compléter</button>')+'</div>'; }).join('')
       +(function(){ var s=suivi(c.id); return '<div><span>Suivi depuis</span><button type="button" class="adm-lk" onclick="admSuivi()">'+(s?fr(s):'tout l’historique')+'</button></div>'; })()+'</div></div>';
@@ -58045,6 +58045,130 @@ function testLienSignature() {
   try{ var _ex=window.admEntExtra; if(typeof _ex==='function'&&!_ex.__fft){ window.admEntExtra=function(c){ var h=_ex.apply(this,arguments)||''; try{ var K=window.__admKit;
         var d=((DB&&DB.dossiers)||[]).filter(function(x){ return (x.clientIds||[]).indexOf(c.id)>=0&&x.ficheCreation; })[0];
         if(d&&K) h+=K.card('Fiche technique de création','établie le '+frd(new Date(d.ficheCreation.ts)),'<div class="adm-list"><div class="adm-v"><span class="adm-vk">Dossier</span><span class="adm-tx"><b>'+E(d.numeroDossier||d.ref||'')+'</b><i>analyse, conseils et orientations de la création</i></span>'+K.btn('Ouvrir','formFicheDossier(&quot;'+d.id+'&quot;)',1)+'</div></div>'); }catch(e){} return h; }; window.admEntExtra.__fft=1; } }catch(e){}
+})();
+</script>
+<script id="mq-admin-759">
+/* ============================================================================
+   v759 — Formulaire : réparation de l'affichage et du cadrage
+
+   Chaque carte du module respecte le cadre de la page, à toutes les largeurs :
+   - barre d'actions du bas calée exactement sur le cadre des cartes (elle
+     débordait de 11 à 24 px à droite et commençait hors de l'alignement) ;
+   - panneau « Dossier en direct » : sous 820 px, la règle du tiroir de
+     navigation (aside décalé de 232 px) le repoussait hors de l'écran ;
+   - colonnes de la grille bornées à la largeur disponible (le sommaire
+     dépassait de 13 px sur téléphone) ;
+   - valeurs du résumé affichées en entier (plus de points de suspension) ;
+   - polices d'au moins 11 px dans le module et ses fenêtres ;
+   - fiches (création, synthèse, mensuelle, hebdomadaire) mises à l'échelle en
+     tenant compte des marges de la fenêtre : plus de défilement horizontal.
+   Sommaire (première colonne) sur fond blanc, texte foncé.
+   Effectif prévu dans le Formulaire reporté sur la société créée.
+   ============================================================================ */
+(function(){
+  if(window.__mqForm759) return; window.__mqForm759=1;
+  var CSS=''
+    /* grille et panneaux : jamais plus larges que le cadre */
+   +'html body .fi-wrap.ff{box-sizing:border-box;max-width:100%}'
+   +'html body .ff-grid>*{min-width:0}'
+   +'@media(max-width:1100px){html body .ff-grid{grid-template-columns:minmax(0,1fr)!important}html body .ff-rail,html body .ff-side{min-width:0;max-width:100%;box-sizing:border-box}}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap aside.ff-side{transform:none!important;width:auto!important;box-shadow:none!important;left:auto!important;top:auto!important;background:transparent!important;background-color:transparent!important;background-image:none!important;border:0!important;padding:0!important;height:auto!important;min-height:0!important;transition:none!important;display:block!important;z-index:auto!important}'
+   +'@media(max-width:1100px){html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap aside.ff-side{position:static!important;max-height:none!important}}'
+    /* résumé : valeurs en entier */
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .ff-kv{align-items:flex-start}html body .ff-kv span{flex:none}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .ff-kv b{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;max-width:64%!important;overflow-wrap:anywhere}'
+    /* sommaire sur fond blanc */
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail{background:#fff!important;border:1px solid #e2e5ea!important;box-shadow:0 1px 2px rgba(0,0,0,.18)}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .h{color:#6b7280!important;font-size:11px!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it{color:#1f2430!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it span{color:#1f2430!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it:hover{background:#f2f4f7!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it.on{background:#eceff4!important;box-shadow:inset 3px 0 0 #111!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it.on span{color:#0a0a0a!important;font-weight:600}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-dot{background:#c9ced6!important}html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-dot.ok{background:#1f9d5b!important}html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-dot.warn{background:#c98a00!important}html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-dot.acc{background:#111!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .it small{color:#7a4f00!important;background:#fbefd2!important;font-size:11px!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-bar{background:#e5e7eb!important}html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-bar b{background:#111!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail .ff-prog-t{color:#6b7280!important;font-size:11px!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fi-wrap .ff-rail::-webkit-scrollbar-thumb{background:#c9ced6}'
+    /* fond de la racine : noir (plus de bande claire quand la page est tirée au-delà de ses bords) */
+   +'html:has(body.dark){background:#000!important}'
+    /* polices minimales */
+   +'html body .ff-hint.dim,html body .ff-tag{font-size:11px!important}html body .mq-kn-ty{font-size:11px!important}'
+   +'html body #ov-b .sy-doc .sy-t th,html body #ov-b .sy-doc .sy-kick{font-size:11px!important}'
+    /* barre d'actions dans le cadre des cartes */
+   +'html body .fi-actions.fi-cadre{left:var(--fi-cadre-l)!important;right:auto!important;width:var(--fi-cadre-w)!important;max-width:none!important;box-sizing:border-box;border-left:1px solid #1c1c1e;border-right:1px solid #1c1c1e;border-radius:12px 12px 0 0;transition:none!important}'
+   +'html body .fi-wrap .fi-card>.card-h h2{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;min-width:0}'
+   +'html body .fi-actions.fi-cadre .fi-actions-col{max-width:none!important;width:100%!important;margin:0!important;box-sizing:border-box}';
+    /* l'animation d'entrée de la page déplaçait la barre fixe : fondu seul pour le Formulaire */
+    /* lisibilité : badges et en-têtes rendus illisibles par les thèmes */
+  var Q='html body:not(#mq):not(#mq):not(#mq):not(#mq) ';
+  CSS+=Q+'.frs-badge{color:#0a0b0d!important;background:linear-gradient(135deg,#cfe0ff,#8fb6ff)!important}'
+   +Q+'.fr-why{color:#0a0b0d!important;background:#b9c1ce!important}'
+   +Q+'#ov-b .sy-doc .sy-t th,'+Q+'.sy-doc .sy-t th{background:#eef0f3!important;color:#111!important;border-color:#d7dbe1!important}'
+   +Q+'#view:has(.fi-wrap) .btn:disabled,'+Q+'#view:has(.fi-wrap) .btn[disabled]{opacity:1!important;color:#4b5563!important;background:#e4e7ec!important;border-color:#cfd4dc!important;cursor:not-allowed}'
+   /* certains thèmes imposent une couleur de remplissage du texte qui écrase la couleur : on la réaligne */
+   +Q+'.fi-wrap .ff-rail,'+Q+'.fi-wrap .ff-rail *,'+Q+'.frs-badge,'+Q+'.fr-why,'+Q+'.sy-doc .sy-t th,'+Q+'#view:has(.fi-wrap) .btn:disabled,'+Q+'#view:has(.fi-wrap) .btn[disabled]{-webkit-text-fill-color:currentColor!important}';
+  CSS+='@keyframes fiFondu759{from{opacity:.6}to{opacity:1}}html body #view:has(.fi-actions){animation-name:fiFondu759!important;transform:none!important}';
+  try{ var st=document.createElement('style'); st.id='mq-form-759-css'; st.textContent=CSS; document.head.appendChild(st); }catch(e){}
+
+  /* ---------- barre d'actions : mêmes bords que les cartes ---------- */
+    /* position de mise en page (indépendante des animations et du zoom de la page) */
+  function gauche(el){ var x=0; while(el){ x+=el.offsetLeft||0; el=el.offsetParent; } return x; }
+  function cadre(){ try{
+      var bar=document.querySelector('.fi-actions'), w=document.querySelector('#view .fi-wrap');
+      if(!bar||!w||!w.offsetWidth) return; var root=document.documentElement;
+      root.style.setProperty('--fi-cadre-l',gauche(w)+'px');
+      root.style.setProperty('--fi-cadre-w',w.offsetWidth+'px');
+      bar.classList.add('fi-cadre');
+    }catch(e){} }
+  window.fiCadre=cadre;
+  function planifier(){ try{ requestAnimationFrame(cadre); setTimeout(cadre,120); setTimeout(cadre,600); }catch(e){ cadre(); } }
+  try{ var _r=window.render; if(typeof _r==='function'&&!_r.__f759){ window.render=function(){ var o=_r.apply(this,arguments); if(typeof state!=='undefined'&&state.page==='formulaire') planifier(); return o; }; window.render.__f759=1; } }catch(e){}
+  try{ window.addEventListener('resize',function(){ if(typeof state!=='undefined'&&state.page==='formulaire') planifier(); }); }catch(e){}
+  try{ var _fa=window.fiBarAlign; if(typeof _fa==='function'&&!_fa.__f759){ window.fiBarAlign=function(){ var o=_fa.apply(this,arguments); cadre(); return o; }; window.fiBarAlign.__f759=1; } }catch(e){}
+  try{ if(window.ResizeObserver){ var ro=new ResizeObserver(function(){ if(typeof state!=='undefined'&&state.page==='formulaire') cadre(); }); var v=document.getElementById('view'); if(v) ro.observe(v); } }catch(e){}
+
+  /* ---------- fiches A4 dans une fenêtre : échelle selon la place réelle ---------- */
+  window.syAjuster=function(boxId){ try{ var box=document.getElementById(boxId||'sy-body'); if(!box) return; var d=box.querySelector('.sy-doc'); if(!d) return; d.style.zoom='';
+      var cs=getComputedStyle(box), dispo=box.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0)-2;
+      var larg=d.offsetWidth||794, z=Math.min(1,Math.max(.3,dispo/larg)); if(z<.999) d.style.zoom=z; }catch(e){} };
+
+
+  /* ---------- appuyer sur un bouton ne déplace pas la page ; aucun clic perdu ---------- */
+  var clic=null;
+  function pageF(){ return typeof state!=='undefined'&&state.page==='formulaire'; }
+  function conteneur(){ var m=document.querySelector('main'); if(m&&m.scrollHeight>m.clientHeight+2&&/auto|scroll/.test(getComputedStyle(m).overflowY)) return m; return document.scrollingElement||document.documentElement; }
+  var CIBLE='button,[onclick],.mq-pli-h,summary,select,input[type=checkbox],input[type=radio],.fi-nat,.fr-dec-clk';
+  function sig(el){ return el.tagName+'|'+(el.getAttribute('onclick')||el.getAttribute('onchange')||'')+'|'+((el.tagName==='SELECT'?'':el.textContent)||'').trim().replace(/\s+/g,' ').slice(0,60)+'|'+(el.id||''); }
+  function pareils(s){ return Array.prototype.filter.call(document.querySelectorAll('#view '+CIBLE.split(',').join(',#view ')),function(e){ return sig(e)===s; }); }
+  function exclu(t){ return !!(t.closest('.ff-rail')||/VoirEnLigne|scrollIntoView|formCreerDossier|fqChaineOuvrir|go\(|state\.page=/.test(t.getAttribute('onclick')||'')); }
+  function noter(t){ var v=document.getElementById('view'); if(!t||!v||!v.contains(t)||exclu(t)){ clic=null; return; } var s=sig(t), c=conteneur();
+    clic={el:t,s:s,idx:pareils(s).indexOf(t),top:t.getBoundingClientRect().top,y:c.scrollTop,c:c,ts:Date.now(),fait:false,bouton:/^(BUTTON)$/.test(t.tagName)||t.hasAttribute('onclick')}; }
+  function corriger(){ try{ if(!clic||Date.now()-clic.ts>2500||!pageF()) return; var c=conteneur(); var el=clic.el.isConnected?clic.el:(pareils(clic.s)[clic.idx]||pareils(clic.s)[0]);
+      if(el&&el.offsetParent){ var d=el.getBoundingClientRect().top-clic.top; if(Math.abs(d)>1) c.scrollTop+=d; }
+      else if(Math.abs(c.scrollTop-clic.y)>1) c.scrollTop=clic.y; }catch(e){} }
+  function suite(){ corriger(); try{ requestAnimationFrame(corriger); }catch(e){} setTimeout(corriger,60); setTimeout(corriger,250); setTimeout(corriger,700); }
+  document.addEventListener('pointerdown',function(ev){ if(!pageF()) return; var t=ev.target&&ev.target.closest&&ev.target.closest(CIBLE); noter(t); },true);
+  document.addEventListener('change',function(ev){ if(!pageF()) return; var t=ev.target&&ev.target.closest&&ev.target.closest('select,input[type=checkbox],input[type=radio]'); if(t){ noter(t); setTimeout(suite,0); } },true);
+  document.addEventListener('click',function(ev){ if(clic&&clic.el&&(clic.el===ev.target||clic.el.contains(ev.target))) clic.fait=true; },true);
+  document.addEventListener('click',function(){ if(clic&&pageF()) suite(); },false);
+  /* clic perdu : le bouton a été redessiné entre l'appui et le relâchement → l'action est rejouée sur le nouveau bouton */
+  document.addEventListener('pointerup',function(){ var k=clic; if(!k||!k.bouton) return; setTimeout(function(){ try{ if(k.fait||k!==clic||k.el.isConnected||!pageF()||Date.now()-k.ts>1500) return; var n=pareils(k.s)[k.idx]||pareils(k.s)[0]; if(n&&!n.disabled){ k.fait=true; n.click(); } }catch(e){} },0); },true);
+  /* la main de l'utilisateur prime : molette, doigt ou clavier annulent le maintien */
+  ['wheel','touchmove'].forEach(function(n){ document.addEventListener(n,function(){ if(clic&&Date.now()-clic.ts>120) clic=null; },{passive:true,capture:true}); });
+  document.addEventListener('keydown',function(ev){ if(/^(PageUp|PageDown|Home|End|ArrowUp|ArrowDown| )$/.test(ev.key)&&!/INPUT|TEXTAREA|SELECT/.test((ev.target&&ev.target.tagName)||'')) clic=null; },true);
+  /* rendu : la page reste où elle était */
+  try{ var _r2=window.render; if(typeof _r2==='function'&&!_r2.__f759b){ window.render=function(){ var f=pageF(), c=f&&conteneur(), y=c?c.scrollTop:0; var o=_r2.apply(this,arguments);
+        try{ if(f&&pageF()){ if(clic&&Date.now()-clic.ts<2500) corriger(); else if(c&&Math.abs(conteneur().scrollTop-y)>1&&!window.__fiAllerHaut) conteneur().scrollTop=y; } }catch(e){} return o; }; window.render.__f759b=1; } }catch(e){}
+  /* pas de retour en haut pendant une action du Formulaire */
+  try{ var _st=window.scrollTo; if(!_st.__f759){ window.scrollTo=function(a,b){ try{ var haut=(a===0&&(b===0||b==null))||(a&&typeof a==='object'&&!a.top); if(haut&&clic&&pageF()&&Date.now()-clic.ts<2500) return; }catch(e){} return _st.apply(window,arguments); }; window.scrollTo.__f759=1; } }catch(e){}
+
+  /* ---------- effectif prévu reporté sur la société ---------- */
+  try{ var _fdc=window.formDoCreate; if(typeof _fdc==='function'&&!_fdc.__f759){ window.formDoCreate=function(){ var n=null; try{ var p=(window.__formData||{}).profil||{}; n=parseInt(String(p.nbSalaries||'').replace(/\D/g,''),10); }catch(e){} var avant={}; (DB.dossiers||[]).forEach(function(x){ avant[x.id]=1; });
+      var res=_fdc.apply(this,arguments);
+      try{ if(n>0){ var d=(DB.dossiers||[]).filter(function(x){ return !avant[x.id]; })[0]; if(d){ d.intake=d.intake||{}; d.intake.societe=d.intake.societe||{}; if(!d.intake.societe.effectif) d.intake.societe.effectif=String(n);
+            var c=(DB.clients||[]).filter(function(x){ return (d.clientIds||[]).indexOf(x.id)>=0; })[0]; if(c&&!c.effectif) c.effectif=String(n); try{ save(); }catch(e){} } } }catch(e){}
+      return res; }; window.formDoCreate.__f759=1; } }catch(e){}
 })();
 </script>
 </body>
