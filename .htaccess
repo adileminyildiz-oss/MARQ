@@ -2,8 +2,9 @@
 # Mar'q — Hébergement IONOS (Apache) — mises à jour immédiates
 # ----------------------------------------------------------------------------
 # Empêche le navigateur de garder en cache la page et le service worker, afin
-# que CHAQUE nouveau fichier envoyé soit visible tout de suite (cohérent avec
-# le kill-switch du service worker).
+# que CHAQUE nouveau fichier envoyé soit visible tout de suite. Le service
+# worker (hors connexion) travaille « réseau d'abord » : il garde une copie
+# pour l'usage sans réseau, mais redemande toujours ces fichiers au serveur.
 # ============================================================================
 
 # Page d'accueil = index.html
