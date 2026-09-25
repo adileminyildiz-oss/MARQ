@@ -94,7 +94,8 @@ const serveur = http.createServer((req,res)=>{
   publiee = VER+1;
   await p.reload(); await ev(()=>{ try{_authGranted();}catch(e){} }); await pret();
   A(await ev(()=>LAST_VER)===VER+1,'en ligne, une nouvelle version publiée est chargée immédiatement (jamais la copie)');
-  await p.waitForTimeout(500);
+  /* Attendre que la copie locale soit à jour (écriture asynchrone du worker) avant de couper le réseau. */
+  for(let i=0;i<40;i++){ if(await ev(async v=>{ const c=await caches.open('marq-hors-ligne-v1'); const r=await c.match(location.href,{ignoreSearch:true}); return !!r && (await r.text()).indexOf('var LAST_VER='+v+';')>=0; },VER+1)) break; await p.waitForTimeout(250); }
   await ctx.setOffline(true);
   try{ await p.reload({waitUntil:'load'}); await pret(); }catch(e){}
   A(await ev(()=>LAST_VER)===VER+1,'hors connexion ensuite, c’est cette nouvelle version qui s’ouvre');

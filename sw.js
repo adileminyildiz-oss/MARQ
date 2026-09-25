@@ -95,17 +95,18 @@ function secours(req, url){
 }
 
 /* STRATÉGIE : réseau d'abord pour les fichiers du site. */
-function reseauDabord(req, url){
+function reseauDabord(req, url, garder){
   var nav = req.mode === 'navigate';
   var demande = nav ? fetch(url.href, {cache: 'no-cache', credentials: 'same-origin'})
                     : fetch(req, {cache: 'no-cache'});
   return demande.then(propre).then(function(r){
     if(r && r.ok && r.type === 'basic'){
-      var a = r.clone(), b = r.clone();
-      caches.open(APP).then(function(c){
-        c.put(req, a);
-        if(nav && estAccueil(url)) c.put('index.html', b);
+      var a = r.clone(), b = nav && estAccueil(url) ? r.clone() : null;
+      /* L'écriture de la copie locale doit aboutir même si le navigateur endort le worker : waitUntil. */
+      var ecrit = caches.open(APP).then(function(c){
+        return Promise.all([c.put(req, a), b ? c.put('index.html', b) : null]);
       }).catch(function(){});
+      if(garder) garder(ecrit);
     }
     return r;
   }).catch(function(){ return secours(req, url); });
@@ -129,7 +130,7 @@ self.addEventListener('fetch', function(e){
   var url; try{ url = new URL(req.url); }catch(_){ return; }
   if(url.origin === self.location.origin){
     if(/\/(version\.json|sw\.js)$/.test(url.pathname)) return;   /* toujours le réseau */
-    e.respondWith(reseauDabord(req, url));
+    e.respondWith(reseauDabord(req, url, function(p){ try{ e.waitUntil(p); }catch(_){} }));
     return;
   }
   if(url.protocol === 'https:' && STATIQUES.test(url.hostname)) e.respondWith(cacheDabord(req));
