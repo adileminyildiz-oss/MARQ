@@ -55,7 +55,9 @@ jobs:
         if: steps.config.outputs.prete == 'oui'
         run: |
           mkdir -p dist
-          cp index.html sw.js version.json .htaccess dist/
+          cp index.html installer.html sw.js version.json .htaccess manifest.webmanifest dist/
+          cp icon-app.png icon-192.png icon-512.png icon-512-maskable.png apple-touch-icon.png favicon.ico dist/
+          cp -r icones dist/
           ls -la dist
 
       - name: Envoyer sur IONOS (SFTP)

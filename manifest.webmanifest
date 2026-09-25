@@ -1,15 +1,21 @@
 {
+  "id": "./",
   "name": "Mar’q — AEM CONSEIL",
   "short_name": "Mar’q",
   "description": "Logiciel interne AEM CONSEIL — traitement des demandes et formalités.",
+  "lang": "fr-FR",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#000000",
+  "background_color": "#16181a",
   "theme_color": "#000000",
+  "categories": ["business", "productivity"],
   "icons": [
-    {"src":"icon-app.png","sizes":"316x316","type":"image/png","purpose":"any"},
-    {"src":"icon-512-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"icon-512-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"},
+    {"src":"icones/marq.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}
   ]
 }

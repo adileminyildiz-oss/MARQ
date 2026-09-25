@@ -23,7 +23,8 @@
 var APP = 'marq-hors-ligne-v1';        /* copie de la dernière version chargée */
 var LIB = 'marq-bibliotheques-v1';     /* polices et bibliothèques figées */
 
-var COEUR = ['./', 'index.html', 'manifest.webmanifest', 'icon-app.png', 'icon-512-maskable.png'];
+var COEUR = ['./', 'index.html', 'installer.html', 'manifest.webmanifest', 'icon-app.png', 'icon-192.png', 'icon-512.png',
+             'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.ico', 'icones/marq.svg', 'icones/marq-512.png'];
 var BIBLIOS = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<link rel="apple-touch-icon" href="icon-app.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mar’q">
@@ -13,6 +13,7 @@
 <meta name="theme-color" content="#000000">
 <title>Mar’q — logiciel de traitement des demandes (AEM CONSEIL)</title>
 <link rel="icon" type="image/png" href="icon-app.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
 /* ============ TOKENS — Beige clair · administratif · compact ============ */
 :root{
@@ -3738,7 +3739,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){window.a
   }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=763;
+var LAST_VER=764;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -3761,7 +3762,7 @@ function lastCheckUpdate(){
       _lastHardReload();
     }
   }).catch(function(){});
-  if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration().then(function(reg){try{reg&&reg.update();}catch(e){}});}
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){try{navigator.serviceWorker.getRegistration().then(function(reg){try{reg&&reg.update();}catch(e){}}).catch(function(){});}catch(e){}}
 }
 window.addEventListener('load',function(){ setTimeout(lastCheckUpdate,1200); setInterval(lastCheckUpdate,60000); });
 document.addEventListener('visibilitychange',function(){ if(!document.hidden) lastCheckUpdate(); });
@@ -30889,7 +30890,8 @@ html body .mq-ib-add .mq-ic{width:18px;height:18px}
      {id:'sauv',  t:'Sauvegarde & restauration', kw:'export import instantane automatique backup'},
      {id:'corb',  t:'Corbeille',             kw:'supprime recuperer 30 jours'},
      {id:'cfg',   t:'Configuration',         kw:'export import reglages poste'},
-     {id:'poste', t:'Données de ce poste',   kw:'stockage local navigateur reinitialiser'}
+     {id:'poste', t:'Données de ce poste',   kw:'stockage local navigateur reinitialiser'},
+     {id:'install',t:'Installer sur vos appareils', kw:'application icone telephone ordinateur tablette hors connexion qr code'}
    ]},
    {id:'sec',t:'Sécurité',subs:[
      {id:'compte',t:'Compte & session',      kw:'mot de passe deconnexion verrouillage'},
@@ -30980,6 +30982,8 @@ html body .mq-ib-add .mq-ic{width:18px;height:18px}
 
   /* ---------- coque ---------- */
   function shell(html){
+    /* v764 : les modules peuvent ajouter leurs cartes avant le rangement par rubrique */
+    try{ (window.__spAjouts||[]).forEach(function(f){ var r=f(html); if(typeof r==='string') html=r; }); }catch(e){}
     var box=document.createElement('div'); box.innerHTML=html;
     var setup=null, orphan=[], byPath={}, note=null;
 
@@ -58947,6 +58951,59 @@ function testLienSignature() {
   }
   if(window.marqHorsLigne&&window.marqHorsLigne.pret) annoncer();
   document.addEventListener('marq-hors-ligne-pret',annoncer);
+})();
+</script>
+<script id="mq-admin-764">
+/* v764 — Installer Mar'q sur vos appareils : carte dans Paramètres (installer
+   sur cet appareil, code QR vers la page d'installation, icône à télécharger)
+   et page publique installer.html. Rien d'autre n'est modifié. */
+(function(){
+  if(window.__installer764) return; window.__installer764=1;
+  var E=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  function adresse(){ try{ if(/^https?:$/.test(location.protocol)) return location.origin+location.pathname.replace(/[^\/]*$/,'')+'installer.html'; }catch(e){} return 'https://marq.aemconseil.eu/installer.html'; }
+  function installe(){ try{ return (typeof pwaInstalled==='function')?pwaInstalled():false; }catch(e){ return false; } }
+  function qr(){ try{ return (typeof window.lgQRDataUrl==='function')?window.lgQRDataUrl(adresse(),150):''; }catch(e){ return ''; } }
+  window.marqInstallerIci=function(){
+    if(installe()){ if(typeof toast==='function') toast('Mar’q est déjà installé sur cet appareil.'); return; }
+    if(typeof _pwaPrompt!=='undefined'&&_pwaPrompt){ try{ pwaInstall(); return; }catch(e){} }
+    window.open(adresse(),'_blank','noopener');
+  };
+  window.marqInstallerCopier=function(btn){
+    var u=adresse(), ok=function(){ if(btn){ btn.textContent='Lien copié'; setTimeout(function(){ btn.textContent='Copier le lien'; },1800); } };
+    try{ navigator.clipboard.writeText(u).then(ok,function(){ if(typeof toast==='function') toast(u); }); }catch(e){ if(typeof toast==='function') toast(u); }
+  };
+  window.marqInstallerCard=function(){
+    var src=qr(), u=adresse(), deja=installe();
+    var base=u.replace(/installer\.html$/,'');
+    return '<div class="card mq-inst" data-sp="dat/install" style="margin-top:14px"><div class="card-h"><h2>Installer Mar’q sur vos appareils</h2>'
+      +'<span class="sub" style="margin-left:auto">Windows · macOS · Linux · Android · iPhone</span></div><div class="card-b">'
+      +'<div class="mq-inst-g"><div>'
+      +'<p class="hint" style="margin:0 0 12px">Mar’q s’installe comme une application : icône sur le bureau ou l’écran d’accueil, fenêtre dédiée, utilisation hors connexion et mises à jour automatiques.</p>'
+      +(deja?'<p class="mq-inst-ok">✓ Mar’q est installé sur cet appareil.</p>':'')
+      +'<div class="mq-inst-a">'
+        +(deja?'':'<button class="btn btn-pri" onclick="marqInstallerIci()">Installer sur cet appareil</button>')
+        +'<a class="btn btn-ghost" href="'+E(u)+'" target="_blank" rel="noopener">Page d’installation</a>'
+        +'<a class="btn btn-ghost" href="'+E(base)+'icones/Marq-icones.zip" download>Télécharger l’icône</a>'
+      +'</div>'
+      +'<div class="mq-inst-l"><code>'+E(u)+'</code><button class="btn btn-sm btn-ghost" onclick="marqInstallerCopier(this)">Copier le lien</button></div>'
+      +'<p class="hint" style="margin:10px 0 0">Sur un autre appareil, les données ne suivent pas d’elles-mêmes : exportez une sauvegarde (Données › Sauvegarde &amp; restauration), puis restaurez-la sur le nouvel appareil.</p>'
+      +'</div>'
+      +(src?'<div class="mq-inst-q"><img src="'+src+'" alt="Code QR vers la page d’installation"><small>À scanner avec un téléphone ou une tablette</small></div>':'')
+      +'</div></div></div>';
+  };
+  var CSS='.mq-inst-g{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start}'
+    +'.mq-inst-a{display:flex;flex-wrap:wrap;gap:8px}.mq-inst-a a{text-decoration:none}'
+    +'.mq-inst-l{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}'
+    +'.mq-inst-l code{font-size:12px;padding:6px 9px;border-radius:7px;background:rgba(127,127,127,.12);word-break:break-all;user-select:all}'
+    +'.mq-inst-ok{margin:0 0 12px;color:#57c08a;font-weight:600}'
+    +'.mq-inst-q{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}'
+    +'.mq-inst-q img{width:132px;height:132px;background:#fff;border-radius:10px;padding:6px}.mq-inst-q small{font-size:11px;opacity:.7;max-width:150px}'
+    +'@media (max-width:640px){.mq-inst-g{grid-template-columns:1fr}.mq-inst-q{align-items:flex-start}}';
+  try{ var st=document.createElement('style'); st.id='mq-inst-764-css'; st.textContent=CSS; document.head.appendChild(st); }catch(e){}
+  /* Rangée dans Paramètres › Données › Installer sur vos appareils (voir __spAjouts). */
+  window.__spAjouts=window.__spAjouts||[];
+  window.__spAjouts.push(function(h){ if(h.indexOf('mq-inst')>=0) return h; var c=window.marqInstallerCard(), k=h.lastIndexOf('<div class="card"><h2>Sauvegarde &amp; restauration');
+    return k>=0 ? h.slice(0,k)+c+h.slice(k) : h+c; });
 })();
 </script>
 </body>
