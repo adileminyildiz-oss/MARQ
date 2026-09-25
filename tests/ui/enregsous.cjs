@@ -91,7 +91,7 @@ const FORM=(Y)=>({type:'sas',nature:'creation',numeroDossier:'',
   A(r.zip&&r.pdf>=14&&/^Documents - BATI-SUD CONSTRUCTION - PDF/.test(r.nom),'tous les documents du dossier en une archive de PDF',JSON.stringify(r));
 
   /* fiche technique de création : même menu */
-  await ev((f)=>{ window.__formData=f; state.page='formulaire'; render(); formFicheOuvrir(); },FORM(new Date().getFullYear())); await p.waitForTimeout(400);
+  await ev((f)=>{ window.__formData=f; state.page='formulaire'; render(); formFicheOuvrir(); },FORM(new Date().getFullYear())); await p.waitForTimeout(400); await p.waitForSelector('#ov-f .sv-wrap',{timeout:5000}).catch(()=>{});
   r=await ev(()=>({menu:!!document.querySelector('#ov-f .sv-wrap'),version:/Version dans le dossier/.test((document.querySelector('#ov-f .sv-menu')||{}).textContent||'')}));
   A(r.menu&&!r.version,'fiche technique de création : menu « Enregistrer sous » (sans version, pas encore de dossier)',JSON.stringify(r));
   r=await ev(async()=>{ await svEnregistrer('pdf'); const a=new Uint8Array(await window.__svBlob.arrayBuffer()); let s=''; for(let i=0;i<a.length;i++) s+=String.fromCharCode(a[i]); return {pdf:s.startsWith('%PDF'),txt:s.includes('(FICHE ')||s.includes('(Fiche ')}; });

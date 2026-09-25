@@ -66,7 +66,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
       await space(p,STATES[sn],tab);
       for(const x of await p.evaluate(CHECK)) issues.push(sn+'/'+tab+' : '+x);
       for(const x of await p.evaluate(REACH)) issues.push(sn+'/'+tab+' : '+x);
-      if(w<=760&&tab==='accueil'){ await p.evaluate(()=>portV2Nav(true)); await p.waitForTimeout(320);
+      if(w<=760&&tab==='accueil'){ await p.evaluate(()=>portV2Nav(true)); await p.waitForTimeout(320); await p.waitForFunction(()=>{ const s=document.querySelector('#portail-ov .pt-side'); if(!s) return true; const r=s.getBoundingClientRect(); return r.left>=-1&&r.right<=innerWidth+1; },null,{timeout:3000}).catch(()=>{});
         for(const x of await p.evaluate(CHECK)) issues.push(sn+'/menu ouvert : '+x);
         await p.evaluate(()=>portV2Nav(false)); await p.waitForTimeout(320); } }
     const u=[...new Set(issues)];

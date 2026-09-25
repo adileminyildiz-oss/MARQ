@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=761;
+var LAST_VER=762;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -58845,6 +58845,8 @@ function testLienSignature() {
     /* le contexte (dossier, document) n'est retenu que s'il vient de l'ouverture en cours : jamais d'un document précédent */
     window.openModal=function(){ var p=window.__svPending; window.__svCtx=(p&&Date.now()-p.ts<3000)?p:null; window.__svPending=null;
       var r=_om.apply(this,arguments); setTimeout(equiper,70); return r; }; window.openModal.__sv761=1; } }catch(e){}
+  (function obs(){ var ov=document.getElementById('ov'); if(!ov||typeof MutationObserver!=='function'){ setTimeout(obs,500); return; }
+    var t=null; new MutationObserver(function(){ if(t) return; t=setTimeout(function(){ t=null; equiper(); },50); }).observe(ov,{childList:true,subtree:true,attributes:true,attributeFilter:['class']}); })();
   function contexte(nom,fn){ try{ var _f=window[nom]; if(typeof _f!=='function'||_f.__sv761) return;
     window[nom]=function(){ window.__svPending=Object.assign({ts:Date.now()},fn.apply(null,arguments)); return _f.apply(this,arguments); }; window[nom].__sv761=1; }catch(e){} }
   contexte('espDocVoir',function(id,k){ return {id:id,k:k}; });
