@@ -586,6 +586,11 @@ aside .nav-btn:hover{color:#000}
    d'une activation ou d'une désactivation laisse donc une base
    lisible, jamais une base perdue.
    =================================================================== */
+/* v765 — Travaux de fond (détections, analyses) lancés APRÈS le démarrage : l'application
+   s'affiche d'abord, les calculs d'ensemble suivent quelques secondes plus tard. */
+window.mqApresDemarrage=window.mqApresDemarrage||function(f,delai){ var t0=Date.now();
+  (function guet(){ var pret=false; try{ pret=!!(window.marqPret&&window.marqPret()); }catch(e){}
+    if(pret||Date.now()-t0>30000) setTimeout(f,delai==null?4000:delai); else setTimeout(guet,250); })(); };
 (function(){
   if(window.mqSec) return;
 
@@ -805,6 +810,25 @@ aside .nav-btn:hover{color:#000}
           .then(function(e){ st.sel=sel; st.iter=ITER; st.env=e; st.ts=Date.now(); return poser(st); });
       }).catch(function(){ return false; });
   }
+  /* v765 — Chiffrement LIÉ au mot de passe de connexion : la phrase secrète EST
+     le mot de passe. L'écran d'accès vérifie alors le mot de passe en ouvrant
+     la clé de données, et plus en comparant une empreinte modifiable. */
+  function lier(){ var st=etat(); if(!st) return false; st.lie=true; return poser(st); }
+  function lie(){ var st=etat(); return !!(st&&st.lie); }
+  /* Mot de passe perdu : la clé de secours ouvre la clé de données, qu'on
+     ré-enveloppe aussitôt sous le nouveau mot de passe. */
+  function reinitialiser(secours, nouvelle){
+    var st=etat(); if(!st || !st.selR || !st.envR) return Promise.resolve(false);
+    return kek(normSecours(secours), st.selR, st.iter).then(function(k){ return descelle(k, st.envR); })
+      .then(function(dekRaw){
+        var sel=b64(alea(16));
+        return kek(nouvelle, sel, ITER).then(function(k2){ return scelle(k2, dekRaw); })
+          .then(function(e){ st.sel=sel; st.iter=ITER; st.env=e; st.ts=Date.now(); if(!poser(st)) return false;
+            return importDek(dekRaw).then(function(k){ DEK=k; return charger(); }); });
+      }).then(function(ok){ if(!ok) DEK=null; return !!ok; })
+      .catch(function(){ DEK=null; return false; });
+  }
+
   /* Nouvelle clé de secours : l'ancienne cesse d'ouvrir. */
   function regenererSecours(phrase){
     var st=etat(); if(!st) return Promise.resolve(null);
@@ -866,36 +890,45 @@ aside .nav-btn:hover{color:#000}
     document.head.appendChild(s);
   }
 
-  function ecranDeverrouillage(suite){
+  function ecranDeverrouillage(suite, modeInitial){
     css();
-    var mode='phrase';
+    var mode=(modeInitial==='secours')?'secours':'phrase';
+    var LIE=lie();
     var ov=document.getElementById('mqsec-lock');
     if(!ov){ ov=document.createElement('div'); ov.id='mqsec-lock'; document.body.appendChild(ov); }
     function peindre(){
       var secours=(mode==='secours');
       ov.innerHTML='<div class="ms-card"><div class="ms-top">'
-        +'<div class="ms-t">Données chiffrées</div>'
+        +'<div class="ms-t">'+(LIE?'Mar’q est verrouillé':'Données chiffrées')+'</div>'
         +'<div class="ms-s">'+(secours
-            ? 'Saisissez la clé de secours remise lors de l’activation.'
-            : 'Les pièces d’identité, numéros de sécurité sociale et coordonnées bancaires sont chiffrés sur cet appareil.')
+            ? (LIE?'Saisissez la clé de secours remise à la première connexion, puis choisissez un nouveau mot de passe.':'Saisissez la clé de secours remise lors de l’activation.')
+            : (LIE?'Les données de cet appareil sont chiffrées avec votre mot de passe.':'Les pièces d’identité, numéros de sécurité sociale et coordonnées bancaires sont chiffrés sur cet appareil.'))
         +'</div></div><div class="ms-b">'
-        +'<label for="ms-in">'+(secours?'Clé de secours':'Phrase secrète')+'</label>'
-        +'<input id="ms-in" type="'+(secours?'text':'password')+'" autocomplete="off" spellcheck="false" '
+        +'<label for="ms-in">'+(secours?'Clé de secours':(LIE?'Mot de passe':'Phrase secrète'))+'</label>'
+        +'<input id="ms-in" type="'+(secours?'text':'password')+'" autocomplete="'+(secours||!LIE?'off':'current-password')+'" spellcheck="false" '
         +(secours?'placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"':'')+'>'
-        +'<button class="ms-btn" id="ms-go">Déverrouiller</button>'
+        +((secours&&LIE)?('<label for="ms-n1" style="margin-top:12px">Nouveau mot de passe (10 caractères minimum)</label><input id="ms-n1" type="password" autocomplete="new-password">'
+          +'<label for="ms-n2" style="margin-top:12px">Confirmation</label><input id="ms-n2" type="password" autocomplete="new-password">'):'')
+        +'<button class="ms-btn" id="ms-go">'+((secours&&LIE)?'Déverrouiller et changer le mot de passe':'Déverrouiller')+'</button>'
         +'<div class="ms-err" id="ms-err"></div>'
-        +'<div class="ms-alt"><button id="ms-sw">'+(secours?'Revenir à la phrase secrète':'Phrase perdue ? Utiliser la clé de secours')+'</button></div>'
-        +'<p class="ms-note">Sans la phrase ni la clé de secours, ces données ne peuvent pas être rétablies — c’est ce qui les protège.</p>'
+        +'<div class="ms-alt"><button id="ms-sw">'+(secours?(LIE?'Revenir au mot de passe':'Revenir à la phrase secrète'):(LIE?'Mot de passe oublié ? Utiliser la clé de secours':'Phrase perdue ? Utiliser la clé de secours'))+'</button></div>'
+        +'<p class="ms-note">Sans '+(LIE?'le mot de passe':'la phrase')+' ni la clé de secours, ces données ne peuvent pas être rétablies — c’est ce qui les protège.</p>'
         +'</div></div>';
       var inp=document.getElementById('ms-in'), btn=document.getElementById('ms-go'), err=document.getElementById('ms-err');
       function dire(m){ err.textContent=m||''; err.style.display=m?'block':'none'; }
       function tenter(){
         var v=inp.value||''; if(!v){ inp.focus(); return; }
-        btn.disabled=true; btn.textContent='Déverrouillage…'; dire('');
-        var p=secours?deverrouillerSecours(v):deverrouiller(v);
+        var nv=null;
+        if(secours&&LIE){ var a1=document.getElementById('ms-n1'), a2=document.getElementById('ms-n2'); nv=(a1&&a1.value)||'';
+          if(nv.length<10){ dire('Le nouveau mot de passe doit contenir au moins 10 caractères.'); a1.focus(); return; }
+          if(nv!==((a2&&a2.value)||'')){ dire('Les deux saisies du nouveau mot de passe diffèrent.'); a2.value=''; a2.focus(); return; } }
+        var lib=btn.textContent; btn.disabled=true; btn.textContent='Déverrouillage…'; dire('');
+        var p=secours?(nv!=null?reinitialiser(v,nv):deverrouillerSecours(v)):deverrouiller(v);
         p.then(function(ok){
-          if(!ok){ btn.disabled=false; btn.textContent='Déverrouiller'; inp.value=''; inp.focus();
-            dire(secours?'Clé de secours refusée.':'Phrase secrète incorrecte.'); return; }
+          if(!ok){ btn.disabled=false; btn.textContent=lib; inp.value=''; inp.focus();
+            try{ if(!secours&&typeof _authFail==='function') _authFail(); }catch(e){}
+            dire(secours?'Clé de secours refusée.':(LIE?'Mot de passe incorrect.':'Phrase secrète incorrecte.')); return; }
+          if(nv!=null){ try{ if(typeof _sha256==='function') _sha256(nv).then(function(h){ try{ localStorage.setItem('last-pwd',h); }catch(e){} }); }catch(e){} }
           try{ ov.remove(); }catch(e){}
           try{ if(typeof suite==='function') suite(); }catch(e){}
         });
@@ -918,6 +951,7 @@ aside .nav-btn:hover{color:#000}
     doitDeverrouiller:doitDeverrouiller, ecranDeverrouillage:ecranDeverrouillage,
     activer:activer, desactiver:desactiver,
     changerPhrase:changerPhrase, regenererSecours:regenererSecours,
+    lier:lier, lie:lie, reinitialiser:reinitialiser,
     iterations:function(){ return ITER; }
   };
 })();
@@ -1066,7 +1100,10 @@ function save(){
     const s=document.getElementById('saveind');s.style.opacity='1';clearTimeout(saveT);saveT=setTimeout(()=>s.style.opacity='.6',1400);}
 }
 function svcById(id){return DB.services.find(s=>s.id===id)}
-function clientById(id){return DB.clients.find(c=>c.id===id)}
+function clientById(id){ /* v765 : index le temps d'un affichage (mêmes résultats que find) */
+  if(window.mqPasseMemo&&DB&&Array.isArray(DB.clients)){ var ix=window.mqPasseMemo('clientById',function(){ var m=new Map(); DB.clients.forEach(function(c){ if(c&&!m.has(c.id)) m.set(c.id,c); }); return {L:DB.clients,n:DB.clients.length,m:m}; });
+    if(ix&&ix.L===DB.clients&&ix.n===DB.clients.length) return ix.m.get(id); }
+  return DB.clients.find(c=>c.id===id)}
 function userById(id){return DB.users.find(u=>u.id===id)}
 const initials=n=>(''+(n||'')).split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
 
@@ -3481,9 +3518,26 @@ function _authGranted(){try{sessionStorage.setItem('last-sess-ok','1');localStor
 /* Étape 1 — mot de passe */
 async function lastGateTry(ev){if(ev&&ev.preventDefault)ev.preventDefault();
   if(_authLockLeft()>0){_authErr('Trop de tentatives — réessayez dans '+_authLockLeft()+' s.');return false;}
-  var inp=document.getElementById('lg-pwd');var h=await _sha256(inp.value||'');
+  var inp=document.getElementById('lg-pwd');var _pw=inp.value||'';
+  /* v765 — Données chiffrées avec le mot de passe : il est vérifié en OUVRANT la clé de
+     données. Une empreinte locale remplacée ou un drapeau posé à la main n'ouvrent rien. */
+  var _S=window.mqSec;
+  if(_S&&_S.actif()&&_S.lie&&_S.lie()){
+    _authErr('');var _b=inp.form&&inp.form.querySelector('button[type=submit]');if(_b){_b.disabled=true;_b.textContent='Ouverture…';}
+    var _ok=false;try{_ok=await _S.deverrouiller(_pw);}catch(e){_ok=false;}
+    if(_b){_b.disabled=false;_b.textContent='Continuer';}
+    if(!_ok){_authFail();inp.value='';inp.focus();_authErr('Mot de passe incorrect.'+(_authLockLeft()?(' Verrouillé '+_authLockLeft()+' s.'):''));return false;}
+    try{localStorage.setItem('last-pwd',await _sha256(_pw));}catch(e){}
+    _authGranted();return false;
+  }
+  var h=await _sha256(_pw);
   if(h!==getPwdHash()){_authFail();inp.value='';inp.focus();_authErr('Mot de passe incorrect.'+(_authLockLeft()?(' Verrouillé '+_authLockLeft()+' s.'):''));return false;}
-  _authPwd=inp.value||'';_authErr('');
+  _authPwd=_pw;_authErr('');
+  /* Premier accès depuis la v765 : le chiffrement est posé sous ce mot de passe dès que la
+     base est chargée (voir mq-admin-765). Un chiffrement déjà activé avec une phrase distincte
+     est rattaché au mot de passe si les deux coïncident. */
+  try{ if(_S&&_S.dispo()){ if(!_S.actif()) window.__mqLierApres=_pw;
+    else if(!_S.pret()&&await _S.deverrouiller(_pw)) _S.lier(); } }catch(e){}
   /* Poste CONNU (déjà validé par code) → mot de passe seul, pas de code à 6 chiffres */
   if(_devTrusted()){ _authGranted(); return false; }
   /* Nouveau poste → code à 6 chiffres exigé */
@@ -3531,7 +3585,10 @@ function lastGate(){
   /* Mot de passe exigé à CHAQUE ouverture (nouvelle session). Un simple rechargement
      dans le même onglet reste connecté (session). Le bypass localStorage 'last-gate-ok'
      est réservé aux tests automatisés. */
-  var ok=false;try{ok=(sessionStorage.getItem('last-sess-ok')==='1')||(localStorage.getItem('last-gate-ok')==='1');}catch(e){}
+  /* v765 : le drapeau des tests automatisés n'est honoré que sur un poste de développement
+     (fichier local ou localhost), jamais sur l'adresse publiée. */
+  var _dev=/^file:$/.test(location.protocol)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  var ok=false;try{ok=(sessionStorage.getItem('last-sess-ok')==='1')||(_dev&&localStorage.getItem('last-gate-ok')==='1');}catch(e){}
   if(ok){lastBoot();return;}
   if(!document.getElementById('lg-css')){var st=document.createElement('style');st.id='lg-css';st.textContent='#last-gate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 640px at 50% -10%,#f3ecdc,#2a2a2e 60%,#ded2ba);padding:20px}'
     +'#last-gate .lg-card{background:#fffdf8;border:1px solid #e5e3dc;border-radius:18px;box-shadow:0 40px 90px -34px rgba(40,40,45,.6);padding:0;overflow:hidden;width:100%;max-width:400px}'
@@ -3607,6 +3664,9 @@ window.lgTogglePwd=function(){var i=document.getElementById('lg-pwd');if(!i)retu
 function lgMailCfg(){ try{ var raw=localStorage.getItem('last-db-v1'); if(!raw)return null; var db=JSON.parse(raw); var m=db&&db.parametres&&db.parametres.mailSync; return (m&&m.url)?m:null; }catch(e){ return null; } }
 function lgResetMail(){ return (typeof AEM_MAIL!=='undefined'&&AEM_MAIL)?AEM_MAIL:'aemconseil.sas@gmail.com'; }
 window.lgForgot=async function(){
+  try{ var _S=window.mqSec; if(_S&&_S.actif()&&_S.lie&&_S.lie()){
+    var g=document.getElementById('last-gate'); if(g) g.remove();
+    _S.ecranDeverrouillage(function(){ _authGranted(); },'secours'); return; } }catch(e){}
   var cfg=lgMailCfg();
   if(!cfg){ lastGateRender('reset',{nomail:true}); return; }
   var mail=lgResetMail();
@@ -3629,7 +3689,7 @@ window.lgResetVerify=async function(ev){ if(ev&&ev.preventDefault)ev.preventDefa
   if(!/^\d{6}$/.test(code)){ _authErr('Saisissez le code à 6 chiffres reçu par e-mail.'); return false; }
   var hc=await _sha256(code);
   if(hc!==rec.h){ _authErr('Code incorrect.'); return false; }
-  if(np.length<4){ _authErr('Le nouveau mot de passe doit contenir au moins 4 caractères.'); return false; }
+  if(np.length<10){ _authErr('Le nouveau mot de passe doit contenir au moins 10 caractères.'); return false; }
   if(np!==np2){ _authErr('Les deux mots de passe ne correspondent pas.'); return false; }
   var nh=await _sha256(np);
   try{ localStorage.setItem('last-pwd', nh); localStorage.removeItem('last-pwd-reset'); }catch(e){}
@@ -3643,7 +3703,7 @@ function lastGateRender(stage,data){
     b.innerHTML='<div class="lg-form">'
       +'<form onsubmit="return lastGateTry(event)">'
       +''
-      +'<label>Mot de passe</label><div class="lg-pwdwrap"><input id="lg-pwd" type="text" autocomplete="current-password" autofocus placeholder="Votre mot de passe"><button type="button" class="lg-eye" onclick="lgTogglePwd()" title="Afficher / masquer le mot de passe" aria-label="Afficher / masquer le mot de passe">👁</button></div>'
+      +'<label>Mot de passe</label><div class="lg-pwdwrap"><input id="lg-pwd" type="password" autocomplete="current-password" autofocus placeholder="Votre mot de passe"><button type="button" class="lg-eye" onclick="lgTogglePwd()" title="Afficher / masquer le mot de passe" aria-label="Afficher / masquer le mot de passe">👁</button></div>'
       +'<div id="lg-err" class="lg-err"></div>'
       +'<button class="btn btn-pri" type="submit" style="width:100%;justify-content:center;margin-top:12px">Continuer</button>'
       +'<div class="lg-forgot-row"><button type="button" class="lg-forgot" onclick="lgForgot()">Mot de passe oublié ?</button></div>'
@@ -3708,8 +3768,8 @@ function lastGateRender(stage,data){
       + note
       +'<form onsubmit="return lgResetVerify(event)">'
       +'<label>Code reçu par e-mail</label><input id="lg-rcode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" '+(data.sending?'':'autofocus')+' placeholder="000000">'
-      +'<label style="margin-top:10px">Nouveau mot de passe</label><input id="lg-newpwd" type="text" placeholder="Nouveau mot de passe">'
-      +'<label style="margin-top:10px">Confirmer le mot de passe</label><input id="lg-newpwd2" type="text" placeholder="Confirmer le mot de passe">'
+      +'<label style="margin-top:10px">Nouveau mot de passe</label><input id="lg-newpwd" type="password" autocomplete="new-password" placeholder="10 caractères minimum">'
+      +'<label style="margin-top:10px">Confirmer le mot de passe</label><input id="lg-newpwd2" type="password" autocomplete="new-password" placeholder="Confirmer le mot de passe">'
       +'<div id="lg-err" class="lg-err"></div>'
       +'<button class="btn btn-pri" type="submit" style="width:100%;justify-content:center;margin-top:12px">Valider le nouveau mot de passe</button>'
       +'<div class="lg-forgot-row"><button type="button" class="lg-forgot" onclick="lgForgot()">Renvoyer un code</button> · <button type="button" class="lg-forgot" onclick="lastGateRender(\'pwd\')">← Retour</button></div>'
@@ -3739,7 +3799,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){window.a
   }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=764;
+var LAST_VER=765;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -27051,8 +27111,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'<div class="q-billto"><div class="q-lbl">Facturé à</div><div class="q-bt-nom">'+(E(d.clNom)||'Client')+'</div>'+(E(d.clAdr)?('<div class="q-bt-sm">'+E(d.clAdr)+'</div>'):'')+(E(d.clMail)?('<div class="q-bt-sm">'+E(d.clMail)+'</div>'):'')+(E(d.clSiret)?('<div class="q-bt-sm">SIRET '+E(d.clSiret)+'</div>'):'')+(E(d.clTva)?('<div class="q-bt-sm">N° TVA '+E(d.clTva)+'</div>'):'')+'</div>'
       +'<table class="q-tbl"><thead><tr><th class="q-desc">Description</th><th class="r">Qté</th><th class="r">Prix unitaire</th><th class="r">TVA</th><th class="r">Total HT</th></tr></thead><tbody>'+rows+'</tbody></table>'
       +'<div class="q-tot"><div class="q-trow"><span>Total HT</span><b>'+money(c.sousTotal,dev)+'</b></div>'
-        +'<div class="q-trow"><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'
-        +(c.remise?('<div class="q-trow"><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div>'):'')
+        +(c.remise?('<div class="q-trow"><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div><div class="q-trow"><span>Total HT net</span><b>'+money(c.baseHT,dev)+'</b></div>'):'')+'<div class="q-trow"><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'
         +'<div class="q-trow q-grand"><span>Total TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
       +'<div class="inv-p-spacer"></div>'
       +'<div class="q-pay">'
@@ -27078,8 +27137,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'<div class="inv-p-dates"><div><span>Date d’émission</span><b>'+frDate(d.dateEmise)+'</b></div><div><span>Date d’échéance</span><b>'+frDate(d.dateEch)+'</b></div>'+(d.datePresta?('<div><span>Date de prestation</span><b>'+frDate(d.datePresta)+'</b></div>'):'')+'</div>'
       +'<table class="inv-p-tbl"><thead><tr><th>Prestation</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'
       +'<div class="inv-p-tot"><div><span>Sous-total</span><b>'+money(c.sousTotal,dev)+'</b></div>'
-      +'<div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'
-      +(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div>'):'')
+      +(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div><div><span>Total HT net</span><b>'+money(c.baseHT,dev)+'</b></div>'):'')+'<div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'
       +'<div class="inv-p-grand"><span>Total TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
       +'<div class="inv-p-spacer"></div>'
       +'<div class="inv-p-foot">'
@@ -27103,7 +27161,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
       +'<div class="m-info"><div class="m-info-c"><div class="m-lbl">Facturé à</div><div class="m-nom">'+(E(d.clNom)||'Client')+'</div><div class="m-sm">'+[E(d.clAdr),E(d.clMail),(d.clSiret?('SIRET '+E(d.clSiret)):''),(d.clTva?('N° TVA '+E(d.clTva)):'')].filter(Boolean).join('<br>')+'</div></div>'
         +'<div class="m-info-c m-info-dates"><div><span>Émission</span><b>'+frDate(d.dateEmise)+'</b></div><div><span>Échéance</span><b>'+frDate(d.dateEch)+'</b></div>'+(d.datePresta?('<div><span>Prestation</span><b>'+frDate(d.datePresta)+'</b></div>'):'')+(d.bonCmd?('<div><span>Bon de cmd</span><b>'+E(d.bonCmd)+'</b></div>'):'')+'</div></div>'
       +'<table class="m-tbl"><thead><tr><th>Désignation</th><th class="r">Qté</th><th class="r">P.U.</th><th class="r">TVA</th><th class="r">Total HT</th></tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div class="m-tot"><div><span>Total HT</span><b>'+money(c.sousTotal,dev)+'</b></div><div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'+(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div>'):'')+'<div class="m-grand"><span>Total TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
+      +'<div class="m-tot"><div><span>Total HT</span><b>'+money(c.sousTotal,dev)+'</b></div>'+(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div><div><span>Total HT net</span><b>'+money(c.baseHT,dev)+'</b></div>'):'')+'<div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div><div class="m-grand"><span>Total TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
       +'<div class="inv-p-spacer"></div>'
       +'<div class="m-foot"><div class="m-cond">'+E(condLine(d))+((d.emIban)?(' · IBAN '+E(d.emIban)):'')+(window.invModalHTML?invModalHTML(d):'')+(d.note?('<div class="m-note">'+E(d.note)+'</div>'):'')+'</div>'+mentionsBlock(d,'m-mentions')+'</div>'
       +'</div>';
@@ -27121,7 +27179,7 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
         +'<div class="c-doc"><div class="c-doc-t">FACTURE</div><div class="c-doc-m"><div>N° <b>'+E(d.numero||'')+'</b></div><div>Le <b>'+frDate(d.dateEmise)+'</b></div><div>Échéance <b>'+frDate(d.dateEch)+'</b></div></div></div></div>'
       +'<div class="c-cli"><div class="c-cli-l">Doit :</div><div class="c-cli-b"><b>'+(E(d.clNom)||'Client')+'</b><br>'+[E(d.clAdr),(d.clSiret?('SIRET '+E(d.clSiret)):''),(d.clTva?('N° TVA '+E(d.clTva)):'')].filter(Boolean).join('<br>')+'</div></div>'
       +'<table class="c-tbl"><thead><tr><th>Désignation</th><th class="r">Qté</th><th class="r">P.U. HT</th><th class="r">TVA</th><th class="r">Montant HT</th></tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div class="c-tot"><div><span>Total HT</span><b>'+money(c.sousTotal,dev)+'</b></div><div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div>'+(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div>'):'')+'<div class="c-grand"><span>Net à payer TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
+      +'<div class="c-tot"><div><span>Total HT</span><b>'+money(c.sousTotal,dev)+'</b></div>'+(c.remise?('<div><span>Remise</span><b>-'+money(c.remise,dev)+'</b></div><div><span>Total HT net</span><b>'+money(c.baseHT,dev)+'</b></div>'):'')+'<div><span>TVA ('+c.tvaRate+' %)</span><b>'+money(c.tva,dev)+'</b></div><div class="c-grand"><span>Net à payer TTC</span><b>'+money(c.total,dev)+'</b></div></div>'
       +'<div class="inv-p-spacer"></div>'
       +'<div class="c-foot"><div class="c-cond">'+E(condLine(d))+(window.invModalHTML?invModalHTML(d):'')+(d.note?('<div class="c-note">'+E(d.note)+'</div>'):'')+'</div>'+mentionsBlock(d,'c-mentions')+'</div>'
       +'</div>';
@@ -38510,7 +38568,7 @@ function testLienSignature() {
     var sd=r2(L.reduce(function(a,l){return a+l.d;},0)), sc=r2(L.reduce(function(a,l){return a+l.c;},0)); if(Math.abs(sd-sc)>=0.005){ L[1].c=r2(L[1].c+(sd-sc)); }
     return L; };
   window.yadaExportVentes=function(){ var arr=yadaVentesEnAttente(); if(!arr.length){ if(typeof toast==='function')toast('Aucune facture émise en attente de transmission.'); return; }
-    var out=[COLS.join('\t')], k=0; arr.forEach(function(f){ k++; var num='V'+String(k).padStart(5,'0'); var lib='Facture '+(f.numero||'')+' · '+(f.clNom||''); yadaLignesVente(f).forEach(function(l){ out.push(row('VT','VENTES',num,iso(f.dateEmise),l.cpt,l.clib,l.ax,l.axl,f.numero,iso(f.dateEmise),lib,l.d,l.c)); }); f.yadaTransmis=new Date().toISOString(); });
+    var out=[COLS.join('\t')], pp=P(), k=+pp.yadaSeqVentes||0; arr.forEach(function(f){ k++; pp.yadaSeqVentes=k; var num='V'+String(k).padStart(5,'0'); /* numérotation continue d'un export à l'autre : jamais deux écritures sous le même numéro */ var lib='Facture '+(f.numero||'')+' · '+(f.clNom||''); yadaLignesVente(f).forEach(function(l){ out.push(row('VT','VENTES',num,iso(f.dateEmise),l.cpt,l.clib,l.ax,l.axl,f.numero,iso(f.dateEmise),lib,l.d,l.c)); }); f.yadaTransmis=new Date().toISOString(); });
     var nom='YADA-ventes-'+todayISO()+'.txt'; dl(nom,out.join('\r\n')); journal('ventes',arr.length,nom,out.length-1,arr.map(function(f){return f.numero;}).join(', ')); try{save();}catch(e){} if(typeof render==='function')render();
     if(typeof toast==='function')toast(arr.length+' facture(s) de vente exportée(s) en FEC — à importer dans YADA (Import / Export FEC).'); };
   window.yadaVenteAnnuler=function(id){ var f=factures().filter(function(x){return x.id===id;})[0]; if(!f)return; delete f.yadaTransmis; try{save();}catch(e){} if(typeof render==='function')render(); };
@@ -38872,9 +38930,9 @@ function testLienSignature() {
     lignesReelles(d).forEach(function(l){ var m=r2(n(l.qte)*n(l.pu)); marche+=m; if(isDeb(l)) deb+=m; var av=(type==='solde')?100:(type==='situation'?Math.min(100,Math.max(0,n(l.av))):100); cumul+=r2(m*av/100); });
     marche=r2(marche); cumul=r2(cumul); deb=r2(deb);
     var simple=!isBTPDoc(d)&&(type==='facture'||type==='devis'||type==='avoir');
-    if(simple){ /* comportement historique du facturier (remise après TVA) */
-      var rate0=(d.franchiseTVA||d.autoliq)?0:n(d.tva); var tva0=r2(marche*rate0/100); var rem0=n(d.remise);
-      return {simple:true,type:type,marche:marche,cumul:marche,prec:0,situHT:marche,remise:rem0,proHT:0,deb:0,baseHT:r2(marche-rem0),sousTotal:marche,tvaRate:rate0,tva:tva0,ttc:r2(marche+tva0-rem0),rgTTC:0,acomptes:0,rgRestit:0,net:r2(marche+tva0-rem0),total:r2(marche+tva0-rem0)};
+    if(simple){ /* remise HT déduite AVANT la TVA : rabais et remises sont exclus de la base imposable (CGI, art. 267-II-2°) */
+      var rate0=(d.franchiseTVA||d.autoliq)?0:n(d.tva); var rem0=Math.min(Math.max(0,n(d.remise)),marche); var base0=r2(marche-rem0); var tva0=r2(base0*rate0/100); var ttc0=r2(base0+tva0);
+      return {simple:true,type:type,marche:marche,cumul:marche,prec:0,situHT:marche,remise:rem0,proHT:0,deb:0,baseHT:base0,sousTotal:marche,tvaRate:rate0,tva:tva0,ttc:ttc0,rgTTC:0,acomptes:0,rgRestit:0,net:ttc0,total:ttc0};
     }
     var prec=0, situHT=marche;
     if(type==='situation'){ prec=r2(n(d.cumulPrec)); situHT=r2(cumul-prec); }
@@ -38907,7 +38965,13 @@ function testLienSignature() {
   function normNom(s){ return (''+(s||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
   function recent(c){ var t=Date.parse(c&&c.createdAt||''); return !isNaN(t)&&(Date.now()-t)<30*864e5; }
   function clientsListe(){ var db=DBX(); var L=(db&&Array.isArray(db.clients))?db.clients:[]; return L.filter(ficheValide).map(function(c){ return {id:c.id,nom:nomFiche(c),lib:libFiche(c),c:c,recent:recent(c)}; }).filter(function(x){ return x.nom; }).sort(function(a,b){ return a.lib.localeCompare(b.lib,'fr'); }); }
-  function ficheDe(nom,mail){ var n=normNom(nom), m=(mail||'').trim().toLowerCase(); return clientsListe().filter(function(x){ var c=x.c; return (n&&(normNom(nomSoc(c))===n||normNom(nomPers(c))===n))||(m&&(c.email||'').trim().toLowerCase()===m); })[0]||null; }
+  /* v765 : index (nom de société, nom de personne, e-mail) → première fiche dans l'ordre de la liste */
+  function ficheIdx(){ var fab=function(){ var soc={}, pers={}, mail={}; clientsListe().forEach(function(x,i){ var c=x.c, a=normNom(nomSoc(c)), b=normNom(nomPers(c)), e=(c.email||'').trim().toLowerCase();
+      if(a&&!(a in soc)) soc[a]=[x,i]; if(b&&!(b in pers)) pers[b]=[x,i]; if(e&&!(e in mail)) mail[e]=[x,i]; }); return {soc:soc,pers:pers,mail:mail}; };
+    return window.mqPasseMemo?window.mqPasseMemo('facturier:fiches',fab):null; }
+  function ficheDe(nom,mail){ var n=normNom(nom), m=(mail||'').trim().toLowerCase();
+    var ix=ficheIdx(); if(ix){ var best=null; [n&&ix.soc[n], n&&ix.pers[n], m&&ix.mail[m]].forEach(function(c){ if(c&&(!best||c[1]<best[1])) best=c; }); return best?best[0]:null; }
+    return clientsListe().filter(function(x){ var c=x.c; return (n&&(normNom(nomSoc(c))===n||normNom(nomPers(c))===n))||(m&&(c.email||'').trim().toLowerCase()===m); })[0]||null; }
   function demandesSansFiche(){ var db=DBX(); var L=(db&&Array.isArray(db.demandes))?db.demandes:[]; var out=[]; L.forEach(function(d){ if(!d||d.dossierId) return; var nom=(d.clientNom||'').trim(); if(!nom||/^(client|exp[ée]diteur)$/i.test(nom)) return; if(ficheDe(nom,d.clientEmail)) return; if(out.some(function(o){ return normNom(o.nom)===normNom(nom); })) return; var soc=(d.intake&&d.intake.societe&&d.intake.societe.denomination)||''; out.push({id:'dem:'+d.id,nom:soc||nom,lib:(soc?(soc+' ('+nom+')'):nom)+(d.serviceSouhaite?(' — '+d.serviceSouhaite):''),d:d}); }); return out.sort(function(a,b){ return (b.d.date||'').localeCompare(a.d.date||''); }); }
   function facturesSansFiche(){ var seen={}; var out=[]; store().slice().sort(function(a,b){ return (b.dateEmise||'').localeCompare(a.dateEmise||''); }).forEach(function(f){ var nom=(f.clNom||'').trim(); if(!nom) return; var k=normNom(nom); if(seen[k]) return; seen[k]=1; if(ficheDe(nom,f.clMail)) return; out.push({id:'doc:'+f.id,nom:nom,lib:nom+' — dernier document '+(f.numero||''),f:f}); }); return out; }
   function adrSplit(adr){ var lines=(''+(adr||'')).split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean); var cp='',ville=''; if(lines.length>1){ var m=lines[lines.length-1].match(/^(\d{5})\s+(.+)$/); if(m){ cp=m[1]; ville=m[2]; lines.pop(); } } return {rue:lines.join(', '),cp:cp,ville:ville}; }
@@ -39115,7 +39179,7 @@ function testLienSignature() {
 
   /* ---------- Aperçu : modèles BTP / Chantier / Sobre ---------- */
   function totauxHTML(d,c,cls){ var dev=d.devise||'EUR', type=typeOf(d); var R=[]; function row(l,v,b){ R.push('<div class="'+cls+'-trow'+(b?' '+cls+'-grand':'')+'"><span>'+l+'</span><b>'+v+'</b></div>'); }
-    if(c.simple){ row('Sous-total HT',money(c.marche,dev)); row('TVA '+pct(c.tvaRate),money(c.tva,dev)); if(c.remise) row('Remise','− '+money(c.remise,dev)); row(type==='avoir'?'Total de l\'avoir TTC':'Total TTC',money(c.total,dev),true); return R.join(''); }
+    if(c.simple){ row('Sous-total HT',money(c.marche,dev)); if(c.remise){ row('Remise HT','− '+money(c.remise,dev)); row('Total HT net',money(c.baseHT,dev)); } row('TVA '+pct(c.tvaRate),money(c.tva,dev)); row(type==='avoir'?'Total de l\'avoir TTC':'Total TTC',money(c.total,dev),true); return R.join(''); }
     if(type==='situation'){ row('Montant du marché HT',money(c.marche,dev)); row('Travaux réalisés cumulés HT',money(c.cumul,dev)); row('Situations précédentes HT','− '+money(c.prec,dev)); row('Montant de la situation HT',money(c.situHT,dev)); }
     else if(type==='solde'){ row('Montant total du marché HT',money(c.marche,dev)); row('Déjà facturé HT (situations)','− '+money(c.prec,dev)); row('Solde HT',money(c.situHT,dev)); }
     else if(type==='acompte'){ row('Base (devis / marché) HT',money(c.marche,dev)); row('Acompte de '+pct(n(d.acPct)||30)+' HT',money(c.situHT,dev)); }
@@ -42250,7 +42314,13 @@ function testLienSignature() {
   /* ---------- bilan ---------- */
   function manques(f){ var m=[]; if(!dateOK(f.date)) m.push('date'); if(!(''+(f.fournisseur||'')).trim()) m.push(f.sens==='col'?'client':'fournisseur'); if(!(''+(f.numero||'')).trim()) m.push('n° de facture'); var ht=num(f.ht),tva=num(f.tva),ttc=num(f.ttc),tx=num(f.taux); if(!(ttc>0)) m.push('montant'); else { if(Math.abs(ht+tva-ttc)>=0.011) m.push('HT + TVA ≠ TTC'); if(tx>0&&ht>0&&Math.abs(r2(ht*tx/100)-tva)>=0.02) m.push('TVA ≠ HT × taux'); } if(!(tva>0)) m.push('TVA nulle'); if(!(f.file&&f.file.data)) m.push('justificatif absent'); return m; }
   window.tvrChaineBilan=function(){ var L=data(), c=cfg(); var inc=[], okL=[], dups=[]; L.forEach(function(f){ var m=manques(f); if(m.length) inc.push({f:f,m:m}); else okL.push(f); });
-    var ign=c.ignores; for(var i=0;i<L.length;i++) for(var j=i+1;j<L.length;j++){ var a=L[i],b=L[j]; if(a.sens!==b.sens) continue; var fa=nrm(a.fournisseur); if(!fa||fa!==nrm(b.fournisseur)) continue; var how=''; var na=nrm(a.numero); if(na&&na===nrm(b.numero)) how='même numéro '+(a.numero||''); else if(num(a.ttc)>0&&Math.abs(num(a.ttc)-num(b.ttc))<0.005&&a.date&&a.date===b.date) how='même montant à la même date'; if(!how) continue; var k=[a.id,b.id].sort().join('|'); if(ign[k]) continue; dups.push({a:a,b:b,how:how}); }
+    /* v765 : on ne compare que les factures d'un même tiers et d'un même sens (groupes), noms normalisés une fois —
+       mêmes paires, même ordre qu'avant, sans le parcours de toutes les paires (quadratique). */
+    var ign=c.ignores, grp={}, NF=L.map(function(f){ return nrm(f.fournisseur); }), NN=L.map(function(f){ return nrm(f.numero); }), P2=[];
+    L.forEach(function(f,i){ if(!NF[i]) return; var g=f.sens+'|'+NF[i]; (grp[g]=grp[g]||[]).push(i); });
+    Object.keys(grp).forEach(function(g){ var I=grp[g]; for(var x=0;x<I.length;x++) for(var y=x+1;y<I.length;y++) P2.push([I[x],I[y]]); });
+    P2.sort(function(p,q){ return p[0]-q[0]||p[1]-q[1]; });
+    P2.forEach(function(pr){ var i=pr[0], j=pr[1]; var a=L[i],b=L[j]; var how=''; var na=NN[i]; if(na&&na===NN[j]) how='même numéro '+(a.numero||''); else if(num(a.ttc)>0&&Math.abs(num(a.ttc)-num(b.ttc))<0.005&&a.date&&a.date===b.date) how='même montant à la même date'; if(!how) return; var k=[a.id,b.id].sort().join('|'); if(ign[k]) return; dups.push({a:a,b:b,how:how}); });
     var deb=L.filter(function(f){return f.sens==='deb';}), col=L.filter(function(f){return f.sens==='col';}); var tvaDeb=r2(deb.reduce(function(s,f){return s+num(f.tva);},0)), tvaCol=r2(col.reduce(function(s,f){return s+num(f.tva);},0)); var credit=r2(tvaDeb-tvaCol); var seuil=SEUIL[c.regime]||760;
     var dates=L.map(function(f){return iso(f.date);}).filter(dateOK).sort(); var sansPiece=L.filter(function(f){return !(f.file&&f.file.data);}).length;
     return {inc:inc,ok:okL,dups:dups,cand:candidats(),credit:credit,tvaDeb:tvaDeb,tvaCol:tvaCol,seuil:seuil,regime:c.regime,eligible:credit>0&&credit>=seuil,total:L.length,sansPiece:sansPiece,periode:dates.length?{du:dates[0],au:dates[dates.length-1]}:null,demandes:c.demandes,cfg:c}; };
@@ -43184,7 +43254,10 @@ function testLienSignature() {
   document.addEventListener('click',function(ev){ try{ var al=ev.target.closest&&ev.target.closest('.dash-alert'); if(!al||ev.target.closest('button,a')) return; var b=al.querySelector('button,a'); if(b) b.click(); }catch(e){} });
   /* greffe : la cloche et le compteur suivent chaque rendu */
   try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__nt){ window.render=function(){ var r=_rd.apply(this,arguments); try{ ntBadge(); }catch(e){} return r; }; window.render.__nt=1; } }catch(e){}
-  setTimeout(ntBadge,800); setInterval(ntBadge,60000);
+  /* v765 : la cloche est déjà recalculée après chaque affichage ; au démarrage, elle attend que
+     l'application soit prête, puis se rafraîchit toutes les 5 minutes (échéances du jour). */
+  var nb=function(){ try{ (window.ntBadge||ntBadge)(); }catch(e){} };
+  (window.mqApresDemarrage||function(f){ setTimeout(f,800); })(nb,1500); setInterval(nb,300000);
   /* ---------- 1. rôles de boutons + styles ---------- */
   try{ var st=document.createElement('style'); st.id='btn-roles-mod'; var S='html body:not(#mq):not(#mq):not(#mq):not(#mq) '; st.textContent=
     S+'.btn{background:#1d1d22!important;background-image:none!important;color:#eceef6!important;-webkit-text-fill-color:#eceef6!important;border:1px solid #34343a!important;box-shadow:none!important}'
@@ -43771,7 +43844,7 @@ function testLienSignature() {
   function tsOf(v){ if(!v) return 0; if(typeof v==='number') return v; var t=Date.parse(v); return isNaN(t)?0:t; }
   function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
   function typeLien(u){ u=''+(u||''); if(/depot\.html/.test(u)) return 'dépôt de pièces'; if(/questionnaire\.html/.test(u)) return 'questionnaire public'; if(/infos\.html/.test(u)) return 'questionnaire'; return 'lien'; }
-  function nomEnt(e){ if(e.clientNom) return e.clientNom; try{ var c=(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c) return ((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||''; }catch(x){} return ''; }
+  function nomEnt(e){ if(e.clientNom) return e.clientNom; try{ var c=(e.clientIds&&typeof clientById==='function'&&Array.isArray(B().clients))?clientById(e.clientIds[0]):(B().clients||[]).filter(function(x){ return e.clientIds&&x.id===e.clientIds[0]; })[0]; if(c) return ((c.prenom||'')+' '+(c.nom||'')).trim()||c.denomination||''; }catch(x){} return ''; }
   /* ── collecte ── */
   window.auditEntrees=function(){ var out=[]; var p=P();
     function push(src,o){ if(!o||!o.ts) return; out.push({ts:o.ts,src:src,srcLbl:lbl(src),action:o.action||'',ok:o.ok!==false,detail:o.detail||'',qui:o.qui||'',mode:o.mode||'',ref:o.ref||''}); }
@@ -47277,6 +47350,7 @@ function testLienSignature() {
   window.marqOccupe=function(d){ window.__marqAttente=Math.max(0,(window.__marqAttente|0)+(d|0)); };
   window.marqPret=function(){
     try{ if((window.__marqAttente|0)>0) return false;
+         if(document.getElementById('mqsec-lock')) return false;   /* v765 : données verrouillées, rien n'est utilisable */
          return !!document.querySelector('#nav .nav-btn, #sec-lock, #gate, .gate'); }
     catch(e){ return false; }
   };
@@ -48538,6 +48612,7 @@ function testLienSignature() {
     if(typeof openModal==='function') openModal(titre||'Clé de secours',body,footer);
     else T('Clé de secours : '+cle);
   }
+  window.mqSecMontrerSecours=montrerSecours;
   window.mqSecCopier=function(){
     var el=document.getElementById('ms-key'); if(!el) return;
     var t=el.textContent||'';
@@ -48596,28 +48671,32 @@ function testLienSignature() {
   /* ---------- changement de phrase ---------- */
   window.mqSecChanger=function(){
     var s=S(); if(!s||!s.actif()) return;
+    var LIE=!!(s.lie&&s.lie()), MIN=LIE?10:12, NOM=LIE?'mot de passe':'phrase';
     var body='<div class="uicfm-msg">'
-      +'<p style="margin:0 0 12px">La clé de données ne change pas : rien n’est rechiffré, et la clé de secours reste valable.</p>'
-      +'<label style="display:block;font-size:11px;font-weight:600;margin:0 0 5px">Phrase actuelle</label>'
+      +'<p style="margin:0 0 12px">'+(LIE?'Le mot de passe de connexion est aussi la clé qui ouvre les données : ':'')+'La clé de données ne change pas : rien n’est rechiffré, et la clé de secours reste valable.</p>'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:0 0 5px">'+(LIE?'Mot de passe actuel':'Phrase actuelle')+'</label>'
       +'<input id="msc-0" type="password" class="uiprm-in" autocomplete="current-password">'
-      +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">Nouvelle phrase (12 caractères minimum)</label>'
+      +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">'+(LIE?'Nouveau mot de passe':'Nouvelle phrase')+' ('+MIN+' caractères minimum)</label>'
       +'<input id="msc-1" type="password" class="uiprm-in" autocomplete="new-password">'
       +'<label style="display:block;font-size:11px;font-weight:600;margin:12px 0 5px">Confirmation</label>'
       +'<input id="msc-2" type="password" class="uiprm-in" autocomplete="new-password">'
       +'<div id="msc-err" style="display:none;color:#b0442f;font-size:11.5px;margin-top:9px"></div></div>';
-    openModal('Changer la phrase secrète',body,
+    openModal(LIE?'Changer le mot de passe':'Changer la phrase secrète',body,
       '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" id="msc-ok">Changer</button>');
     var o=document.getElementById('msc-0'), n1=document.getElementById('msc-1'), n2=document.getElementById('msc-2');
     var er=document.getElementById('msc-err'), ok=document.getElementById('msc-ok');
     function dire(m){ er.textContent=m||''; er.style.display=m?'block':'none'; }
     ok.onclick=function(){
-      if((n1.value||'').length<12){ dire('Douze caractères au minimum.'); n1.focus(); return; }
+      if((n1.value||'').length<MIN){ dire(MIN+' caractères au minimum.'); n1.focus(); return; }
       if(n1.value!==n2.value){ dire('Les deux saisies diffèrent.'); n2.value=''; n2.focus(); return; }
+      if(n1.value===o.value){ dire('Le nouveau '+NOM+' doit être différent de l’actuel.'); n1.focus(); return; }
       ok.disabled=true; ok.textContent='…'; dire('');
-      s.changerPhrase(o.value||'', n1.value).then(function(bon){
-        if(!bon){ ok.disabled=false; ok.textContent='Changer'; dire('Phrase actuelle incorrecte.'); o.value=''; o.focus(); return; }
-        tracer('changement de phrase','');
-        closeModal(); T('Phrase secrète changée');
+      var nouv=n1.value;
+      s.changerPhrase(o.value||'', nouv).then(function(bon){
+        if(!bon){ ok.disabled=false; ok.textContent='Changer'; dire((LIE?'Mot de passe actuel':'Phrase actuelle')+' incorrect'+(LIE?'':'e')+'.'); o.value=''; o.focus(); return; }
+        if(LIE){ try{ _sha256(nouv).then(function(h){ try{ localStorage.setItem('last-pwd',h); }catch(e){} }); }catch(e){} }
+        tracer(LIE?'changement du mot de passe':'changement de phrase','');
+        closeModal(); T(LIE?'Mot de passe changé':'Phrase secrète changée');
         try{ if(typeof render==='function') render(); }catch(e){}
       });
     };
@@ -48628,7 +48707,7 @@ function testLienSignature() {
   window.mqSecNouvelleCle=function(){
     var s=S(); if(!s||!s.actif()) return;
     if(typeof uiPrompt!=='function'){ T('Indisponible','warn'); return; }
-    uiPrompt('Phrase secrète, pour autoriser la génération d’une nouvelle clé de secours.\nL’ancienne clé cessera d’ouvrir les données.','',
+    uiPrompt((s.lie&&s.lie()?'Mot de passe':'Phrase secrète')+', pour autoriser la génération d’une nouvelle clé de secours.\nL’ancienne clé cessera d’ouvrir les données.','',
       function(v){
         s.regenererSecours(v||'').then(function(cle){
           if(!cle){ T('Phrase secrète incorrecte','warn'); return; }
@@ -48641,6 +48720,7 @@ function testLienSignature() {
   /* ---------- désactivation ---------- */
   window.mqSecDesactiver=function(){
     var s=S(); if(!s||!s.actif()) return;
+    if(s.lie&&s.lie()){ T('Le chiffrement est lié au mot de passe de connexion : il ne se désactive pas.','warn'); return; }
     uiConfirm('Désactiver le chiffrement replacera en clair, sur cet appareil, les pièces d’identité, '
       +'numéros de sécurité sociale et coordonnées bancaires.\n\nContinuer ?',function(){
       s.desactiver().then(function(ok){
@@ -48679,15 +48759,16 @@ function testLienSignature() {
         +'<p class="hint" style="margin:0 0 12px">Une phrase secrète dérive une clé qui chiffre, au repos : la base, son miroir de secours, '
         +'les instantanés de sauvegarde automatique et les fichiers du coffre-fort. La phrase est demandée à chaque ouverture. '
         +'Une clé de secours, remise une fois, ouvre les données si la phrase est perdue.</p>'
-        +'<div class="btn-grid"><button class="btn btn-pri" onclick="mqSecActiver()">Activer le chiffrement</button></div>';
+        +'<div class="btn-grid"><button class="btn btn-pri" onclick="mqSecActiver()">Activer le chiffrement</button><button class="btn btn-ghost" onclick="mqChangerMdp()">Changer le mot de passe</button></div>';
     } else {
       h+='<p class="hint" style="margin:0 0 10px"><b>Chiffré :</b> la base, son miroir IndexedDB, les instantanés de sauvegarde automatique, '
         +'les fichiers du coffre-fort.<br><b>En clair, et c’est assumé :</b> l’horodatage du dernier enregistrement, et deux réglages '
         +'auxiliaires — l’index du coffre (noms de clients et titres de documents, pas leur contenu) et l’adresse du serveur portail.</p>'
+        +(s.lie&&s.lie()?'<p class="hint" style="margin:0 0 10px">La clé qui ouvre les données est <b>votre mot de passe de connexion</b> : le chiffrement ne peut pas être désactivé. Mot de passe oublié : la clé de secours, depuis l’écran de connexion.</p>':'')
         +'<div class="btn-grid">'
-        +'<button class="btn btn-ghost" onclick="mqSecChanger()">Changer la phrase secrète</button>'
+        +'<button class="btn btn-ghost" onclick="mqSecChanger()">'+(s.lie&&s.lie()?'Changer le mot de passe':'Changer la phrase secrète')+'</button>'
         +'<button class="btn btn-ghost" onclick="mqSecNouvelleCle()">Nouvelle clé de secours</button>'
-        +'<button class="btn btn-danger" onclick="mqSecDesactiver()">Désactiver</button>'
+        +(s.lie&&s.lie()?'':'<button class="btn btn-danger" onclick="mqSecDesactiver()">Désactiver</button>')
         +'</div>';
     }
     h+='</div></div>';
@@ -49553,8 +49634,9 @@ function testLienSignature() {
   function frD(v){ return M.jour?M.jour(v):S(v); }
   function eur(v){ return M.eur?M.eur(v):(S(v)+' €'); }
   function jq(s){ return S(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
-  function dossier(id){ return (db().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }
-  function cliDe(id){ return (db().clients||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function parId(L,nom){ if(!window.mqPasseMemo) return null; var ix=window.mqPasseMemo(nom,function(){ var m=new Map(); L.forEach(function(x){ if(x&&!m.has(x.id)) m.set(x.id,x); }); return {L:L,n:L.length,m:m}; }); return (ix&&ix.L===L&&ix.n===L.length)?ix.m:null; }
+  function dossier(id){ var L=db().dossiers||[], m=parId(L,'parcours:dos'); if(m) return m.get(id)||null; return L.filter(function(x){ return x.id===id; })[0]||null; }
+  function cliDe(id){ var L=db().clients||[], m=parId(L,'parcours:cli'); if(m) return m.get(id)||null; return L.filter(function(x){ return x.id===id; })[0]||null; }
   function nomCli(c){ if(!c) return ''; return S(c.denomination)||S((c.prenom||'')+' '+(c.nom||'')); }
   function facturier(){ return P().facturier||[]; }
   function jours(t){ return t?Math.floor((Date.now()-t)/86400000):null; }
@@ -49605,8 +49687,17 @@ function testLienSignature() {
       if((d.docs||{})[p.k]&&((d.docs||{})[p.k]||[]).length) return false;
       return true; }).map(function(p){ return S(p.l||p.libelle||p.k); }); }
   function docsRequis(d){ try{ return (typeof espDocsRequis==='function')?(espDocsRequis(d)||[]):[]; }catch(e){ return []; } }
+  /* v765 : index des pièces du facturier, construit une fois par affichage */
+  function idxFact(){ var F=facturier(); var fab=function(){ var pos=new Map(), dev={}, devCli={}, fac={};
+      F.forEach(function(f,i){ pos.set(f,i); var t=S(f.type)||(f.numero&&/^DEV/i.test(f.numero)?'devis':'');
+        if(t==='devis'){ if(f.dossierId) (dev[f.dossierId]=dev[f.dossierId]||[]).push(f); if(f.clientId) (devCli[f.clientId]=devCli[f.clientId]||[]).push(f); }
+        if(f.dossierId && S(f.type)!=='devis' && S(f.type)!=='avoir') (fac[f.dossierId]=fac[f.dossierId]||[]).push(f); });
+      return {F:F,n:F.length,pos:pos,dev:dev,devCli:devCli,fac:fac}; };
+    if(!window.mqPasseMemo) return null; var ix=window.mqPasseMemo('parcours:fact',fab); return (ix&&ix.F===F&&ix.n===F.length)?ix:null; }
   function devisDe(d,dem){
     var cid=(d&&(d.clientIds||[])[0])||'';
+    var ix=idxFact(); if(ix){ var a=(d&&ix.dev[d.id])||[], b=(cid&&ix.devCli[cid])||[]; if(!b.length) return a.slice(); if(!a.length) return b.slice();
+      var u=Array.from(new Set(a.concat(b))); u.sort(function(x,y){ return ix.pos.get(x)-ix.pos.get(y); }); return u; }
     return facturier().filter(function(f){
       var t=S(f.type)||(f.numero&&/^DEV/i.test(f.numero)?'devis':'');
       if(t!=='devis') return false;
@@ -49614,6 +49705,7 @@ function testLienSignature() {
       if(cid&&f.clientId===cid) return true;
       return false; }); }
   function facturesDe(d){ if(!d) return [];
+    var ix=idxFact(); if(ix) return (ix.fac[d.id]||[]).slice();
     return facturier().filter(function(f){ return f.dossierId===d.id && S(f.type)!=='devis' && S(f.type)!=='avoir'; }); }
 
   function etatJalons(dem,d){
@@ -54011,7 +54103,7 @@ function testLienSignature() {
 
   try{ var _rd=window.render; if(typeof _rd==='function'&&!_rd.__onb){
     window.render=function(){ var x=_rd.apply(this,arguments); peindre(); return x; }; Object.keys(_rd).forEach(function(k){ window.render[k]=_rd[k]; }); window.render.__onb=1; } }catch(e){}
-  setTimeout(detecterTout,1500);
+  (window.mqApresDemarrage||function(f){ setTimeout(f,1500); })(function(){ if(window.mqPortee) window.mqPortee(detecterTout); else detecterTout(); });   /* v765 : après le démarrage, calcul groupé */
 
   var css=document.createElement('style'); css.id='mq-onb-css';
   css.textContent=[
@@ -55014,7 +55106,10 @@ function testLienSignature() {
   function ents(){ var I=inscrits(); return toutes().filter(function(c){ return I.indexOf(c.id)>=0; }); }
   function norm(x){ x=String(x||'').toLowerCase(); try{ x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,''); }catch(e){} return x.replace(/[^a-z0-9]+/g,''); }
   function dossiersDe(c){ var n=norm(nom(c)); return (DB.dossiers||[]).filter(function(d){ return d&&(((d.clientIds||[]).indexOf(c.id)>=0)||(n&&d.denom&&norm(d.denom)===n)); }); }
-  function orphelins(){ var T_=toutes(); return (DB.dossiers||[]).filter(function(d){ return d&&!T_.some(function(c){ return dossiersDe(c).indexOf(d)>=0; }); }); }
+  /* v765 : index des sociétés (identifiants et noms normalisés) — même règle que dossiersDe,
+     sans reparcourir tous les dossiers pour chaque société (coût quadratique). */
+  function orphelins(){ var ids={}, noms={}; toutes().forEach(function(c){ ids[c.id]=1; var n=norm(nom(c)); if(n) noms[n]=1; });
+    return (DB.dossiers||[]).filter(function(d){ return d&&!((d.clientIds||[]).some(function(id){ return ids[id]; })||(d.denom&&noms[norm(d.denom)])); }); }
   function nom(c){ return (c&&(c.denomination||((c.prenom?c.prenom+' ':'')+(c.nom||''))))||'(sans nom)'; }
   function P(){ DB.parametres=DB.parametres||{}; return DB.parametres; }
   function curId(){ var id=P().adminEnt; return id&&ents().some(function(c){ return c.id===id; })?id:null; }
@@ -57183,7 +57278,7 @@ function testLienSignature() {
       if(ch.length){ setTimeout(function(){ K.rr(); },0); } if(ch.length) T(ch.length===1?(K.nom((DB.clients||[]).filter(function(c){ return c.id===ch[0]; })[0])+' est immatriculée : dossier administratif ouvert dans l’Administration.'):ch.length+' sociétés immatriculées : dossiers administratifs ouverts dans l’Administration.'); }catch(e){} }
   window.admCreaDetecter=detecter;
   var _r=window.render, dedans=false; window.render=function(){ var x=_r.apply(this,arguments); if(!dedans){ dedans=true; try{ detecter(); } finally { dedans=false; } } return x; };
-  setTimeout(detecter,1600);
+  (window.mqApresDemarrage||function(f){ setTimeout(f,1600); })(function(){ if(window.mqPortee) window.mqPortee(detecter); else detecter(); });   /* v765 : après le démarrage, calcul groupé */
 
   /* créations antérieures : proposées sur la page de choix du client */
   function anciennes(){ return (DB.dossiers||[]).filter(function(d){ return d.admAuto&&d.admAuto.ancien&&!d.admAuto.clientId&&!d.admAuto.ecarte; }); }
@@ -59004,6 +59099,174 @@ function testLienSignature() {
   window.__spAjouts=window.__spAjouts||[];
   window.__spAjouts.push(function(h){ if(h.indexOf('mq-inst')>=0) return h; var c=window.marqInstallerCard(), k=h.lastIndexOf('<div class="card"><h2>Sauvegarde &amp; restauration');
     return k>=0 ? h.slice(0,k)+c+h.slice(k) : h+c; });
+})();
+</script>
+<script id="mq-admin-765">
+/* ===================================================================
+   Mar'q v765 — CHIFFREMENT LIÉ AU MOT DE PASSE (recette 2.11, 8.10, 8.11)
+   Un écran d'accès tenu par le navigateur se contourne par qui accède au
+   poste (drapeau posé à la main, empreinte remplacée). Seul un chiffrement
+   dont la clé vient du mot de passe protège réellement les données.
+
+   À la première connexion par mot de passe, dès que la base est chargée
+   (et que la restauration éventuelle depuis le stockage étendu a tranché),
+   le chiffrement est activé SOUS CE MOT DE PASSE, puis la clé de secours est
+   montrée une fois. Ensuite, l'écran d'accès vérifie le mot de passe en
+   ouvrant la clé de données : rien de modifiable ne l'imite.
+   =================================================================== */
+(function(){
+  if(window.__mq765) return; window.__mq765=1;
+  var essais=0, enCours=false;
+  function tracer(detail){ try{ DB.parametres=DB.parametres||{}; var j=DB.parametres.secJournal=DB.parametres.secJournal||[];
+    j.push({action:'activation liée au mot de passe', detail:detail||'', ts:new Date().toISOString()}); }catch(e){} }
+  function base(){ try{ return (typeof DB!=='undefined'&&DB&&typeof DB==='object')?DB:null; }catch(e){ return null; } }
+  function tenter(){
+    var pw=window.__mqLierApres, S=window.mqSec;
+    if(!pw||enCours) return;
+    if(!S||!S.dispo()||S.actif()){ window.__mqLierApres=null; return; }
+    /* on attend la base chargée et la décision de restauration (stockage étendu) */
+    if(!base()||window.__idbBooting){ if(++essais<60) setTimeout(tenter,250); return; }
+    enCours=true;
+    S.activer(pw).then(function(secours){
+      window.__mqLierApres=null; enCours=false;
+      if(!secours) return;
+      S.lier(); tracer('PBKDF2-SHA256 '+S.iterations()+' itérations, AES-256-GCM');
+      try{ if(typeof save==='function') save(); }catch(e){}
+      setTimeout(function(){
+        try{ if(typeof window.mqSecMontrerSecours==='function') window.mqSecMontrerSecours(secours,'Vos données sont désormais chiffrées — clé de secours');
+             else if(typeof toast==='function') toast('Clé de secours : '+secours,20000); }catch(e){}
+      },300);
+    }).catch(function(){ enCours=false; });
+  }
+  /* Données verrouillées : rien de l'application n'est dessiné sous l'écran de
+     déverrouillage (ni menu, ni page vide qui laisserait croire à un accès). */
+  function verrouille(){ try{ return !!(window.mqSec&&window.mqSec.doitDeverrouiller()); }catch(e){ return false; } }
+  var _r=window.render;
+  if(typeof _r==='function'&&!_r.__mq765){ window.render=function(){ if(verrouille()) return; var x=_r.apply(this,arguments); if(window.__mqLierApres) setTimeout(tenter,0); return x; }; window.render.__mq765=1; }
+  setTimeout(tenter,0);
+
+  /* Changer le mot de passe depuis l'application (recette 2.3). Chiffrement lié :
+     on ré-enveloppe la clé de données (mqSecChanger). Sinon : ancien mot de passe
+     vérifié, nouvelle empreinte posée, et le chiffrement est posé sous le nouveau. */
+  window.mqChangerMdp=function(){
+    var S=window.mqSec;
+    if(S&&S.actif()&&S.lie&&S.lie()&&typeof window.mqSecChanger==='function'){ window.mqSecChanger(); return; }
+    if(typeof openModal!=='function') return;
+    var lab=function(t,m){ return '<label style="display:block;font-size:11px;font-weight:600;margin:'+(m||0)+'px 0 5px">'+t+'</label>'; };
+    openModal('Changer le mot de passe','<div class="uicfm-msg">'
+      +'<p style="margin:0 0 12px">Le mot de passe protège l’accès à Mar’q sur cet appareil'+(S&&S.dispo()?' et chiffre ses données':'')+'.</p>'
+      +lab('Mot de passe actuel')+'<input id="mcm-0" type="password" class="uiprm-in" autocomplete="current-password">'
+      +lab('Nouveau mot de passe (10 caractères minimum)',12)+'<input id="mcm-1" type="password" class="uiprm-in" autocomplete="new-password">'
+      +lab('Confirmation',12)+'<input id="mcm-2" type="password" class="uiprm-in" autocomplete="new-password">'
+      +'<div id="mcm-err" style="display:none;color:#b0442f;font-size:11.5px;margin-top:9px"></div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button><button class="btn btn-pri" id="mcm-ok">Changer</button>');
+    var o=document.getElementById('mcm-0'), a=document.getElementById('mcm-1'), b=document.getElementById('mcm-2'), er=document.getElementById('mcm-err'), ok=document.getElementById('mcm-ok');
+    function dire(m){ er.textContent=m||''; er.style.display=m?'block':'none'; }
+    ok.onclick=function(){
+      var nv=a.value||'';
+      if(nv.length<10){ dire('10 caractères au minimum.'); a.focus(); return; }
+      if(nv!==(b.value||'')){ dire('Les deux saisies diffèrent.'); b.value=''; b.focus(); return; }
+      if(nv===o.value){ dire('Le nouveau mot de passe doit être différent de l’actuel.'); a.focus(); return; }
+      ok.disabled=true;
+      _sha256(o.value||'').then(function(h){
+        if(h!==getPwdHash()){ ok.disabled=false; dire('Mot de passe actuel incorrect.'); o.value=''; o.focus(); return; }
+        return _sha256(nv).then(function(h2){
+          try{ localStorage.setItem('last-pwd',h2); }catch(e){}
+          closeModal(); try{ toast('Mot de passe changé'); }catch(e){}
+          if(S&&S.dispo()&&!S.actif()){ window.__mqLierApres=nv; tenter(); }
+        });
+      });
+    };
+    setTimeout(function(){ try{ o.focus(); }catch(e){} },40);
+  };
+})();
+</script>
+<script id="mq-perf-765">
+/* ===================================================================
+   Mar'q v765 — PERFORMANCE : cache de calcul le temps d'un affichage
+   (recette 7.7 à 7.9)
+   Le tableau de bord, les demandes, l'espace client… recalculaient pour
+   CHAQUE dossier, plusieurs dizaines de fois par affichage, les mêmes
+   statuts (jalons, contrôles, pièces requises, relances, prévoyance) :
+   chaque module rappelait la chaîne complète. Le résultat d'un calcul ne
+   change pas tant que les données ne changent pas : on le garde le temps
+   d'un affichage.
+
+   Sûreté : le cache n'existe QUE pendant un affichage (render), où les
+   données ne changent pas ; il est vidé à l'entrée et à la sortie de
+   chaque affichage et à chaque enregistrement. Hors affichage (actions,
+   minuteries), chaque appel recalcule : aucune valeur ne peut vieillir.
+   Les états cachés dont dépend un résultat entrent dans la clé
+   (contrôle 360 en cours, saisie de création en cours, page affichée).
+   =================================================================== */
+(function(){
+  if(window.__mqPerf765) return; window.__mqPerf765=1;
+  var caches={}, vide=true, ids=new WeakMap(), seq=0, c360=0, profondeur=0, differe=false;
+  function vider(){ if(vide) return; caches={}; vide=true; }
+  function planifier(){ if(!vide) return; vide=false; try{ queueMicrotask(vider); }catch(e){ Promise.resolve().then(vider); } }
+  function idObj(o){ var v=ids.get(o); if(v==null){ v=++seq; ids.set(o,v); } return v; }
+  function cle(args,extra){
+    var k=extra||'';
+    for(var i=0;i<args.length;i++){ var a=args[i];
+      if(a!==null && typeof a==='object'){ if(i===0) k+='|#'+idObj(a); else { var j; try{ j=JSON.stringify(a); }catch(e){ return null; } if(j&&j.length>400) return null; k+='|'+j; } }
+      else if(typeof a==='function') return null;
+      else k+='|'+typeof a+':'+a;
+    }
+    return k;
+  }
+  var DEP={
+    zeroDefaut:function(){ return 'c'+(c360>0?1:0); },
+    docPertinent:function(){ return 'k'+(window.__crea760?1:0); },
+    prevItems:function(){ try{ return 'p'+(state&&state.page); }catch(e){ return ''; } },
+    ntItems:function(){ try{ return 'p'+(state&&state.page); }catch(e){ return ''; } }
+  };
+  var NOMS=['dossierStatuts','zeroDefaut','onbBilan','onbGlobal','prevItems','ntItems','relancesBilan','relancesAttentes',
+            'espDocsRequis','espDocReq','formaliteType','docPertinent','cxChaineLignes','espDemandeDe','auditEntrees'];
+  function memo(nom){
+    var f=window[nom]; if(typeof f!=='function' || f.__mqMemo) return;
+    var m=function(){
+      if(profondeur<=0) return f.apply(this,arguments);
+      var k=cle(arguments, DEP[nom]?DEP[nom]():'');
+      if(k==null) return f.apply(this,arguments);
+      var c=caches[nom]||(caches[nom]=new Map());
+      if(c.has(k)) return c.get(k);
+      var r=f.apply(this,arguments);
+      planifier(); (caches[nom]||(caches[nom]=new Map())).set(k,r);
+      return r;
+    };
+    Object.keys(f).forEach(function(p){ try{ m[p]=f[p]; }catch(e){} });
+    m.__mqMemo=1; m.__orig=f; window[nom]=m;
+  }
+  function suivreC360(){ var f=window.controle360; if(typeof f!=='function'||f.__mqC360) return;
+    var m=function(){ c360++; try{ return f.apply(this,arguments); } finally { c360--; } };
+    Object.keys(f).forEach(function(p){ try{ m[p]=f[p]; }catch(e){} }); m.__mqC360=1; window.controle360=m; }
+  function installer(){ suivreC360(); NOMS.forEach(memo); }
+  installer();
+  /* Enregistrements demandés PENDANT un affichage (numérotation attribuée à la volée,
+     par exemple) : un seul enregistrement, à la fin de l'affichage, au lieu d'un par
+     élément — 600 demandes sans numéro coûtaient 600 enregistrements complets. */
+  var _s=window.save;
+  /* l'enregistrement différé reprend là où il a été retenu : les couches extérieures ont déjà été traversées */
+  function enregistrer(){ vider(); if(typeof _s==='function') _s.apply(window,[]); vider(); }
+  if(typeof _s==='function' && !_s.__mqPerf){ window.save=function(){ if(profondeur>0){ differe=true; return; } vider(); var r=_s.apply(this,arguments); vider(); return r; }; window.save.__mqPerf=1; }
+  /* Portée de calcul : un affichage, ou un calcul d'ensemble qui ne modifie rien (la cloche). */
+  function portee(f,self,args){ if(profondeur===0) vider(); profondeur++;
+    try{ return f.apply(self,args); }
+    finally{ profondeur--; if(profondeur===0){ vider(); if(differe){ differe=false; try{ enregistrer(); }catch(e){} } } } }
+  var _r=window.render;
+  if(typeof _r==='function' && !_r.__mqPerf){ window.render=function(){ vider(); installer(); return portee(_r,this,arguments); }; window.render.__mqPerf=1; }
+  function envelopper(nom){ var f=window[nom]; if(typeof f!=='function'||f.__mqPortee) return; var m=function(){ return portee(f,this,arguments); };
+    Object.keys(f).forEach(function(p){ try{ m[p]=f[p]; }catch(e){} }); m.__mqPortee=1; window[nom]=m; }
+  /* Calculs d'ensemble lancés hors affichage (cloche, analyse de prévoyance, détections) */
+  var PORTEES=['ntBadge','ntUnread','prevScan','prevDigest','onbDetecter','admCreaDetecter'];
+  PORTEES.forEach(envelopper);
+  var _inst=installer; installer=function(){ _inst(); PORTEES.forEach(envelopper); };
+  window.mqPortee=function(f){ return portee(f,null,[]); };
+
+  window.mqPerfVider=vider;
+  /* Index calculé au plus une fois par affichage (même durée de vie que le cache). */
+  window.mqPasseMemo=function(nom,fab){ if(profondeur<=0) return null;   /* hors affichage : pas d'index, l'appelant fait sa recherche simple */
+    var c=caches.__idx||(caches.__idx=new Map()); if(c.has(nom)) return c.get(nom); var v=fab(); planifier(); (caches.__idx||(caches.__idx=new Map())).set(nom,v); return v; };
 })();
 </script>
 </body>
