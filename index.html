@@ -2,6 +2,7 @@
 <html lang="fr" data-theme="dark">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#000000">
@@ -3260,7 +3261,11 @@ function chkLuhn(num){var s=0,alt=false;for(var i=num.length-1;i>=0;i--){var n=+
 function validSiren(v){v=(''+(v||'')).replace(/\D/g,'');return v.length===9&&chkLuhn(v);}
 function validSiret(v){v=(''+(v||'')).replace(/\D/g,'');return v.length===14&&chkLuhn(v);}
 function validEmail(v){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(''+(v||''));}
-function validTvaFr(v){return /^FR[0-9A-Z]{2}\d{9}$/i.test((''+(v||'')).replace(/\s+/g,''));}
+/* v767 (recette 4.9) : la clé est contrôlée — clé = (12 + 3 × (SIREN mod 97)) mod 97 ; SIREN par Luhn.
+   Les clés alphanumériques (attribuées hors SIREN classique) : seul le SIREN est vérifiable. */
+function validTvaFr(v){var s=(''+(v||'')).replace(/[\s.\-]+/g,'').toUpperCase(); var m=s.match(/^FR([0-9A-Z]{2})(\d{9})$/); if(!m) return false;
+  if(!validSiren(m[2])) return false; if(!/^\d{2}$/.test(m[1])) return true;
+  return +m[1]===(12+3*(Number(m[2])%97))%97;}
 function validIBAN(v){v=(''+(v||'')).replace(/\s+/g,'').toUpperCase();if(!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v))return false;
   var re=v.slice(4)+v.slice(0,4);var exp=re.replace(/[A-Z]/g,function(c){return (c.charCodeAt(0)-55);});
   var mod=0;for(var i=0;i<exp.length;i++){mod=(mod*10+(+exp[i]))%97;}return mod===1;}
@@ -3877,7 +3882,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){window.a
   }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=766;
+var LAST_VER=767;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -45828,8 +45833,11 @@ function testLienSignature() {
   function jrn(o){ var c=cfg(); o.ts=o.ts||Date.now(); if(o.ok==null) o.ok=true;
     c.journal.unshift(o); c.journal=c.journal.slice(0,200); }
   function factures(){ var p=P(); return (p.facturier||[]); }
-  function montantDu(f){ try{ if(typeof window.invCalc==='function'){ var c=window.invCalc(f); if(c&&c.net!=null) return +c.net||0; } }catch(e){}
-    return +f.ttc||0; }
+  function montantDu(f){ var t=+f.ttc||0; try{ if(typeof window.invCalc==='function'){ var c=window.invCalc(f); if(c&&c.net!=null) t=+c.net||0; } }catch(e){}
+    /* v767 (recette 6.7) : les acomptes déjà encaissés réduisent le reste dû */
+    var deja=(f.reglements||[]).reduce(function(a,r){ return a+(+r.montant||0); },0);
+    return Math.max(0,Math.round((t-deja)*100)/100); }
+  window.invResteDu=montantDu;
   function ouvertes(){ return factures().filter(function(f){
     return f.type!=='devis'&&!f.paye&&f.statut!=='brouillon'&&f.statut!=='annulee'&&montantDu(f)>0; }); }
 
@@ -45950,16 +45958,24 @@ function testLienSignature() {
   window.rapproPointer=function(){ var c=cfg(); if(!c.releve){ T('Aucun relevé déposé.','warn'); return 0; }
     var L=c.releve.props.filter(function(x){ return x.retenu&&x.factureId; });
     if(!L.length){ T('Aucun encaissement retenu.','warn'); return 0; }
-    var n=0;
+    var n=0, np=0;
     L.forEach(function(p){ var f=factures().filter(function(x){ return x.id===p.factureId; })[0];
       if(!f||f.paye) return;
-      f.paye={date:p.ligne.date||new Date().toISOString().slice(0,10),montant:p.ligne.montant,
-        mode:'Virement',releve:{lib:p.ligne.lib,date:p.ligne.date,fichier:c.releve.nom}};
-      n++; jrn({action:'encaissement pointé',ref:f.numero||'',
-        detail:eur(p.ligne.montant)+' · '+(p.motifs||[]).join(', ')}); });
+      var du=montantDu(f), m=+p.ligne.montant||0, dt=p.ligne.date||new Date().toISOString().slice(0,10);
+      var rel={lib:p.ligne.lib,date:p.ligne.date,fichier:c.releve.nom};
+      f.reglements=(f.reglements||[]).concat([{date:dt,montant:m,mode:'Virement',releve:rel}]);
+      if(m>=du-0.01){
+        var tot=f.reglements.reduce(function(a,r){ return a+(+r.montant||0); },0);
+        f.paye={date:dt,montant:Math.round(tot*100)/100,mode:'Virement',releve:rel,acomptes:f.reglements.length-1};
+        n++; jrn({action:'encaissement pointé',ref:f.numero||'',
+          detail:eur(m)+' · '+(p.motifs||[]).join(', ')});
+      } else {
+        np++; jrn({action:'encaissement partiel',ref:f.numero||'',
+          detail:eur(m)+' reçu · reste dû '+eur(Math.round((du-m)*100)/100)});
+      } });
     c.releve.props=c.releve.props.filter(function(x){ return !(x.retenu&&x.factureId); });
     if(!c.releve.props.length) c.releve=null;
-    enr(); rd(); T(n+' facture(s) pointée(s) comme encaissée(s).','ok'); return n; };
+    enr(); rd(); T(n+' facture(s) pointée(s) comme encaissée(s)'+(np?(' · '+np+' acompte(s) enregistré(s), reste dû suivi'):'')+'.','ok'); return n+np; };
 
   /* ---------- carte ---------- */
   function optFactures(sel){ var F=ouvertes();
@@ -48452,9 +48468,26 @@ function testLienSignature() {
      dit:'Âge hors des bornes vraisemblables (16 à 110 ans)'},
     {id:'date_bornes', cle:/date/, bloque:false, date:true,
      ok:function(v){ var d=jour(v); if(!d) return true; var y=d.getFullYear(); return y>=1900&&y<=(new Date()).getFullYear()+10; },
-     dit:'Date hors bornes (avant 1900 ou au-delà de dix ans)'}
+     dit:'Date hors bornes (avant 1900 ou au-delà de dix ans)'},
+    /* v767 (recette 4.4 à 4.6) */
+    {id:'date_valide', cle:/date|naiss/, bloque:true,
+     ok:function(v){ var s=S(v), y,mo,d, m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+       if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; } else { m=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/); if(!m) return true; d=+m[1]; mo=+m[2]; y=+m[3]; }
+       var t=new Date(y,mo-1,d); return t.getFullYear()===y&&t.getMonth()===mo-1&&t.getDate()===d; },
+     dit:'Date impossible (ce jour n’existe pas dans le calendrier)'},
+    /* capital, apport, nominal : bloquant ; montant, prix : avertissement (« sur devis » reste possible) */
+    {id:'montant', cle:/^(capital|capitalsocial|capsocial|apport|apportnumeraire|apportennumeraire|apportsnumeraires|nominal|valeurnominale)$/, bloque:true,
+     ok:function(v){ return montantOk(v); }, dit:'Montant invalide : nombre positif attendu, deux décimales au plus'},
+    {id:'montant_libre', cle:/^(?!.*lettre)(montant\w*|prix\w*)$/, bloque:false,
+     ok:function(v){ return montantOk(v); }, dit:'Montant inhabituel : nombre positif attendu, deux décimales au plus'},
+    {id:'tel', cle:/^(?!.*hotel)(.*tel|.*telephone|portable|mobile|fax)$/, bloque:false,
+     ok:function(v){ return sur(function(){ return window.demValidTel?window.demValidTel(v):/^[+\d][\d\s.\-()]{8,}$/.test(S(v)); },true); },
+     dit:'Numéro de téléphone invraisemblable'}
   ];
 
+  function montantOk(v){ var s=S(v).replace(/[\s\u00a0\u202f]/g,'').replace(/(€|eur(os?)?)$/i,'');
+    if(/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) s=s.replace(/\./g,'');
+    if(!/^\d+([.,]\d{1,2})?$/.test(s)) return false; return parseFloat(s.replace(',','.'))>=0; }
   function jour(v){
     var s=S(v); if(!s) return null;
     var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -59344,6 +59377,230 @@ function testLienSignature() {
       if(e){ e.style.display='block'; e.style.color='#8ea6d6'; var dm=delaiMin(); e.textContent='Mar’q s’est verrouillé après '+(dm>=1?Math.round(dm)+' min':Math.round(dm*60)+' s')+' d’inactivité.'; } } },150); } }catch(e){}
 })();
 </script>
+<script id="mq-admin-767">
+/* ===================================================================
+   Mar'q v767 — RÈGLES MÉTIER (recette 3.4, 4.7, 9.4, 10.5)
+   1. Un client rattaché à un dossier ne peut pas être supprimé ; un
+      client libre part à la corbeille (restaurable 30 jours), plus de
+      suppression définitive d'un clic.
+   2. Les suppressions de client, de dossier et de facture sont inscrites
+      au journal d'activité.
+   3. Une facture ne s'émet qu'à un taux de TVA légal en France.
+   =================================================================== */
+(function(){
+  if(window.__mq767) return; window.__mq767=1;
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,5200,t||'info'); }catch(e){} }
+  function J(action,detail){ try{ if(typeof logAudit==='function') logAudit(action,detail); }catch(e){} }
+  function nomClient(c){ if(!c) return ''; var pn=((c.prenom?c.prenom+' ':'')+(c.nom||'')).trim(); return (c.denomination||c.denom||pn||'(sans nom)').trim(); }
+
+  /* ---------- 1. suppression d'un client ---------- */
+  window.cliDel=function(id){
+    var c=(typeof clientById==='function')?clientById(id):null; if(!c) return false;
+    var nom=nomClient(c);
+    var lies=(DB.dossiers||[]).filter(function(d){ return (d.clientIds||[]).indexOf(id)>=0; });
+    if(lies.length){
+      var refs=lies.slice(0,4).map(function(d){ return d.ref||d.numeroDossier||d.denom||'dossier'; }).join(', ')+(lies.length>4?' …':'');
+      T('Suppression impossible : '+nom+' est rattaché à '+lies.length+' dossier(s) ('+refs+'). Retirez-le d’abord de ces dossiers.','warn');
+      return false; }
+    uiConfirm('Supprimer '+nom+' ? Le client est placé dans la corbeille et reste restaurable 30 jours.',function(){
+      var i=DB.clients.findIndex(function(x){ return x.id===id; }); if(i<0) return;
+      var item=DB.clients[i]; DB.clients.splice(i,1);
+      try{ if(window.corbeilleAdd) corbeilleAdd('client',nom,item); }catch(e){}
+      J('Suppression d’un client',nom+(item.email?' · '+item.email:''));
+      if(state.cliSel===id) state.cliSel=(DB.clients[0]||{}).id||null;
+      save();
+      try{ if(typeof toastUndo==='function') toastUndo('Client supprimé',function(){ DB.clients.splice(Math.min(i,DB.clients.length),0,item);
+        try{ DB.corbeille=(DB.corbeille||[]).filter(function(x){ return !(x.type==='client'&&x.data&&x.data.id===item.id); }); }catch(e){}
+        J('Suppression d’un client annulée',nom); save(); render(); }); }catch(e){}
+      render(); },{okLabel:'Supprimer'});
+    return true; };
+
+  /* ---------- 2. journal des suppressions confirmées ---------- */
+  /* La suppression n'a lieu qu'après confirmation : on journalise dans le rappel de
+     confirmation, et seulement si l'élément a réellement disparu. */
+  function journalise(nomFn, trouver, libelle){
+    var f=window[nomFn]; if(typeof f!=='function'||f.__mq767) return;
+    var g=function(id){ var avant=trouver(id), self=this, args=arguments, _u=window.uiConfirm;
+      if(!avant) return f.apply(self,args);
+      var etiquette=libelle(avant);
+      window.uiConfirm=function(m,cb,o){ return _u.call(this,m,function(){ var r=cb.apply(this,arguments);
+        try{ if(!trouver(id)) J('Suppression '+etiquette[0],etiquette[1]); }catch(e){} return r; },o); };
+      try{ return f.apply(self,args); } finally { window.uiConfirm=_u; } };
+    g.__mq767=1; window[nomFn]=g; }
+  function facturier(){ try{ return (DB.parametres&&DB.parametres.facturier)||[]; }catch(e){ return []; } }
+  journalise('delDossier',function(id){ return (DB.dossiers||[]).filter(function(d){ return d.id===id; })[0]; },
+    function(d){ return ['d’un dossier',[d.ref||d.numeroDossier||'',d.denom||d.clientNom||''].filter(Boolean).join(' · ')]; });
+  journalise('invDel',function(id){ return facturier().filter(function(f){ return f.id===id; })[0]; },
+    function(f){ var t=f.type==='devis'?'d’un devis':f.type==='avoir'?'d’un avoir':'d’une facture';
+      return [t,[f.numero||'(sans numéro)',f.clNom||f.clientNom||'',f.statut||''].filter(Boolean).join(' · ')]; });
+  /* un contournement direct (numSupprimerQuandMeme) est journalisé aussi */
+  (function(){ var f=window.numSupprimerQuandMeme; if(typeof f!=='function'||f.__mq767) return;
+    window.numSupprimerQuandMeme=function(id){ var x=facturier().filter(function(y){ return y.id===id; })[0]; var r=f.apply(this,arguments);
+      try{ if(x&&!facturier().some(function(y){ return y.id===id; })) J('Suppression d’une pièce émise',(x.numero||'')+' · '+(x.clNom||'')); }catch(e){} return r; };
+    window.numSupprimerQuandMeme.__mq767=1; })();
+
+  /* ---------- 3. taux de TVA légaux ---------- */
+  var LEGAUX=[20,13,10,8.5,5.5,2.1,1.75,1.05,0.9,0];
+  window.mqTauxTvaLegal=function(t){ var v=parseFloat((''+(t==null?'':t)).replace(',','.')); if(!isFinite(v)) return false;
+    return LEGAUX.some(function(x){ return Math.abs(x-v)<1e-9; }); };
+  var _is=window.invSave;
+  if(typeof _is==='function'&&!_is.__mq767){
+    window.invSave=function(status){
+      if(status==='emise'){
+        try{ if(document.getElementById('inv-tva')&&typeof window.invRead==='function') window.invRead(); }catch(e){}
+        var d=window.__invDraft||{};
+        if(!d.franchiseTVA && !d.autoliq && !window.mqTauxTvaLegal(d.tva==null?20:d.tva)){
+          T('Taux de TVA de '+d.tva+' % : ce taux n’existe pas en France. Taux admis : 20, 10, 5,5, 2,1 % (métropole), 13 et 0,9 % (Corse), 8,5, 1,75 et 1,05 % (outre-mer), ou 0 %. La facture n’est pas émise.','warn');
+          return; } }
+      return _is.apply(this,arguments); };
+    window.invSave.__mq767=1; }
+})();
+
+/* ===================================================================
+   Mar'q v767 — DROITS DES PERSONNES (RGPD art. 15, 17, 20 — recette 9.2, 9.3)
+   Export des données d'une personne ; effacement de la personne : fiche
+   supprimée, dossiers et demandes anonymisés, pièces retirées, factures
+   conservées (obligation comptable, 10 ans) avec mention ; corbeille purgée.
+   =================================================================== */
+(function(){
+  if(window.__mq767rgpd) return; window.__mq767rgpd=1;
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,5200,t||'info'); }catch(e){} }
+  function J(a,d){ try{ if(typeof logAudit==='function') logAudit(a,d); }catch(e){} }
+  var STROKE='viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  try{ window.MQ_ICONS=window.MQ_ICONS||{};
+    window.MQ_ICONS.rgpdExport='<svg class="mq-ic" '+STROKE+'><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+    window.MQ_ICONS.rgpdEfface='<svg class="mq-ic" '+STROKE+'><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6z"/><path d="M9 10l6 6M15 10l-6 6"/></svg>'; }catch(e){}
+
+  function nomClient(c){ var pn=((c.prenom?c.prenom+' ':'')+(c.nom||'')).trim(); return (c.denomination||c.denom||pn||'(sans nom)').trim(); }
+  /* ce qui identifie la personne dans le texte libre : noms complets, e-mails, téléphones */
+  function marqueurs(c){ var out=[];
+    function add(s){ s=(''+(s||'')).trim(); if(s.length>=5&&out.indexOf(s)<0) out.push(s); }
+    add(c.denomination); add(c.denom);
+    if(c.prenom&&c.nom){ add(c.prenom+' '+c.nom); add(c.nom+' '+c.prenom); }
+    add(c.email); add(c.email2); add(c.tel); add(c.telephone); add(c.mobile); add(c.nir); add(c.iban);
+    (c.associes||[]).forEach(function(a){ if(a&&a.prenom&&a.nom){ add(a.prenom+' '+a.nom); add(a.nom+' '+a.prenom); } add(a&&a.email); });
+    return out; }
+  function re(m){ return new RegExp(m.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+'),'i'); }
+  function contient(obj,M){ var s; try{ s=JSON.stringify(obj); }catch(e){ return false; } return M.some(function(m){ return re(m).test(s); }); }
+  function dossiersDe(id){ return (DB.dossiers||[]).filter(function(d){ return (d.clientIds||[]).indexOf(id)>=0; }); }
+  function demandesDe(c,M){ return (DB.demandes||[]).filter(function(d){ return d.clientId===c.id || (c.email&&(''+(d.clientEmail||'')).toLowerCase()===(''+c.email).toLowerCase()) || contient({n:d.clientNom,m:d.clientEmail,t:d.clientTel},M); }); }
+  function facturesDe(c,M){ var P=(DB.parametres&&DB.parametres.facturier)||[]; var nom=nomClient(c).toLowerCase();
+    return P.filter(function(f){ return f.clientId===c.id||f.clId===c.id||(''+(f.clNom||f.clientNom||'')).toLowerCase()===nom||(c.email&&(''+(f.clMail||'')).toLowerCase()===(''+c.email).toLowerCase()); }); }
+  function pieces(o){ var out=[]; (function walk(x,ch){ if(!x||typeof x!=='object') return;
+      if(Array.isArray(x)){ x.forEach(function(y){ walk(y,ch); }); return; }
+      if(typeof x.nom==='string'&&(x.dataUrl||x.data||x.url||x.fichierId)) out.push({nom:x.nom,ou:ch});
+      Object.keys(x).forEach(function(k){ if(k!=='dataUrl'&&k!=='data') walk(x[k],ch?ch+'.'+k:k); }); })(o,''); return out; }
+
+  /* ---------- droit d'accès et portabilité ---------- */
+  window.rgpdExporterPersonne=function(id){
+    var c=(typeof clientById==='function')?clientById(id):null; if(!c){ T('Client introuvable.','warn'); return null; }
+    var M=marqueurs(c), D=dossiersDe(id), Q=demandesDe(c,M), F=facturesDe(c,M);
+    function sans(o){ return JSON.parse(JSON.stringify(o,function(k,v){ return (k==='dataUrl'||k==='data')&&typeof v==='string'&&v.length>200?'[fichier joint — '+Math.round(v.length*3/4/1024)+' Ko]':v; })); }
+    var paquet={ app:'marq', kind:'rgpd-acces', genere:new Date().toISOString(),
+      responsable:(typeof rgpdCabinet==='function'?rgpdCabinet():''), personne:nomClient(c),
+      fiche:sans(c), dossiers:D.map(sans), demandes:Q.map(sans), factures:F.map(sans),
+      pieces:pieces({f:c,d:D,q:Q}).map(function(p){ return p.nom; }) };
+    var txt=JSON.stringify(paquet,null,2);
+    try{ var b=new Blob([txt],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+      a.download='donnees-'+nomClient(c).replace(/[^\w\-]+/g,'-').replace(/-+/g,'-').toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000); }catch(e){}
+    J('Export RGPD des données d’une personne','client '+id+' · '+D.length+' dossier(s), '+Q.length+' demande(s), '+F.length+' facture(s)');
+    T('Données de '+nomClient(c)+' exportées ('+D.length+' dossier(s), '+Q.length+' demande(s), '+F.length+' facture(s)).','ok');
+    return paquet; };
+
+  /* ---------- droit à l'effacement ---------- */
+  function effacer(c){
+    var id=c.id, M=marqueurs(c), nom=nomClient(c), jour=new Date().toISOString().slice(0,10);
+    var ANON='Personne effacée (RGPD, '+jour.split('-').reverse().join('/')+')';
+    function nettoie(x){ if(typeof x==='string'){ var s=x; M.forEach(function(m){ s=s.replace(new RegExp(re(m).source,'gi'),ANON); }); return s; }
+      if(Array.isArray(x)) return x.map(nettoie);
+      if(x&&typeof x==='object'){ Object.keys(x).forEach(function(k){ x[k]=nettoie(x[k]); }); return x; } return x; }
+    var D=dossiersDe(id), Q=demandesDe(c,M), F=facturesDe(c,M), nP=0;
+    D.forEach(function(d){ nP+=pieces(d.docs||{}).length; d.docs={}; d.clientIds=(d.clientIds||[]).filter(function(x){ return x!==id; });
+      nettoie(d); d.rgpdEfface={date:jour,motif:'Effacement de la personne (RGPD, art. 17)'};
+      d.historique=(d.historique||[]); d.historique.push({d:jour,t:'Données de la personne effacées (RGPD) — pièces retirées'}); });
+    Q.forEach(function(q){ nP+=pieces(q).length; });
+    DB.demandes=(DB.demandes||[]).filter(function(q){ return Q.indexOf(q)<0; });
+    F.forEach(function(f){ f.rgpdNote='Client effacé le '+jour.split('-').reverse().join('/')+' : facture conservée 10 ans (obligation comptable, C. com. art. L123-22).'; });
+    DB.clients=(DB.clients||[]).filter(function(x){ return x.id!==id; });
+    DB.corbeille=(DB.corbeille||[]).filter(function(x){ return !(x&&x.data&&(x.data.id===id||contient(x.data,M))); });
+    try{ if(state.cliSel===id) state.cliSel=(DB.clients[0]||{}).id||null; }catch(e){}
+    J('Effacement RGPD d’une personne','client '+id+' · '+D.length+' dossier(s) anonymisé(s), '+Q.length+' demande(s) supprimée(s), '+nP+' pièce(s) retirée(s), '+F.length+' facture(s) conservée(s)');
+    try{ save(); }catch(e){}
+    return {dossiers:D.length,demandes:Q.length,pieces:nP,factures:F.length}; }
+  window.rgpdEffacerPersonne=function(id){
+    var c=(typeof clientById==='function')?clientById(id):null; if(!c){ T('Client introuvable.','warn'); return false; }
+    var M=marqueurs(c), D=dossiersDe(id), Q=demandesDe(c,M), F=facturesDe(c,M);
+    uiConfirm('Effacer '+nomClient(c)+' (droit à l’effacement) ? La fiche est supprimée, '+D.length+' dossier(s) anonymisé(s), '+Q.length+' demande(s) supprimée(s) et les pièces retirées. '
+      +(F.length?F.length+' facture(s) conservée(s) 10 ans (obligation comptable). ':'')+'Pensez à exporter ses données avant si elle les demande. Irréversible.',function(){
+      var r=effacer(c); T('Personne effacée : '+r.dossiers+' dossier(s) anonymisé(s), '+r.pieces+' pièce(s) retirée(s)'+(r.factures?', '+r.factures+' facture(s) conservée(s)':'')+'.','ok');
+      try{ render(); }catch(e){} },{okLabel:'Effacer définitivement',danger:true,title:'Droit à l’effacement'});
+    return true; };
+
+  /* ---------- boutons sur la fiche client ---------- */
+  var _ib=window.mqIconBtn;
+  if(typeof _ib==='function'&&!_ib.__mq767){ window.mqIconBtn=function(name,onclick,opts){ var h=_ib.apply(this,arguments);
+      var m=/^cliDel\('([^']+)'\)$/.exec(onclick||''); if(name!=='trash'||!m) return h;
+      return _ib('rgpdExport','rgpdExporterPersonne(\''+m[1]+'\')',{label:'Exporter ses données (RGPD)'})
+        +_ib('rgpdEfface','rgpdEffacerPersonne(\''+m[1]+'\')',{danger:true,label:'Effacer la personne (RGPD)'})+h; };
+    window.mqIconBtn.__mq767=1; }
+})();
+
+/* ===================================================================
+   Mar'q v767 — DURÉE DE CONSERVATION APPLIQUÉE (recette 9.7)
+   Au démarrage, les pièces des dossiers clos ou archivés dont l'échéance
+   de conservation est passée (clôture + N mois, 6 par défaut) sont purgées ;
+   le suivi « reçu » reste, l'opération est journalisée. Sans date de
+   clôture connue, rien n'est purgé.
+   =================================================================== */
+(function(){
+  if(window.__mq767purge) return; window.__mq767purge=1;
+  function iso(v){ var s=(''+(v||'')).slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:''; }
+  function dateCloture(d){ var x=iso(d.clotureLe)||iso(d.dateCloture)||iso(d.archivedAt)||iso(d.closedAt); if(x) return x;
+    var h=(d.historique||[]).filter(function(e){ return /cl[ôo]tur|archiv/i.test(e&&(e.t||e.titre||e.action)||''); }).map(function(e){ return iso(e.d||e.date||e.ts); }).filter(Boolean).sort();
+    return h.length?h[h.length-1]:''; }
+  window.mqPurgeEcheance=function(){
+    if(typeof DB!=='object'||!DB) return 0;
+    var mois=(typeof rgpdMois==='function')?rgpdMois():6; if(!(mois>=0)) return 0;
+    var lim=new Date(); lim.setMonth(lim.getMonth()-mois); var limite=lim.toISOString().slice(0,10);
+    var n=0, refs=[];
+    (DB.dossiers||[]).forEach(function(d){ if(!(d.archived||/cl[ôo]tur/i.test(d.statut||''))) return;
+      var c=dateCloture(d); if(!c||c>limite) return; var k=0;
+      Object.keys(d.docs||{}).forEach(function(t){ (Array.isArray(d.docs[t])?d.docs[t]:[]).forEach(function(f){ if(f&&f.dataUrl){ f.dataUrl=''; f.purged=true; f.purgedTs=Date.now(); k++; } }); });
+      if(k){ n+=k; refs.push(d.ref||d.numeroDossier||d.id); } });
+    if(n){ try{ if(typeof logAudit==='function') logAudit('Purge automatique des pièces (durée de conservation)',n+' pièce(s) · '+refs.slice(0,10).join(', ')+(refs.length>10?' …':'')+' · échéance '+mois+' mois après clôture'); }catch(e){}
+      try{ save(); }catch(e){} }
+    return n; };
+  if(typeof window.mqApresDemarrage==='function') window.mqApresDemarrage(function(){ try{ window.mqPurgeEcheance(); }catch(e){} },600);
+})();
+
+/* ===================================================================
+   Mar'q v767 — FICHE CLIENT : donnée fausse signalée dès la saisie
+   (recette 4.11). La valeur est gardée (saisie en cours, reprise), le
+   champ est encadré et un message part à la sortie du champ ; les
+   documents restent bloqués en aval par les contrôles de conformité.
+   =================================================================== */
+(function(){
+  if(window.__mq767cli) return; window.__mq767cli=1;
+  var C=[[/^siren$/i,'validSiren','SIREN invalide (9 chiffres, clé de Luhn)'],[/^siret$/i,'validSiret','SIRET invalide (14 chiffres, clé de Luhn)'],
+    [/mail/i,'validEmail','Adresse électronique invalide'],[/^(tva|tvaintra|numtva|tvaIntra)$/i,'validTvaFr','N° de TVA intracommunautaire invalide (clé ou SIREN faux)'],
+    [/iban/i,'validIBAN','IBAN invalide (contrôle modulo 97)']];
+  try{ var st=document.createElement('style'); st.textContent='.cli-f input.mq-invalide{outline:2px solid #e05a4f!important;outline-offset:-1px}'; document.head.appendChild(st); }catch(e){}
+  var _cs=window.cliSet; if(typeof _cs!=='function'||_cs.__mq767) return;
+  window.cliSet=function(id,key,val){ var r=_cs.apply(this,arguments);
+    try{ var R=C.filter(function(x){ return x[0].test(key||''); })[0]; if(!R||typeof window[R[1]]!=='function') return r;
+      var v=(''+(val==null?'':val)).trim(), bad=!!v&&!window[R[1]](v), msg=R[2]+' : « '+v+' ».';
+      var el=document.activeElement, oi=el&&el.getAttribute&&(el.getAttribute('oninput')||'');
+      if(el&&el.tagName==='INPUT'&&/cliSet\(/.test(oi)&&oi.indexOf("'"+key+"'")>=0){
+        el.classList.toggle('mq-invalide',bad); el.title=bad?R[2]:'';
+        if(!el.__mq767){ el.__mq767=1; el.addEventListener('change',function(){ if(this.classList.contains('mq-invalide')&&typeof toast==='function') toast(this.title+'.',4600,'warn'); }); }
+      } else if(bad&&typeof toast==='function') toast(msg,4600,'warn');
+    }catch(e){}
+    return r; };
+  window.cliSet.__mq767=1;
+})();
+</script>
+
 <script id="mq-perf-765">
 /* ===================================================================
    Mar'q v765 — PERFORMANCE : cache de calcul le temps d'un affichage
