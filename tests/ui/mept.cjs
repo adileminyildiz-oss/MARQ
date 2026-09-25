@@ -52,7 +52,7 @@ let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko+
       nomsA,nomsB,cliA:RA.client.nom,
       stable:repCode(DB.dossiers[0])===RA.code};
   });
-  A(r.secs===9,'le répertoire a ses neuf sections',JSON.stringify(r.secs));
+  A(r.secs===10,'le répertoire a ses dix sections (v760 : + Coffre du client)',JSON.stringify(r.secs));
   A(/AEM-2026-000101/.test(r.codeA)&&/ALPHA/.test(r.codeA),'le code du répertoire vient du numéro du dossier et du nom de la société',r.codeA);
   A(r.cheminA==='Dossiers/2026/'+r.codeA,'le chemin range par année',r.cheminA);
   A(r.codeA!==r.codeB,'deux dossiers, deux répertoires distincts');

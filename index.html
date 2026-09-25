@@ -3735,7 +3735,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   try{ if(self.caches&&caches.keys) caches.keys().then(function(ks){ (ks||[]).forEach(function(k){ try{caches.delete(k);}catch(e){} }); }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=759;
+var LAST_VER=760;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -58169,6 +58169,285 @@ function testLienSignature() {
       try{ if(n>0){ var d=(DB.dossiers||[]).filter(function(x){ return !avant[x.id]; })[0]; if(d){ d.intake=d.intake||{}; d.intake.societe=d.intake.societe||{}; if(!d.intake.societe.effectif) d.intake.societe.effectif=String(n);
             var c=(DB.clients||[]).filter(function(x){ return (d.clientIds||[]).indexOf(x.id)>=0; })[0]; if(c&&!c.effectif) c.effectif=String(n); try{ save(); }catch(e){} } } }catch(e){}
       return res; }; window.formDoCreate.__f759=1; } }catch(e){}
+})();
+</script>
+<script id="mq-admin-760">
+/* ============================================================================
+   v760 — Documents de création : figés, utiles seulement, rangés par dossier
+
+   1. Ne créer que l'utile. À la création, seuls les documents obligatoires et
+      ceux que la saisie rend utiles sont générés (domiciliation selon le type
+      de siège, filiation si elle est renseignée, acceptation des fonctions si
+      le dirigeant n'est pas associé, bénéficiaires effectifs, lettre de
+      mission). Les autres restent disponibles : le cabinet les ajoute d'un
+      clic. Les dossiers existants gardent leur règle.
+
+   2. Figer. Chaque document reçoit une copie datée à la création, puis une
+      copie à chaque validation (approbation ou signature). Un document
+      validé est lu depuis sa copie : modifier la fiche client ne le change
+      plus. Toute retouche du document lui-même (éditeur, modèle, statuts
+      personnalisés) le remet « à vérifier ». Les versions sont conservées,
+      compressées, dans le dossier (donc dans la base chiffrée, les
+      sauvegardes et la synchronisation).
+
+   3. Ranger par dossier. Le répertoire du dossier liste les versions figées
+      (exportées dans le ZIP) et une section « Coffre du client » ; les
+      documents versés au coffre portent l'identifiant du dossier et du
+      client, plus seulement le nom de la société.
+   ============================================================================ */
+(function(){
+  if(window.__mqFig760) return; window.__mqFig760=1;
+  var MAXV=12;
+  function E(s){ return (typeof esc==='function')?esc(s):(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function B(){ try{ return (typeof DB!=='undefined'&&DB)?DB:{}; }catch(e){ return {}; } }
+  function doss(id){ return (B().dossiers||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function cli(d){ var id=d&&(d.clientIds||[])[0]; return (B().clients||[]).filter(function(x){ return x.id===id; })[0]||null; }
+  function auj(){ return (typeof today==='function')?today():new Date().toISOString().slice(0,10); }
+  function enr(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  var tRd=null; function redessiner(){ if(tRd) return; tRd=setTimeout(function(){ tRd=null; try{ if(typeof render==='function') render(); }catch(e){} },60); }
+  var tEnr=null; function enrPlusTard(){ if(tEnr) return; tEnr=setTimeout(function(){ tEnr=null; enr(); },0); }
+  function dit(m,t){ try{ if(typeof toast==='function') toast(m,null,t); }catch(e){} }
+  function lib(d,k){ try{ var L=(typeof ESP_DOCS!=='undefined'?ESP_DOCS:[]).concat((d&&d.modifDocs)||[]); var x=L.filter(function(z){ return z.k===k; })[0]; return x?x.l:k; }catch(e){ return k; } }
+  function optionnel(k){ try{ var x=(ESP_DOCS||[]).filter(function(z){ return z.k===k; })[0]; return !!(x&&x.optional); }catch(e){ return false; } }
+  function frDT(ts){ try{ var d=new Date(ts); return d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+  function cle(s){ try{ return (''+(s||'')).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }catch(e){ return ''; } }
+
+  /* ======================= 1. ne créer que l'utile ======================= */
+  var UTILES={
+    decladomicile:function(d){ return /domicile du dirigeant/i.test(siegeType(d)); },
+    contratdomicil:function(d){ return /^domiciliation$/i.test(siegeType(d)); },
+    attestdomicil:function(d){ return /^domiciliation$/i.test(siegeType(d)); },
+    filiation:function(d){ var c=cli(d), v=(c&&c.docVars)||{}; return !!(String(v.pereNom||'').trim()||String(v.mereNom||'').trim()); },
+    acceptation:function(d){ var it=d.intake||{}, dir=it.direction||{}; var n=cle((dir.prenom||'')+(dir.nom||'')); if(!n) return false;
+      return !(it.associes||[]).some(function(a){ return cle((a.prenom||'')+(a.nom||''))===n; }); },
+    rbe:function(){ return true; },
+    lettremission:function(){ return true; }
+  };
+  function siegeType(d){ try{ return String(((d.intake||{}).siege||{}).type||''); }catch(e){ return ''; } }
+  function estCreation(d){ try{ var t=(d&&d.formaliteType)||(typeof window.formaliteType==='function'?window.formaliteType(d):''); return !t||/^creation/.test(t); }catch(e){ return false; } }
+  window.docUtileCreation=function(d,k){ if(!optionnel(k)) return true; var f=UTILES[k]; try{ return !!(f&&f(d)); }catch(e){ return false; } };
+
+  try{ var _dp=window.docPertinent; if(typeof _dp==='function'&&!_dp.__u760){
+    window.docPertinent=function(d,k){
+      try{ if(d&&estCreation(d)){
+        if(window.__crea760) return window.docUtileCreation(d,k);      /* pendant la création : la saisie décide */
+        if(d.docsRegle==='utile') return !optionnel(k);                 /* ensuite : les optionnels sont ajoutés un à un (docsInclus) */
+      } }catch(e){}
+      return _dp.apply(this,arguments); };
+    window.docPertinent.__u760=1; } }catch(e){}
+
+  /* ======================= 2. figer ======================= */
+  function fnv(s){ var h=0x811c9dc5; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0; } return ('0000000'+h.toString(16)).slice(-8)+'.'+s.length; }
+  var MOIS='janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre';
+  var RXD1=/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g, RXD2=new RegExp('\\b\\d{1,2}(er)?\\s+('+MOIS+')\\s+\\d{4}\\b','gi');
+  function sansSig(h){ return String(h==null?'':h).replace(/<div class="sig-bloc[\s\S]*$/,''); }
+  function empN(h){ return fnv(sansSig(h).replace(RXD1,'#').replace(RXD2,'#')); }
+  function srcSig(d,k){ var s=''; try{ s+=((d.docCustom||{})[k]||'')+'|'; s+=(k==='statuts'?(d.statutsCustom||''):'')+'|'; s+=((d.docModel||{})[k]||''); }catch(e){} return fnv(s); }
+  function versions(d,k){ if(!d) return []; d.figes=d.figes||{}; return d.figes[k]||(d.figes[k]=[]); }
+  function enVigueur(d,k){ var L=(d&&d.figes&&d.figes[k])||[]; for(var i=L.length-1;i>=0;i--) if(L[i].valide) return L[i]; return null; }
+  function approuve(d,k){ return !!(d&&d.docFolder&&d.docFolder.approved&&d.docFolder.approved[k]===true); }
+  function signe(d,k){ return !!(d&&d.sign&&d.sign[k]&&d.sign[k].ok); }
+  function valide(d,k){ return approuve(d,k)||signe(d,k); }
+
+  /* texte des versions : en mémoire, compressé dans le dossier */
+  var CACHE={}, ENCOURS={};
+  function ck(d,k,V){ return d.id+'|'+k+'|'+V.v; }
+  function b64(u8){ var CH=0x8000,o=[]; for(var i=0;i<u8.length;i+=CH) o.push(String.fromCharCode.apply(null,u8.subarray(i,i+CH))); return btoa(o.join('')); }
+  function deb64(s){ var b=atob(s),u=new Uint8Array(b.length); for(var i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+  var GZ=(typeof CompressionStream==='function'&&typeof DecompressionStream==='function');
+  function gz(s){ return new Response(new Blob([s]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer().then(function(b){ return b64(new Uint8Array(b)); }); }
+  function ungz(s){ return new Response(new Blob([deb64(s)]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); }
+  function texte(d,k,V){ var c=CACHE[ck(d,k,V)]; if(c!=null) return c; if(V.h!=null){ CACHE[ck(d,k,V)]=V.h; return V.h; }
+    if(V.gz&&GZ&&!ENCOURS[ck(d,k,V)]){ var key=ck(d,k,V); ENCOURS[key]=1;
+      ungz(V.gz).then(function(t){ CACHE[key]=t; delete ENCOURS[key]; redessiner(); })
+        .catch(function(){ delete ENCOURS[key]; V.perdu=1; }); }
+    return null; }
+  /* compression différée : le texte clair est remplacé par sa forme compressée */
+  var tCmp=null;
+  function compresser(){ if(!GZ||tCmp) return; tCmp=setTimeout(function(){ tCmp=null; var P=[];
+      (B().dossiers||[]).forEach(function(d){ Object.keys(d.figes||{}).forEach(function(k){ (d.figes[k]||[]).forEach(function(V){
+        if(V.h!=null&&!V.gz){ var h=V.h; CACHE[ck(d,k,V)]=h; P.push(gz(h).then(function(z){ if(V.h===h){ V.gz=z; delete V.h; } }).catch(function(){})); } }); }); });
+      if(P.length) Promise.all(P).then(function(){ enr(); }); },30); }
+
+  function rendreVif(d,k){ window.__figLive=(window.__figLive||0)+1; try{ return (typeof _rdr==='function')?(_rdr(d,k)||''):''; }catch(e){ return ''; } finally{ window.__figLive--; } }
+
+  /* enregistre une copie ; si le texte est identique à la dernière, on la réutilise */
+  window.figFiger=function(d,k,motif,estValide){
+    if(!d||!k) return null; var h=sansSig(rendreVif(d,k)); if(!h) return null;
+    var L=versions(d,k), der=L[L.length-1], e=fnv(h), now=Date.now();
+    if(der&&der.emp===e){ if(estValide&&!der.valide){ der.valide=now; der.src=srcSig(d,k); } CACHE[ck(d,k,der)]=h; enrPlusTard(); return der; }
+    var V={v:der?der.v+1:1,ts:now,motif:motif||'',emp:e,empN:empN(h),src:srcSig(d,k),h:h,valide:estValide?now:0};
+    L.push(V); CACHE[ck(d,k,V)]=h;
+    /* on garde les MAXV dernières, sans jamais retirer celle en vigueur */
+    while(L.length>MAXV){ var vig=enVigueur(d,k); var i=0; while(i<L.length&&L[i]===vig) i++; if(i>=L.length-1) break; var old=L.splice(i,1)[0]; delete CACHE[ck(d,k,old)]; }
+    if(estValide){ try{ (d.historique=d.historique||[]).unshift({d:auj(),t:lib(d,k)+' figé — version '+V.v+' ('+(motif||'validation')+')'}); }catch(e){} }
+    enrPlusTard(); compresser(); return V; };
+
+  function remettreAVerifier(d,k,pourquoi){ try{ if(d.docFolder&&d.docFolder.approved) d.docFolder.approved[k]=false;
+      (d.historique=d.historique||[]).unshift({d:auj(),t:lib(d,k)+' : '+pourquoi+' — remis à vérifier'}); }catch(e){} enrPlusTard(); }
+
+  var _rdr=window.espDocRender;
+  if(typeof _rdr==='function'&&!_rdr.__fig760){
+    window.espDocRender=function(d,k){
+      if(!d||!k||window.__figLive) return _rdr.apply(this,arguments);
+      var ok=false; try{ ok=valide(d,k); }catch(e){}
+      if(!ok) return _rdr.apply(this,arguments);
+      var V=enVigueur(d,k);
+      if(!V){ /* validé par un autre chemin : on fige maintenant */
+        var vif=_rdr.apply(this,arguments); try{ window.figFiger(d,k,signe(d,k)&&!approuve(d,k)?'signature':'validation',true); }catch(e){} return vif; }
+      /* le document lui-même a été retouché après validation : il redevient modifiable */
+      if(approuve(d,k)&&!signe(d,k)&&V.src&&V.src!==srcSig(d,k)){ remettreAVerifier(d,k,'modifié après validation'); return _rdr.apply(this,arguments); }
+      var h=texte(d,k,V); if(h==null) return _rdr.apply(this,arguments);   /* copie en cours de lecture */
+      if(signe(d,k)){ var vif2=_rdr.apply(this,arguments); var m=/<div class="sig-bloc[\s\S]*$/.exec(String(vif2||'')); if(m) h+=m[0]; }
+      return h; };
+    window.espDocRender.__fig760=1;
+    /* le registre relit espDocRender au moment de l'appel */
+  }
+
+  window.figEtat=function(d,k){ var V=enVigueur(d,k), L=(d&&d.figes&&d.figes[k])||[];
+    return {versions:L.length,vigueur:V?V.v:0,le:V?V.valide:0,fige:!!(V&&valide(d,k)),change:V&&valide(d,k)?ficheChangee(d,k,V):false}; };
+  var MEMO={};
+  function ficheChangee(d,k,V){ var key=d.id+'|'+k+'|'+V.v, m=MEMO[key], now=Date.now(); if(m&&now-m.t<1500) return m.r;
+    var r=false; try{ r=empN(rendreVif(d,k))!==V.empN; }catch(e){} MEMO[key]={t:now,r:r}; return r; }
+
+  window.figMettreAJour=function(id,k){ var d=doss(id); if(!d) return;
+    if(signe(d,k)){ dit('Document signé : sa version figée est définitive. Générez un nouvel acte si la fiche a changé.','warn'); return; }
+    remettreAVerifier(d,k,'mise à jour depuis la fiche client'); enr(); dit(lib(d,k)+' : nouvelle version prête — vérifiez-la puis approuvez-la.');
+    try{ if(typeof render==='function') render(); }catch(e){} };
+
+  window.figVoir=function(id,k,v){ var d=doss(id); if(!d) return; var V=versions(d,k).filter(function(x){ return x.v===+v; })[0]; if(!V) return;
+    var h=texte(d,k,V);
+    var go=function(t){ if(typeof openModal!=='function') return;
+      openModal(E(lib(d,k))+' — version '+V.v,'<div class="fig-ban"><b>Copie figée du '+E(frDT(V.ts))+'</b> · '+E(V.motif||'')+(V.valide?' · validée le '+E(frDT(V.valide)):'')+'</div><div class="fv-view-scroll" style="background:#e7e0d1"><div class="doc-gen">'+t+'</div></div>',
+        '<button class="btn btn-ghost" onclick="figVersions(\''+E(id)+'\',\''+E(k)+'\')">‹ Versions</button><button class="btn btn-pri" onclick="espDocPrint()">Imprimer</button>'); };
+    if(h!=null) return go(h);
+    if(V.gz&&GZ) return ungz(V.gz).then(function(t){ CACHE[ck(d,k,V)]=t; go(t); }).catch(function(){ dit('Copie illisible sur ce poste.','warn'); });
+    dit('Copie indisponible sur ce poste.','warn'); };
+
+  window.figVersions=function(id,k){ var d=doss(id); if(!d||typeof openModal!=='function') return; var L=versions(d,k).slice().reverse(), V=enVigueur(d,k);
+    var rows=L.map(function(x){ var vig=V&&x.v===V.v&&valide(d,k);
+      return '<tr><td><b>v'+x.v+'</b></td><td>'+E(frDT(x.ts))+'</td><td>'+E(x.motif||'—')+'</td><td>'+(x.valide?'validée le '+E(frDT(x.valide)):'<span class="dim">copie</span>')+(vig?' <span class="fig-pill">en vigueur</span>':'')+'</td>'
+        +'<td class="r"><button class="btn btn-sm" onclick="figVoir(\''+E(id)+'\',\''+E(k)+'\','+x.v+')">Voir</button></td></tr>'; }).join('');
+    openModal('Versions — '+E(lib(d,k)),
+      '<p class="fig-lead">Chaque version est une copie datée du document, conservée dans le dossier. Un document validé est lu depuis sa version en vigueur : une modification de la fiche client ne le change plus.</p>'
+      +(rows?'<table class="fig-t"><thead><tr><th>Version</th><th>Enregistrée le</th><th>Motif</th><th>État</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="dim">Aucune version enregistrée.</p>'),
+      '<button class="btn btn-ghost" onclick="closeModal()">Fermer</button>'); };
+
+  /* validations explicites */
+  ['docApprove','docApproveAll'].forEach(function(fn){ try{ var _f=window[fn]; if(typeof _f!=='function'||_f.__fig760) return;
+    window[fn]=function(id,k){ var r=_f.apply(this,arguments); try{ var d=doss(id); if(d){ var ks=k?[k]:Object.keys((d.docFolder&&d.docFolder.approved)||{});
+        ks.forEach(function(x){ if(approuve(d,x)) window.figFiger(d,x,'validation',true); }); enr(); } }catch(e){} return r; };
+    window[fn].__fig760=1; }catch(e){} });
+
+  /* carte « Dossier de documents » : état figé, versions, mise à jour */
+  try{ var _dfc=window.docFolderCard; if(typeof _dfc==='function'&&!_dfc.__fig760){
+    window.docFolderCard=function(d){ var h=_dfc.apply(this,arguments); if(!h||!d) return h;
+      try{ var parts=String(h).split('<div class="dfd-row">');
+        for(var i=1;i<parts.length;i++){ var m=/espDocGen\('[^']*','([^']+)'\)/.exec(parts[i]); if(!m) continue; var k=m[1], st=window.figEtat(d,k); var add='';
+          if(st.fige) parts[i]=parts[i].replace('</span><span class="dfd-btns">','</span><span class="dfd-fig" title="Lu depuis sa copie figée">figé · v'+st.vigueur+'</span><span class="dfd-btns">');
+          if(st.change) parts[i]=parts[i].replace('<span class="dfd-btns">','<span class="dfd-chg" title="La fiche client a changé depuis la validation">fiche changée</span><span class="dfd-btns">'), add+='<button class="dfd-b dfd-b-maj" onclick="figMettreAJour(\''+d.id+'\',\''+k+'\')">Mettre à jour</button>';
+          if(st.versions) add+='<button class="dfd-b" onclick="figVersions(\''+d.id+'\',\''+k+'\')">Versions ('+st.versions+')</button>';
+          if(add){ var ib=parts[i].indexOf('<span class="dfd-btns">'), fin=ib<0?-1:parts[i].indexOf('</span></div>',ib); if(fin>=0) parts[i]=parts[i].slice(0,fin)+add+parts[i].slice(fin); } }
+        h=parts.join('<div class="dfd-row">');
+        h=h.replace('<div class="dfd-actions">','<div class="dfd-fig-note">Un document approuvé ou signé est <b>figé</b> : il est lu depuis sa copie datée, et une modification de la fiche client ne le change plus. Chaque version reste consultable.</div><div class="dfd-actions">');
+      }catch(e){} return h; };
+    window.docFolderCard.__fig760=1; } }catch(e){}
+
+  /* ouverture d'un document : on dit d'où vient le texte */
+  try{ var _dv=window.espDocVoir; if(typeof _dv==='function'&&!_dv.__fig760){
+    window.espDocVoir=function(id,k){ var r=_dv.apply(this,arguments);
+      try{ var d=doss(id), st=d&&window.figEtat(d,k); var b=document.getElementById('ov-b');
+        if(st&&st.fige&&b&&!b.querySelector('.fig-ban')){ var el=document.createElement('div'); el.className='fig-ban';
+          el.innerHTML='<b>Version figée v'+st.vigueur+'</b> · validée le '+E(frDT(st.le))+(st.change?' · <span class="fig-chg">la fiche client a changé depuis</span> <button class="btn btn-sm" onclick="closeModal();figMettreAJour(\''+E(id)+'\',\''+E(k)+'\')">Mettre à jour</button>':'')
+            +' <button class="btn btn-sm btn-ghost" onclick="figVersions(\''+E(id)+'\',\''+E(k)+'\')">Versions</button>';
+          b.insertBefore(el,b.firstChild); } }catch(e){} return r; };
+    window.espDocVoir.__fig760=1; } }catch(e){}
+
+  /* ============ création : règle « utile » + première copie de chaque document ============ */
+  try{ var _fdc=window.formDoCreate; if(typeof _fdc==='function'&&!_fdc.__fig760){
+    window.formDoCreate=function(){ var avant={}; (B().dossiers||[]).forEach(function(x){ avant[x.id]=x.docs; });
+      window.__crea760=1; var res; try{ res=_fdc.apply(this,arguments); } finally{ window.__crea760=0; }
+      try{ (B().dossiers||[]).forEach(function(d){ if(avant.hasOwnProperty(d.id)&&avant[d.id]===d.docs) return;   /* dossier non touché */
+          if(!estCreation(d)) return;
+          d.docsRegle='utile'; d.docsInclus=d.docsInclus||{};
+          var nOpt=0; Object.keys(d.docs||{}).forEach(function(k){ if(optionnel(k)&&d.docs[k]&&d.docs[k].genere){ d.docsInclus[k]=true; nOpt++; } });
+          var n=0; Object.keys(d.docs||{}).forEach(function(k){ if(d.docs[k]&&d.docs[k].genere&&window.figFiger(d,k,'création',false)) n++; });
+          (d.historique=d.historique||[]).unshift({d:auj(),t:n+' document'+(n>1?'s':'')+' enregistré'+(n>1?'s':'')+' (version 1) — seuls les documents utiles à cette création ont été générés'});
+        }); enr(); }catch(e){}
+      return res; };
+    window.formDoCreate.__fig760=1; } }catch(e){}
+
+  /* ======================= 3. ranger par dossier ======================= */
+  function coffreItems(){ try{ var o=JSON.parse(localStorage.getItem('last-svc')||'{}')||{}; return {o:o,items:(o.coffre&&o.coffre.items)||[]}; }catch(e){ return {o:{},items:[]}; } }
+  function coffreEcrire(o){ try{ localStorage.setItem('last-svc',JSON.stringify(o)); }catch(e){} }
+  function nomCli(c){ return c?String(c.denomination||c.denom||((c.prenom||'')+' '+(c.nom||''))).trim():''; }
+
+  /* rattachement silencieux des documents du coffre dont le client est sans ambiguïté */
+  window.figCoffreRattacher=function(){ var C=coffreItems(), par={}; (B().clients||[]).forEach(function(c){ var k=cle(nomCli(c)); if(k) (par[k]=par[k]||[]).push(c); });
+    var n=0; C.items.forEach(function(it){ if(!it||it.cliId) return; var L=par[cle(it.client)]||[]; if(L.length===1){ it.cliId=L[0].id; n++; } });
+    if(n) coffreEcrire(C.o); return n; };
+
+  try{ var _cv=window.coVerser; if(typeof _cv==='function'&&!_cv.__fig760){
+    window.coVerser=function(id,silent,cb){ var av={}; coffreItems().items.forEach(function(it){ if(it&&it.id) av[it.id]=1; });
+      var d=doss(id), c=d&&cli(d), noms={};
+      try{ (typeof espDocsRequis==='function'?espDocsRequis(d):[]).forEach(function(dc){ noms[cle(dc.l)]=dc.k; }); }catch(e){}
+      return _cv.call(this,id,silent,function(n){
+        try{ var C=coffreItems(), m=0; C.items.forEach(function(it){ if(!it||av[it.id]) return; it.dosId=id; if(c) it.cliId=c.id;
+            var base=cle(String(it.nom||'').replace(/(-signe)?\.html$/i,'')); if(noms[base]){ it.docKey=noms[base]; var V=enVigueur(d,noms[base]); if(V) it.docVersion=V.v; } m++; });
+          if(m) coffreEcrire(C.o); }catch(e){}
+        if(typeof cb==='function') cb(n); }); };
+    window.coVerser.__fig760=1; } }catch(e){}
+
+  try{ if(window.repSections&&!window.repSections.some(function(s){ return s.k==='coffre'; }))
+    window.repSections.push({k:'coffre',dir:'10-Coffre-du-client',lbl:'Coffre du client'}); }catch(e){}
+  function htmlDoc(t,c){ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>'+E(t)+'</title><style>body{margin:0;background:#fff;color:#111;font:13px/1.5 Georgia,serif}.doc-gen{max-width:820px;margin:24px auto;padding:28px 34px}</style></head><body><div class="doc-gen">'+c+'</div></body></html>'; }
+  function dataHtml(s){ try{ return 'data:text/html;base64,'+b64(new TextEncoder().encode(s)); }catch(e){ return ''; } }
+  function nomF(s){ return String(s||'document').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').slice(0,90); }
+  function octets(u){ var i=String(u||'').indexOf(','); if(i<0) return 0; var b=String(u).slice(i+1); return Math.max(0,Math.floor(b.length*3/4)-((b.match(/=+$/)||[''])[0].length)); }
+
+  try{ var _rc=window.repContenu; if(typeof _rc==='function'&&!_rc.__fig760){
+    window.repContenu=function(id){ var R=_rc.apply(this,arguments); if(!R) return R; var d=doss(id); if(!d) return R;
+      try{ var exp=!!window.__figExport;
+        R.sections.forEach(function(s){
+          if(s.k==='documents'){ Object.keys(d.figes||{}).forEach(function(k){ (d.figes[k]||[]).forEach(function(V){
+              var nom=nomF(lib(d,k)+' — version '+V.v+' du '+new Date(V.ts).toISOString().slice(0,10)+(V.valide?' (validée)':'')+'.html');
+              var x={nom:nom,cle:null,version:V.v,docKey:k,etat:'copie figée'+(V.valide?' · validée':''),octets:0};
+              if(exp){ var t=texte(d,k,V); if(t!=null){ x.data=dataHtml(htmlDoc(lib(d,k)+' v'+V.v,t)); x.octets=octets(x.data); } }
+              s.items.push(x); }); }); }
+          if(s.k==='coffre'){ var c=cli(d), files={}; try{ files=(typeof window.cofFilesGet==='function')?window.cofFilesGet():{}; }catch(e){}
+            coffreItems().items.filter(function(it){ return it&&(it.dosId===d.id||(!it.dosId&&c&&it.cliId===c.id)); }).forEach(function(it){
+              var x={nom:nomF(it.nom),etat:(it.dosId===d.id?'versé depuis ce dossier':'coffre du client')+(it.shared?' · partagé au portail':''),octets:+it.fsize||0};
+              if(exp&&it.fileId&&files[it.fileId]&&files[it.fileId].data){ x.data=files[it.fileId].data; x.octets=octets(x.data); }
+              s.items.push(x); }); }
+          var o=0; s.items.forEach(function(x){ o+=(+x.octets||0); }); s.octets=o; });
+        var nb=0,oc=0,fi=0; R.sections.forEach(function(s){ nb+=s.items.length; oc+=s.octets; s.items.forEach(function(x){ if(x.data) fi++; }); }); R.nb=nb; R.octets=oc; R.fichiers=fi;
+      }catch(e){} return R; };
+    window.repContenu.__fig760=1; } }catch(e){}
+  try{ var _rx=window.repExporter; if(typeof _rx==='function'&&!_rx.__fig760){
+    window.repExporter=function(id){ var d=doss(id), P=[];
+      /* les copies compressées sont décompressées avant l'export */
+      try{ Object.keys((d&&d.figes)||{}).forEach(function(k){ (d.figes[k]||[]).forEach(function(V){ if(CACHE[ck(d,k,V)]==null&&V.gz&&GZ) P.push(ungz(V.gz).then(function(t){ CACHE[ck(d,k,V)]=t; }).catch(function(){})); }); }); }catch(e){}
+      var self=this, args=arguments, run=function(){ window.__figExport=1; try{ return _rx.apply(self,args); } finally{ window.__figExport=0; } };
+      if(!P.length) return run(); Promise.all(P).then(run); return true; };
+    window.repExporter.__fig760=1; } }catch(e){}
+
+  /* au démarrage : copies en mémoire, compression de ce qui ne l'est pas, coffre rattaché */
+  function amorcer(){ try{ (B().dossiers||[]).forEach(function(d){ Object.keys(d.figes||{}).forEach(function(k){ var V=enVigueur(d,k); if(V) texte(d,k,V); }); }); }catch(e){}
+    compresser(); try{ window.figCoffreRattacher(); }catch(e){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(amorcer,400); }); else setTimeout(amorcer,400);
+
+  var CSS='html body .tr-doccard .dfd-row{flex-wrap:wrap;row-gap:6px}html body .tr-doccard .dfd-nm{flex:1 1 150px;min-width:0}html body .tr-doccard .dfd-st{min-width:0}'
+   +'.dfd-fig{display:inline-block;font-size:11px;font-weight:600;color:#0f5132;background:#d8f0e2;border-radius:10px;padding:1px 8px;white-space:nowrap}'
+   +'.dfd-chg{display:inline-block;font-size:11px;font-weight:600;color:#7a4f00;background:#fbefd2;border-radius:10px;padding:1px 8px;white-space:nowrap}'
+   +'.dfd-fig-note{font-size:12px;line-height:1.45;opacity:.85;margin:10px 0 2px}'
+   +'.fig-ban{font-size:12.5px;line-height:1.5;background:#eef4fb;color:#11223a;border:1px solid #cfdcec;border-radius:8px;padding:8px 12px;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}'
+   +'.fig-ban .fig-chg{color:#7a4f00;font-weight:600}.fig-lead{font-size:13px;line-height:1.5;margin:0 0 12px}'
+   +'.fig-t{width:100%;border-collapse:collapse;font-size:13px}.fig-t th,.fig-t td{padding:7px 8px;border-bottom:1px solid rgba(127,127,127,.25);text-align:left;vertical-align:middle}.fig-t td.r{text-align:right}'
+   +'.fig-pill{display:inline-block;font-size:11px;font-weight:600;color:#0f5132;background:#d8f0e2;border-radius:10px;padding:1px 8px}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .fig-ban,html body:not(#mq):not(#mq):not(#mq):not(#mq) .fig-ban b{color:#11223a!important;-webkit-text-fill-color:currentColor!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .dfd-fig,html body:not(#mq):not(#mq):not(#mq):not(#mq) .fig-pill{color:#0f5132!important;background:#d8f0e2!important;-webkit-text-fill-color:currentColor!important}'
+   +'html body:not(#mq):not(#mq):not(#mq):not(#mq) .dfd-chg{color:#7a4f00!important;background:#fbefd2!important;-webkit-text-fill-color:currentColor!important}';
+  try{ var st=document.createElement('style'); st.id='mq-fig-760-css'; st.textContent=CSS; document.head.appendChild(st); }catch(e){}
 })();
 </script>
 </body>
