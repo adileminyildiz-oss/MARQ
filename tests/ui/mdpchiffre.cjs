@@ -10,12 +10,21 @@
  * oublié via la clé de secours, réglages sans désactivation.
  */
 const crypto = require('crypto');
-const { chromium, URL_APP } = require('./_socle.cjs');
+const { chromium } = require('./_socle.cjs');
+/* Servi en http (comme en production) : sous file://, Chromium perd parfois tout le
+   stockage local au rechargement d'un contexte de test — artefact sans rapport avec Mar'q. */
+const http = require('http'), fs = require('fs'), path = require('path');
+const RACINE = path.resolve(__dirname, '..', '..');
+const serveur = http.createServer((req,res)=>{ let p=decodeURIComponent(req.url.split('?')[0]); if(p==='/') p='/index.html';
+  const f=path.join(RACINE,p); if(!f.startsWith(RACINE)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){ res.writeHead(404); return res.end(); }
+  res.writeHead(200,{'Content-Type':({'.html':'text/html; charset=utf-8','.js':'text/javascript','.json':'application/json'})[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'}); res.end(fs.readFileSync(f)); });
+let URL_APP='';
 let ok=0,ko=0; const A=(c,m,d)=>{ if(c){ok++;console.log('  ok  '+m);} else {ko++;console.log('  KO  '+m+(d?(' — '+d):''));} };
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const MDP='Recette-Marq-2026', NOUV='Nouveau-mdp-2026';
 
 (async()=>{
+  await new Promise(r=>serveur.listen(0,'127.0.0.1',r)); URL_APP='http://127.0.0.1:'+serveur.address().port+'/index.html';
   const b=await chromium.launch();
   const ctx=await b.newContext({viewport:{width:1360,height:900}});
   await ctx.addInitScript(h=>{ try{ if(!localStorage.getItem('mdp-init')){ localStorage.setItem('mdp-init','1');
@@ -61,7 +70,7 @@ const MDP='Recette-Marq-2026', NOUV='Nouveau-mdp-2026';
   /* 3. Le vrai mot de passe rouvre les données */
   await rouvrir(); await saisir(MDP);
   A(await nav() && await ev(()=>DB.clients.some(c=>c.denomination==='CLIENT TRES SECRET')),'le vrai mot de passe rouvre les données');
-  A(await ev(()=>localStorage.getItem('last-pwd'))===sha(MDP),'l’empreinte locale est rétablie après une ouverture réussie');
+  A(await ev(()=>!localStorage.getItem('last-pwd')&&!localStorage.getItem('last-pwd2')),'aucune empreinte du mot de passe n’est conservée : seule la clé chiffrée en tient lieu (v766)');
 
   /* 4. Réglages : changer le mot de passe, pas de désactivation */
   const carte=await ev(()=>window.mqSecCarte());
@@ -82,6 +91,6 @@ const MDP='Recette-Marq-2026', NOUV='Nouveau-mdp-2026';
   A(await nav(),'le nouveau mot de passe ouvre Mar’q');
 
   A(errs.length===0,'aucune erreur de page',errs.slice(0,3).join(' | '));
-  await b.close();
+  await b.close(); serveur.close();
   console.log('TOTAL '+ok+' ok / '+ko+' ko'); process.exit(ko?1:0);
-})().catch(e=>{ console.log('  KO  exception : '+(e&&e.stack||e)); console.log('TOTAL '+ok+' ok / '+(ko+1)+' ko'); process.exit(1); });
+})().catch(e=>{ console.log('  KO  exception : '+(e&&e.stack||e)); console.log('TOTAL '+ok+' ok / '+(ko+1)+' ko'); try{ serveur.close(); }catch(_){} process.exit(1); });

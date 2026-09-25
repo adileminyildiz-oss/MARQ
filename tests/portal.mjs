@@ -79,13 +79,21 @@ try {
     const d = await fetch(cfg.url + '/portal/docs', { headers: { 'Authorization': 'Bearer ' + tok } }); const dj = await d.json();
     const f = await fetch(cfg.url + '/portal/file/f1', { headers: { 'Authorization': 'Bearer ' + tok } });
     const up = await fetch(cfg.url + '/portal/upload', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }, body: JSON.stringify({ nom: 'Facture.pdf', type: 'application/pdf', data: 'data:application/pdf;base64,JVBERi0=' }) });
-    return { loginOk: r.status === 200, docs: (dj.docs || []).map(x => x.nom), message: dj.message || '', fileStatus: f.status, uploadOk: up.status === 200 };
+    /* v766 (recette 8.11) : un script déguisé en PDF est refusé ; une pièce se sert avec nosniff + sandbox */
+    const faux = await fetch(cfg.url + '/portal/upload', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }, body: JSON.stringify({ nom: 'facture.pdf', type: 'application/pdf', data: 'data:application/pdf;base64,' + btoa('<script>alert(1)</script>') }) });
+    const html = await fetch(cfg.url + '/portal/upload', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }, body: JSON.stringify({ nom: 'page.html', type: 'text/html', data: 'data:text/html;base64,' + btoa('<html><body>x</body></html>') }) });
+    return { loginOk: r.status === 200, docs: (dj.docs || []).map(x => x.nom), message: dj.message || '', fileStatus: f.status, uploadOk: up.status === 200,
+      fauxRefuse: faux.status === 415, htmlRefuse: html.status === 415, nosniff: f.headers.get('x-content-type-options') === 'nosniff', csp: /sandbox/.test(f.headers.get('content-security-policy') || '') };
   }, code);
   check('connexion client distante (200)', login.loginOk);
   check('documents servis par le serveur', login.docs.indexOf('Bilan 2024.pdf') >= 0);
   check('message du cabinet servi au client', login.message === CAB_MSG);
   check('consultation de fichier (200)', login.fileStatus === 200);
   check('dépôt client (upload 200)', login.uploadOk);
+  check('dépôt : un script déguisé en PDF est refusé (415)', login.fauxRefuse);
+  check('dépôt : une page HTML est refusée (415)', login.htmlRefuse);
+  check('pièce servie avec X-Content-Type-Options: nosniff', login.nosniff);
+  check('pièce servie en bac à sable (CSP sandbox)', login.csp);
 
   // Journal + boîte de réception cabinet.
   const admin = await page.evaluate(async () => {

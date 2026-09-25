@@ -457,7 +457,7 @@ module.exports = {
   init, ckey,
   getMeta, setMeta,
   getClient, docsClient, docAppartientAuClient, nettoyerSuivi,
-  lireFichier, enregistrerFichier,
+  lireFichier, enregistrerFichier, decoderContenu,
   syncCabinet,
   logEvent, getEvents,
   enregistrerUpload, getUploads, getUpload, supprimerUpload,

@@ -647,10 +647,34 @@ window.mqApresDemarrage=window.mqApresDemarrage||function(f,delai){ var t0=Date.
   function ouvrir(raw){
     if(!estEnv(raw)) return Promise.resolve(raw);          /* pas une enveloppe : rendu tel quel */
     if(!pret()) return Promise.resolve(null);
-    var p=raw.slice(MARQUE.length), i=p.indexOf('.');
-    if(i<0) return Promise.resolve(null);
-    return descelle(DEK, {iv:p.slice(0,i), ct:p.slice(i+1)}).catch(function(){ return null; });
+    var x=parts(raw); if(!x) return Promise.resolve(null);
+    return descelle(DEK, {iv:x.iv, ct:x.ct}).catch(function(){ return null; });
   }
+  /* MQS1.<iv>.<chiffré>[.<clé de données enveloppée, base64 JSON>] — le 3e segment
+     (v766) rend une sauvegarde restaurable sur un AUTRE appareil : il porte la clé
+     de données enveloppée par le mot de passe et par la clé de secours. */
+  function parts(raw){ var p=raw.slice(MARQUE.length).split('.'); if(p.length<2) return null;
+    var sec=null; if(p[2]){ try{ sec=JSON.parse(texte(deb64(p[2]))); }catch(e){ sec=null; } }
+    return {iv:p[0], ct:p[1], sec:sec}; }
+  function envPortable(clair){
+    var st=etat(); if(!st) return Promise.resolve(null);
+    return env(clair).then(function(e){ if(!e) return null;
+      var w={v:1, sel:st.sel, iter:st.iter||ITER, env:st.env, selR:st.selR, envR:st.envR};
+      return e+'.'+b64(utf8(JSON.stringify(w))); });
+  }
+  /* Ouvre une sauvegarde portable avec le mot de passe (ou la clé de secours) de
+     l'appareil qui l'a produite — sans toucher à la clé de CET appareil. */
+  function ouvrirPortable(raw, secret){
+    var x=estEnv(raw)?parts(raw):null; if(!x||!x.sec) return Promise.resolve(null); var w=x.sec;
+    function essai(phr, sel, env0){ if(!sel||!env0) return Promise.reject(); return kek(phr, sel, w.iter||ITER).then(function(k){ return descelle(k, env0); }); }
+    return essai(''+(secret||''), w.sel, w.env).catch(function(){ return essai(normSecours(secret), w.selR, w.envR); })
+      .then(function(dekRaw){ return importDek(dekRaw); })
+      .then(function(k){ return descelle(k, {iv:x.iv, ct:x.ct}); })
+      .catch(function(){ return null; });
+  }
+  function estPortable(raw){ var x=estEnv(raw)?parts(raw):null; return !!(x&&x.sec); }
+  /* Écritures chiffrées encore en vol (le verrouillage attend qu'elles aboutissent). */
+  function enAttente(){ return busy || pend!=null; }
 
   /* ---------- clé de secours : 24 caractères, alphabet sans ambiguïté ---------- */
   var ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   /* ni I ni O ni 0 ni 1 */
@@ -928,7 +952,7 @@ window.mqApresDemarrage=window.mqApresDemarrage||function(f,delai){ var t0=Date.
           if(!ok){ btn.disabled=false; btn.textContent=lib; inp.value=''; inp.focus();
             try{ if(!secours&&typeof _authFail==='function') _authFail(); }catch(e){}
             dire(secours?'Clé de secours refusée.':(LIE?'Mot de passe incorrect.':'Phrase secrète incorrecte.')); return; }
-          if(nv!=null){ try{ if(typeof _sha256==='function') _sha256(nv).then(function(h){ try{ localStorage.setItem('last-pwd',h); }catch(e){} }); }catch(e){} }
+          if(nv!=null){ try{ if(typeof mqPwdOublier==='function') mqPwdOublier(); }catch(e){} }
           try{ ov.remove(); }catch(e){}
           try{ if(typeof suite==='function') suite(); }catch(e){}
         });
@@ -952,6 +976,7 @@ window.mqApresDemarrage=window.mqApresDemarrage||function(f,delai){ var t0=Date.
     activer:activer, desactiver:desactiver,
     changerPhrase:changerPhrase, regenererSecours:regenererSecours,
     lier:lier, lie:lie, reinitialiser:reinitialiser,
+    envPortable:envPortable, ouvrirPortable:ouvrirPortable, estPortable:estPortable, enAttente:enAttente,
     iterations:function(){ return ITER; }
   };
 })();
@@ -3406,9 +3431,11 @@ function ensureData(){
 }
 /* boot */
 /* ===== Accès protégé — DOUBLE AUTHENTIFICATION (mot de passe + code TOTP) ===== */
-/* Empreinte SHA-256 du mot de passe d'accès (le clair n'est pas stocké).
-   Pour changer : remplacer par sha256(nouveau_mot_de_passe). */
-var LAST_PWD_HASH='2ea6c4b670e81fe8133e4c5cb6d1cad7f5241e029d50b26238244690531ce1ac';
+/* v766 : AUCUNE empreinte de mot de passe n'est publiée dans le code. Le mot de passe est
+   choisi au premier lancement ; il chiffre ensuite les données (v765) et se vérifie en
+   ouvrant leur clé. Tant que ce n'est pas fait, un vérificateur local SALÉ et LENT
+   (PBKDF2-SHA256, 210 000 itérations) le remplace. L'ancienne empreinte SHA-256 locale
+   (« last-pwd ») n'est lue que pour la migration, puis effacée. */
 /* 2FA désactivée : accès par mot de passe seul (le secret authentificateur avait été
    perdu). Laisser vide = pas de code à 6 chiffres. */
 var LAST_2FA_ENC='';
@@ -3423,7 +3450,23 @@ async function _totpValide(secretB32,code){code=(''+(code||'')).replace(/\s/g,''
 async function _authKey(pwd,salt){var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pwd),{name:'PBKDF2'},false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:150000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
 async function _authEnc(pwd,plain){var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));var key=await _authKey(pwd,salt);var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(plain)));var blob=new Uint8Array(28+ct.length);blob.set(salt,0);blob.set(iv,16);blob.set(ct,28);return btoa(String.fromCharCode.apply(null,blob));}
 async function _authDec(pwd,b64){try{var raw=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);});var salt=raw.slice(0,16),iv=raw.slice(16,28),ct=raw.slice(28);var key=await _authKey(pwd,salt);var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:iv},key,ct);return new TextDecoder().decode(pt);}catch(e){return null;}}
-function getPwdHash(){try{var o=localStorage.getItem('last-pwd');return (o&&o.length===64)?o:LAST_PWD_HASH;}catch(e){return LAST_PWD_HASH;}}
+function getPwdHash(){try{var o=localStorage.getItem('last-pwd');return (o&&o.length===64)?o:'';}catch(e){return '';}}
+function _mqV2(){ try{ var o=JSON.parse(localStorage.getItem('last-pwd2')||'null'); return (o&&o.v===2&&o.sel&&o.h)?o:null; }catch(e){ return null; } }
+async function _mqDerive(pw,selB64,iter){ var sel=Uint8Array.from(atob(selB64),function(c){return c.charCodeAt(0);});
+  var k=await crypto.subtle.importKey('raw',new TextEncoder().encode(''+pw),'PBKDF2',false,['deriveBits']);
+  var b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:sel,iterations:iter||210000,hash:'SHA-256'},k,256);
+  return Array.prototype.map.call(new Uint8Array(b),function(x){ return x.toString(16).padStart(2,'0'); }).join(''); }
+async function mqPwdPoser(pw){ var u=new Uint8Array(16); crypto.getRandomValues(u); var sel=btoa(String.fromCharCode.apply(null,u));
+  var h=await _mqDerive(pw,sel,210000); try{ localStorage.setItem('last-pwd2',JSON.stringify({v:2,sel:sel,iter:210000,h:h})); localStorage.removeItem('last-pwd'); }catch(e){} }
+async function mqPwdVerifier(pw){ var v=_mqV2(); if(v){ try{ return (await _mqDerive(pw,v.sel,v.iter))===v.h; }catch(e){ return false; } }
+  var l=getPwdHash(); if(l) return (await _sha256(''+(pw||'')))===l; return false; }
+function mqPwdExiste(){ return !!(_mqV2()||getPwdHash()); }
+function mqPwdOublier(){ try{ localStorage.removeItem('last-pwd'); localStorage.removeItem('last-pwd2'); }catch(e){} }
+/* Premier lancement : ni vérificateur, ni données chiffrées sous un mot de passe. */
+/* Données chiffrées présentes mais état de chiffrement (sel, clé enveloppée) disparu :
+   ni premier lancement (qui écraserait la base), ni accès — seule une réinitialisation explicite. */
+function mqOrphelin(){ try{ var S=window.mqSec; if(S&&S.actif()) return false; var v=localStorage.getItem('last-db-v1')||''; return v.slice(0,5)==='MQS1.'; }catch(e){ return false; } }
+function mqPremierLancement(){ try{ var S=window.mqSec; if(S&&S.actif()&&S.lie&&S.lie()) return false; }catch(e){} if(mqOrphelin()) return false; return !mqPwdExiste(); }
 function get2faEnc(){try{return (LAST_2FA_ENC&&LAST_2FA_ENC.length>20)?LAST_2FA_ENC:(localStorage.getItem('last-2fa')||'');}catch(e){return LAST_2FA_ENC||'';}}
 function has2fa(){return false;}   /* 2FA désactivée : accès par mot de passe seul */
 /* ---- Anti-force brute : verrouillage temporaire après échecs ---- */
@@ -3527,11 +3570,11 @@ async function lastGateTry(ev){if(ev&&ev.preventDefault)ev.preventDefault();
     var _ok=false;try{_ok=await _S.deverrouiller(_pw);}catch(e){_ok=false;}
     if(_b){_b.disabled=false;_b.textContent='Continuer';}
     if(!_ok){_authFail();inp.value='';inp.focus();_authErr('Mot de passe incorrect.'+(_authLockLeft()?(' Verrouillé '+_authLockLeft()+' s.'):''));return false;}
-    try{localStorage.setItem('last-pwd',await _sha256(_pw));}catch(e){}
+    mqPwdOublier();
     _authGranted();return false;
   }
-  var h=await _sha256(_pw);
-  if(h!==getPwdHash()){_authFail();inp.value='';inp.focus();_authErr('Mot de passe incorrect.'+(_authLockLeft()?(' Verrouillé '+_authLockLeft()+' s.'):''));return false;}
+  if(mqPremierLancement()){ lastGateRender('creer'); return false; }
+  if(!(await mqPwdVerifier(_pw))){_authFail();inp.value='';inp.focus();_authErr('Mot de passe incorrect.'+(_authLockLeft()?(' Verrouillé '+_authLockLeft()+' s.'):''));return false;}
   _authPwd=_pw;_authErr('');
   /* Premier accès depuis la v765 : le chiffrement est posé sous ce mot de passe dès que la
      base est chargée (voir mq-admin-765). Un chiffrement déjà activé avec une phrase distincte
@@ -3680,6 +3723,18 @@ window.lgForgot=async function(){
   try{ var r=await fetch(base,{cache:'no-store'}); var t=await r.text(); var j=null; try{j=JSON.parse(t);}catch(e){} lastGateRender('reset',{mail:mail, sent:!!(j&&j.sent)}); }
   catch(e){ lastGateRender('reset',{mail:mail, sent:false, err:true}); }
 };
+window.lgReinitAppareil=function(){
+  var c=document.getElementById('lg-orph-ok'); if(!c||!c.checked){ _authErr('Cochez la case pour confirmer l’effacement.'); return false; }
+  ['last-db-v1','last-db-v1-ts','last-coffre-files','last-pwd','last-pwd2','last-sess-ok'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  [['last-store','kv','db'],['marq-coffre','kv','files']].forEach(function(x){ try{ var rq=indexedDB.open(x[0]); rq.onsuccess=function(){ try{ var d=rq.result; if(d.objectStoreNames.contains(x[1])){ d.transaction(x[1],'readwrite').objectStore(x[1]).delete(x[2]); } }catch(e){} }; }catch(e){} });
+  lastGateRender('creer'); return false; };
+window.lgCreerMdp=async function(ev){ if(ev&&ev.preventDefault)ev.preventDefault();
+  var a=document.getElementById('lg-newpwd'), b=document.getElementById('lg-newpwd2'); var p1=(a&&a.value)||'', p2=(b&&b.value)||'';
+  if(p1.length<10){ _authErr('Le mot de passe doit contenir au moins 10 caractères.'); if(a) a.focus(); return false; }
+  if(p1!==p2){ _authErr('Les deux saisies diffèrent.'); if(b){ b.value=''; b.focus(); } return false; }
+  await mqPwdPoser(p1);
+  try{ var S=window.mqSec; if(S&&S.dispo()&&!S.actif()) window.__mqLierApres=p1; }catch(e){}
+  _authGranted(); return false; };
 window.lgResetVerify=async function(ev){ if(ev&&ev.preventDefault)ev.preventDefault();
   var codeEl=document.getElementById('lg-rcode'), p1=document.getElementById('lg-newpwd'), p2=document.getElementById('lg-newpwd2');
   var code=((codeEl&&codeEl.value)||'').replace(/\s/g,''); var np=(p1&&p1.value)||'', np2=(p2&&p2.value)||'';
@@ -3691,14 +3746,37 @@ window.lgResetVerify=async function(ev){ if(ev&&ev.preventDefault)ev.preventDefa
   if(hc!==rec.h){ _authErr('Code incorrect.'); return false; }
   if(np.length<10){ _authErr('Le nouveau mot de passe doit contenir au moins 10 caractères.'); return false; }
   if(np!==np2){ _authErr('Les deux mots de passe ne correspondent pas.'); return false; }
-  var nh=await _sha256(np);
-  try{ localStorage.setItem('last-pwd', nh); localStorage.removeItem('last-pwd-reset'); }catch(e){}
+  await mqPwdPoser(np);
+  try{ localStorage.removeItem('last-pwd-reset'); }catch(e){}
   lastGateRender('pwd');
   setTimeout(function(){ var e=document.getElementById('lg-err'); if(e){ e.style.color='#57d98a'; e.textContent='✅ Mot de passe modifié. Connectez-vous avec le nouveau mot de passe.'; } var p=document.getElementById('lg-pwd'); if(p)p.focus(); },40);
   return false;
 };
 function lastGateRender(stage,data){
   data=data||{};var b=document.getElementById('lg-body');if(!b)return;
+  if(stage==='pwd'&&mqPremierLancement()) stage='creer';
+  if(stage==='pwd'&&mqOrphelin()) stage='orphelin';
+  if(stage==='orphelin'){
+    b.innerHTML='<div class="lg-form">'
+      +'<div class="lg-reset-note">Les données de cet appareil sont chiffrées, mais leur clé est introuvable (stockage du navigateur partiellement effacé). Elles ne peuvent pas être ouvertes ici.</div>'
+      +'<p style="font-size:12.5px;line-height:1.5;margin:10px 0">Pour les retrouver : réinitialisez cet appareil, créez un mot de passe, puis restaurez votre dernière sauvegarde (Paramètres › Sauvegarde) avec le mot de passe qui l’a produite.</p>'
+      +'<label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px"><input type="checkbox" id="lg-orph-ok" style="width:auto;margin-top:2px"> Je comprends que les données chiffrées de cet appareil seront effacées.</label>'
+      +'<div id="lg-err" class="lg-err"></div>'
+      +'<button class="btn btn-pri" type="button" onclick="lgReinitAppareil()" style="width:100%;justify-content:center;margin-top:12px">Réinitialiser cet appareil</button>'
+      +'</div>';
+    return;
+  }
+  if(stage==='creer'){
+    b.innerHTML='<div class="lg-form"><form onsubmit="return lgCreerMdp(event)">'
+      +'<div class="lg-reset-note">Premier lancement sur cet appareil : choisissez le mot de passe de Mar’q. Il protège l’accès et chiffre les données de l’appareil.</div>'
+      +'<label>Mot de passe (10 caractères minimum)</label><input id="lg-newpwd" type="password" autocomplete="new-password" autofocus>'
+      +'<label style="margin-top:10px">Confirmation</label><input id="lg-newpwd2" type="password" autocomplete="new-password">'
+      +'<div id="lg-err" class="lg-err"></div>'
+      +'<button class="btn btn-pri" type="submit" style="width:100%;justify-content:center;margin-top:12px">Créer le mot de passe</button>'
+      +'</form></div>';
+    setTimeout(function(){ var i=document.getElementById('lg-newpwd'); if(i) i.focus(); },40);
+    return;
+  }
   if(stage==='pwd'){
     b.innerHTML='<div class="lg-form">'
       +'<form onsubmit="return lastGateTry(event)">'
@@ -3799,7 +3877,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){window.a
   }).catch(function(){}); }catch(e){}
 });}
 /* --- Anti-obsolescence : garde toujours la dernière version en ligne --- */
-var LAST_VER=765;
+var LAST_VER=766;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(window.__lastReloaded)return; window.__lastReloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message',function(e){ if((e&&e.data==='reload')&&!window.__lastReloaded){ window.__lastReloaded=true; try{location.reload(true);}catch(_){try{location.reload();}catch(__){}} } });
@@ -25969,11 +26047,11 @@ try{if(!document.getElementById('dem-bar-acts-css')){var st=document.createEleme
   window.svcPortUploadPick=function(){ var inp=document.getElementById('port-up-file'); if(inp)inp.click(); };
   window.svcPortUpload=function(inp){ var base=portApiBase(), tok=window.__portTok; var files=Array.prototype.slice.call((inp&&inp.files)||[]); if(inp)inp.value=''; if(!base||!tok||!files.length)return;
     var st=document.getElementById('port-up-status'); function setS(t){ if(st)st.textContent=t; }
-    var done=0, ok=0, fail=0; setS('Envoi en cours…');
-    function step(){ done++; if(done>=files.length){ setS((ok?('✓ '+ok+' document'+(ok>1?'s':'')+' envoyé'+(ok>1?'s':'')+' à votre cabinet.'):'')+(fail?(' '+fail+' échec'+(fail>1?'s':'')+' (fichier trop volumineux ?).'):'')); } }
+    var done=0, ok=0, fail=0, refus=[]; setS('Envoi en cours…');
+    function step(){ done++; if(done>=files.length){ setS((ok?('✓ '+ok+' document'+(ok>1?'s':'')+' envoyé'+(ok>1?'s':'')+' à votre cabinet.'):'')+(refus.length?(' Refusé'+(refus.length>1?'s':'')+' (type non admis — PDF, photo, Word ou Excel) : '+refus.join(', ')+'.'):'')+((fail-refus.length)>0?(' '+(fail-refus.length)+' échec'+((fail-refus.length)>1?'s':'')+' (fichier trop volumineux ?).'):'')); } }
     files.forEach(function(f){ if(f.size>9*1048576){ fail++; step(); return; }
       var rd=new FileReader(); rd.onload=function(){ fetch(base+'/portal/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({nom:f.name,type:f.type||'application/octet-stream',data:rd.result})})
-        .then(function(r){ return r.ok?r.json():Promise.reject(); }).then(function(){ ok++; step(); }).catch(function(){ fail++; step(); }); };
+        .then(function(r){ if(r.status===415) refus.push(f.name); return r.ok?r.json():Promise.reject(); }).then(function(){ ok++; step(); }).catch(function(){ fail++; step(); }); };
       rd.onerror=function(){ fail++; step(); }; rd.readAsDataURL(f); }); };
   function portailRenderDocs(ov, client){ var docs=clientSharedDocs(client).map(function(it){ return {rid:it.fileId, nom:it.nom, cat:it.cat, date:it.date}; }); try{ window.__portMsg=(typeof cofPortMsg==='function')?cofPortMsg(client):''; }catch(e){ window.__portMsg=''; } portDocsRender(ov, client, docs, false); }
   function portailRenderDocsRemote(ov, client, token){ var base=portApiBase();
@@ -48694,7 +48772,7 @@ function testLienSignature() {
       var nouv=n1.value;
       s.changerPhrase(o.value||'', nouv).then(function(bon){
         if(!bon){ ok.disabled=false; ok.textContent='Changer'; dire((LIE?'Mot de passe actuel':'Phrase actuelle')+' incorrect'+(LIE?'':'e')+'.'); o.value=''; o.focus(); return; }
-        if(LIE){ try{ _sha256(nouv).then(function(h){ try{ localStorage.setItem('last-pwd',h); }catch(e){} }); }catch(e){} }
+        if(LIE){ try{ mqPwdOublier(); }catch(e){} }
         tracer(LIE?'changement du mot de passe':'changement de phrase','');
         closeModal(); T(LIE?'Mot de passe changé':'Phrase secrète changée');
         try{ if(typeof render==='function') render(); }catch(e){}
@@ -48746,6 +48824,9 @@ function testLienSignature() {
       +(on?('Chiffré au repos'+(pret?'':' — verrouillé')):'Données en clair sur cet appareil')+'</span>';
     if(on&&st) h+='<span class="hint" style="margin:0">AES-256-GCM · PBKDF2-SHA256 '+(st.iter||0).toLocaleString('fr-FR')+' itérations'+(quand?(' · '+quand):'')+'</span>';
     h+='</div>';
+    try{ var dm=window.mqInactivite?Math.round(window.mqInactivite.delai()):15;
+      h+='<label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;margin:0 0 12px">Verrouiller Mar’q après '
+        +'<select onchange="mqInactivite.regler(this.value)" style="width:auto">'+[5,15,30,60,120].map(function(m){ return '<option value="'+m+'"'+(m===dm?' selected':'')+'>'+m+' min</option>'; }).join('')+'</select> d’inactivité (le mot de passe est alors redemandé)</label>'; }catch(e){}
 
     if(!dispo){
       h+='<p class="hint" style="margin:0">Ce navigateur ne fournit pas les primitives nécessaires (WebCrypto). Le chiffrement ne peut pas être activé ici.</p></div></div>';
@@ -48859,7 +48940,7 @@ function testLienSignature() {
   function charge(){
     var json; try{ json=JSON.stringify(paquet()); }catch(e){ return Promise.resolve(null); }
     var s=sec();
-    if(s&&s.actif()&&s.pret()) return s.env(json).then(function(e){ return e?{texte:e,chiffre:true}:null; });
+    if(s&&s.actif()&&s.pret()) return (s.envPortable||s.env)(json).then(function(e){ return e?{texte:e,chiffre:true}:null; });
     return Promise.resolve({texte:json,chiffre:false});
   }
   window.mqSauvCharge=charge;
@@ -49020,6 +49101,16 @@ function testLienSignature() {
     var ouvre=(s&&s.estEnv(texte))
       ? (s.pret() ? s.ouvrir(texte) : Promise.resolve(null))
       : Promise.resolve(texte);
+    /* v766 : sauvegarde d'un autre appareil (ou d'avant une réinstallation) : la clé de
+       CET appareil ne l'ouvre pas ; le mot de passe de l'appareil d'origine, si. */
+    ouvre=ouvre.then(function(clair){
+      if(clair!=null || !(s&&s.estPortable&&s.estPortable(texte)) || typeof window.mqDemanderSecret!=='function') return clair;
+      return new Promise(function(res){
+        (function tenter(msg){ window.mqDemanderSecret('Restaurer une sauvegarde chiffrée',
+          (msg?msg+' ':'')+'Saisissez le mot de passe de l’appareil qui a fait cette sauvegarde, ou sa clé de secours.',
+          function(v){ if(v==null){ res(null); return; } s.ouvrirPortable(texte,v).then(function(c){ if(c==null) tenter('Mot de passe ou clé refusés.'); else res(c); }); }); })('');
+      });
+    });
     ouvre.then(function(clair){
       if(clair==null){
         T('Sauvegarde chiffrée : déverrouillez les données avec la phrase secrète avant de la restaurer','warn');
@@ -49027,7 +49118,9 @@ function testLienSignature() {
       }
       var bk; try{ bk=JSON.parse(clair); }catch(e){ bk=null; }
       if(!bk||bk.app!=='marq'||bk.kind!=='backup'){ T('Fichier de sauvegarde invalide','warn'); return; }
-      try{ LS_KEYS.forEach(function(k){ if(bk.ls&&bk.ls[k]!=null){ try{ localStorage.setItem(k,bk.ls[k]); }catch(e){} } }); }catch(e){}
+      /* v766 : l'état du chiffrement (last-sec) est propre à CET appareil — le restaurer
+         rendrait ses données illisibles (clé d'un autre appareil). Il n'est jamais repris. */
+      try{ LS_KEYS.forEach(function(k){ if(k==='last-sec') return; if(bk.ls&&bk.ls[k]!=null){ try{ localStorage.setItem(k,bk.ls[k]); }catch(e){} } }); }catch(e){}
       try{ if(bk.db){ if(typeof window.__applyDB==='function') window.__applyDB(bk.db); else DB=bk.db; } }catch(e){}
       try{ if(typeof window.save==='function') window.save(); }catch(e){}
       try{ if(bk.coffreFiles && typeof window.cofFilesSet==='function') window.cofFilesSet(bk.coffreFiles); }catch(e){}
@@ -59130,7 +59223,7 @@ function testLienSignature() {
     S.activer(pw).then(function(secours){
       window.__mqLierApres=null; enCours=false;
       if(!secours) return;
-      S.lier(); tracer('PBKDF2-SHA256 '+S.iterations()+' itérations, AES-256-GCM');
+      S.lier(); try{ mqPwdOublier(); }catch(e){} tracer('PBKDF2-SHA256 '+S.iterations()+' itérations, AES-256-GCM');
       try{ if(typeof save==='function') save(); }catch(e){}
       setTimeout(function(){
         try{ if(typeof window.mqSecMontrerSecours==='function') window.mqSecMontrerSecours(secours,'Vos données sont désormais chiffrées — clé de secours');
@@ -59168,10 +59261,9 @@ function testLienSignature() {
       if(nv!==(b.value||'')){ dire('Les deux saisies diffèrent.'); b.value=''; b.focus(); return; }
       if(nv===o.value){ dire('Le nouveau mot de passe doit être différent de l’actuel.'); a.focus(); return; }
       ok.disabled=true;
-      _sha256(o.value||'').then(function(h){
-        if(h!==getPwdHash()){ ok.disabled=false; dire('Mot de passe actuel incorrect.'); o.value=''; o.focus(); return; }
-        return _sha256(nv).then(function(h2){
-          try{ localStorage.setItem('last-pwd',h2); }catch(e){}
+      mqPwdVerifier(o.value||'').then(function(bon){
+        if(!bon){ ok.disabled=false; dire('Mot de passe actuel incorrect.'); o.value=''; o.focus(); return; }
+        return mqPwdPoser(nv).then(function(){
           closeModal(); try{ toast('Mot de passe changé'); }catch(e){}
           if(S&&S.dispo()&&!S.actif()){ window.__mqLierApres=nv; tenter(); }
         });
@@ -59179,6 +59271,77 @@ function testLienSignature() {
     };
     setTimeout(function(){ try{ o.focus(); }catch(e){} },40);
   };
+})();
+</script>
+<script id="mq-admin-766">
+/* ===================================================================
+   Mar'q v766 — SÉCURITÉ (recette 2.9, 2.10, 8.8, 8.11)
+   1. Verrouillage après inactivité (15 min par défaut, réglable) : la
+      session est fermée et la clé de données oubliée — le mot de passe
+      est redemandé.
+   2. Sauvegarde exportée chiffrée quand les données le sont, et
+      restaurable sur un autre appareil avec le mot de passe (ou la clé
+      de secours) de l'appareil d'origine.
+   3. Saisie masquée d'un secret (mot de passe, clé de secours).
+   =================================================================== */
+(function(){
+  if(window.__mq766) return; window.__mq766=1;
+  function T(m,t){ try{ if(typeof toast==='function') toast(m,4600,t||'info'); }catch(e){} }
+
+  /* ---------- saisie d'un secret, masquée ---------- */
+  window.mqDemanderSecret=function(titre,msg,cb){
+    if(typeof openModal!=='function'){ cb(null); return; }
+    var fini=false; function rendre(v){ if(fini) return; fini=true; try{ closeModal(); }catch(e){} cb(v); }
+    openModal(titre,'<div class="uicfm-msg"><p style="margin:0 0 12px">'+(typeof esc==='function'?esc(msg):msg)+'</p>'
+      +'<input id="mqds-in" type="password" class="uiprm-in" autocomplete="off" spellcheck="false"></div>',
+      '<button class="btn btn-ghost" id="mqds-no">Annuler</button><button class="btn btn-pri" id="mqds-ok">Valider</button>');
+    var i=document.getElementById('mqds-in');
+    document.getElementById('mqds-ok').onclick=function(){ rendre(i.value||''); };
+    document.getElementById('mqds-no').onclick=function(){ rendre(null); };
+    i.onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); rendre(i.value||''); } };
+    setTimeout(function(){ try{ i.focus(); }catch(e){} },40);
+  };
+
+  /* ---------- export : chiffré dès que les données le sont ---------- */
+  var _me=window.marqExport;
+  if(typeof _me==='function'&&!_me.__mq766){ window.marqExport=function(){
+      var S=window.mqSec;
+      if(S&&S.actif()&&S.pret()&&typeof window.mqSauvTelecharger==='function') return window.mqSauvTelecharger();
+      return _me.apply(this,arguments); }; window.marqExport.__mq766=1; }
+  /* ---------- import : une sauvegarde chiffrée passe par la restauration chiffrée ---------- */
+  var _mi=window.marqImport;
+  if(typeof _mi==='function'&&!_mi.__mq766){ window.marqImport=function(inp){
+      var f=inp&&inp.files&&inp.files[0]; if(!f) return; var self=this;
+      var rd=new FileReader(); rd.onload=function(){ var t=''+(rd.result||'');
+        if(t.slice(0,5)==='MQS1.'&&typeof window.mqSauvAppliquer==='function'){ try{ if(inp) inp.value=''; }catch(e){} window.mqSauvAppliquer(t); return; }
+        _mi.call(self,{files:[f],set value(v){ try{ if(inp) inp.value=v; }catch(e){} }}); };
+      rd.readAsText(f); }; window.marqImport.__mq766=1; }
+
+  /* ---------- verrouillage après inactivité ---------- */
+  var dernier=Date.now();
+  ['pointerdown','keydown','wheel','touchstart','mousemove','scroll','input'].forEach(function(ev){
+    document.addEventListener(ev,function(){ dernier=Date.now(); },{capture:true,passive:true}); });
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) verifier(); });
+  function reglages(){ try{ if(typeof DB!=='undefined'&&DB&&DB.parametres){ DB.parametres.securite=DB.parametres.securite||{}; return DB.parametres.securite; } }catch(e){} return null; }
+  function delaiMin(){ var r=reglages(); var v=r?+r.verrouMin:0; if(!(v>0)){ try{ v=+localStorage.getItem('marq-verrou-min')||0; }catch(e){} } return v>0?v:15; }
+  function ouverte(){ try{ return sessionStorage.getItem('last-sess-ok')==='1' && !document.getElementById('last-gate') && !document.getElementById('mqsec-lock'); }catch(e){ return false; } }
+  function verrouiller(motif){
+    try{ sessionStorage.removeItem('last-sess-ok'); }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ localStorage.setItem('marq-verrou-motif', motif||'inactivite'); }catch(e){}
+    var t0=Date.now();
+    (function attendre(){ var S=window.mqSec; if(S&&S.enAttente&&S.enAttente()&&Date.now()-t0<6000){ setTimeout(attendre,120); return; } try{ location.reload(); }catch(e){} })();
+  }
+  function verifier(){ if(!ouverte()) return; if(Date.now()-dernier>=delaiMin()*60000) verrouiller('inactivite'); }
+  setInterval(verifier,5000);
+  window.mqVerrouiller=verrouiller;
+  window.mqInactivite={ delai:delaiMin, regler:function(min){ min=Math.max(0.05,Math.min(240,+min||15)); var r=reglages(); if(r) r.verrouMin=min;
+      try{ localStorage.setItem('marq-verrou-min',String(min)); }catch(e){} try{ if(typeof save==='function') save(); }catch(e){} T('Verrouillage après '+(min>=1?Math.round(min)+' min':Math.round(min*60)+' s')+' d’inactivité.'); },
+    toucher:function(){ dernier=Date.now(); } };
+  /* message sur l'écran d'accès après un verrouillage automatique */
+  try{ if(localStorage.getItem('marq-verrou-motif')==='inactivite'){ localStorage.removeItem('marq-verrou-motif');
+    var n=0, g=setInterval(function(){ var e=document.getElementById('lg-err')||document.getElementById('ms-err'); if(e||++n>40){ clearInterval(g);
+      if(e){ e.style.display='block'; e.style.color='#8ea6d6'; var dm=delaiMin(); e.textContent='Mar’q s’est verrouillé après '+(dm>=1?Math.round(dm)+' min':Math.round(dm*60)+' s')+' d’inactivité.'; } } },150); } }catch(e){}
 })();
 </script>
 <script id="mq-perf-765">

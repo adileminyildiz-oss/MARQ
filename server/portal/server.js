@@ -161,13 +161,8 @@ function portalFile(req, res, id) {
   const type = meta.type || 'application/octet-stream';
   const nom = (meta.nom || 'document').replace(/[\r\n"]/g, '');
   try { store.logEvent(k, 'file', { docId: id, docNom: meta.nom || '', ip: ipClient(req) }); } catch (e) {}
-  res.writeHead(200, {
-    'Content-Type': type,
-    'Content-Length': buf.length,
-    // inline : consultable dans le navigateur ; le front peut forcer le téléchargement.
-    'Content-Disposition': 'inline; filename="' + encodeURIComponent(nom) + '"',
-    'Cache-Control': 'private, no-store',
-  });
+  // inline pour les PDF et photos (consultables), téléchargement pour le reste ; jamais exécutable.
+  res.writeHead(200, entetesPiece(type, nom, buf.length));
   res.end(buf);
 }
 
@@ -250,6 +245,37 @@ async function adminBackupDelete(req, res) {
   return envoyerJSON(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'Sauvegarde introuvable.' });
 }
 
+/* Types admis pour un dépôt client, reconnus sur les PREMIERS OCTETS (le type déclaré
+   par le navigateur ne prouve rien) : une page HTML ou un exécutable renommé en .pdf
+   est refusé. Le type enregistré est celui reconnu, jamais celui déclaré. */
+const EXT_BUREAUTIQUE = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet' };
+function typeReconnu(buf, nom) {
+  if (!buf || buf.length < 4) return null;
+  const h = buf.slice(0, 16), a = h.toString('latin1');
+  if (a.startsWith('%PDF-')) return 'application/pdf';
+  if (h[0] === 0xFF && h[1] === 0xD8 && h[2] === 0xFF) return 'image/jpeg';
+  if (h[0] === 0x89 && a.slice(1, 4) === 'PNG') return 'image/png';
+  if (a.startsWith('RIFF') && a.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (a.slice(4, 8) === 'ftyp' && /^(heic|heix|hevc|hevx|mif1|msf1)$/.test(a.slice(8, 12))) return 'image/heic';
+  if (h[0] === 0x50 && h[1] === 0x4B && h[2] === 0x03 && h[3] === 0x04) {
+    const ext = String(nom || '').toLowerCase().split('.').pop();
+    return EXT_BUREAUTIQUE[ext] || null;
+  }
+  return null;
+}
+const AFFICHABLE = /^(application\/pdf|image\/(jpeg|png|webp|heic))$/;
+/* En-têtes d'une pièce rendue : le navigateur ne devine jamais le type, et rien
+   de ce qui est servi ne peut exécuter de script (sandbox). */
+function entetesPiece(type, nom, taille) {
+  const t = type || 'application/octet-stream';
+  return { 'Content-Type': t, 'Content-Length': taille,
+    'Content-Disposition': (AFFICHABLE.test(t) ? 'inline' : 'attachment') + '; filename="' + encodeURIComponent(nom) + '"',
+    'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'",
+    'Cache-Control': 'private, no-store' };
+}
+
 // POST /portal/upload  { nom, type, data }  (auth Bearer client) -> dépôt d'une pièce
 async function portalUpload(req, res) {
   const k = authClient(req, res);
@@ -258,8 +284,11 @@ async function portalUpload(req, res) {
   try { corps = JSON.parse((await lireCorps(req, config.MAX_UPLOAD_BODY)).toString('utf8') || '{}'); }
   catch (e) { return envoyerJSON(res, 400, { error: 'Fichier trop volumineux ou JSON invalide.' }); }
   if (!corps.data) return envoyerJSON(res, 400, { error: 'Aucun fichier fourni.' });
+  let octets; try { octets = store.decoderContenu(corps.data); } catch (e) { octets = null; }
+  const type = typeReconnu(octets, corps.nom);
+  if (!type) return envoyerJSON(res, 415, { error: 'Type de fichier non admis : PDF, photo (JPEG, PNG, HEIC, WebP), Word (.docx) ou Excel (.xlsx) uniquement.' });
   let entree;
-  try { entree = store.enregistrerUpload(k, { nom: corps.nom, type: corps.type }, corps.data); }
+  try { entree = store.enregistrerUpload(k, { nom: corps.nom, type: type }, octets); }
   catch (e) { return envoyerJSON(res, 400, { error: 'Fichier invalide.' }); }
   try { store.logEvent(k, 'upload', { docId: entree.id, docNom: entree.nom, ip: ipClient(req) }); } catch (e) {}
   return envoyerJSON(res, 200, { ok: true, id: entree.id, nom: entree.nom, size: entree.size });
@@ -330,12 +359,7 @@ function adminUploadFile(req, res, id) {
   const buf = store.lireFichier(id);
   if (!buf) return envoyerJSON(res, 404, { error: 'Fichier introuvable.' });
   const nom = (meta.nom || 'document').replace(/[\r\n"]/g, '');
-  res.writeHead(200, {
-    'Content-Type': meta.type || 'application/octet-stream',
-    'Content-Length': buf.length,
-    'Content-Disposition': 'inline; filename="' + encodeURIComponent(nom) + '"',
-    'Cache-Control': 'private, no-store',
-  });
+  res.writeHead(200, entetesPiece(meta.type, nom, buf.length));
   res.end(buf);
 }
 
